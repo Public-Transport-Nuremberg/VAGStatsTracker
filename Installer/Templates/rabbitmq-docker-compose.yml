@@ -2,7 +2,7 @@ version: "3.2"
 services:
   rabbitmq:
     image: rabbitmq-custom
-    container_name: 'rabbitmq'
+    container_name: "rabbitmq"
     environment:
          - "RABBITMQ_DEFAULT_PASS={{RABBITMQ_ADMIN_PASSWORD}}"
          - "RABBITMQ_DEFAULT_USER={{RABBITMQ_ADMIN_USERNAME}}"

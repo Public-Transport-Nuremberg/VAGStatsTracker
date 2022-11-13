@@ -1,0 +1,76 @@
+{
+    "services": [
+        {
+            "name": "RabbitMQ",
+            "root_path": "/RabbitMQ",
+            "env": {
+                "RABBITMQ_ADMIN_USERNAME": "example",
+                "RABBITMQ_ADMIN_PASSWORD": "example",
+                "RABBITMQ_PORTS_AMQP": "5672",
+                "RABBITMQ_PORTS_WEBMANAGMENT": "15672"
+            },
+            "install_instructions": [
+                {
+                    "type": "fs",
+                    "path": "/",
+                    "command":"rabbitmq/log"
+                },
+                {
+                    "type": "fs",
+                    "path": "/",
+                    "command":"rabbitmq/data"
+                },
+                {
+                    "type": "shell",
+                    "path": "/",
+                    "command":"chmod -R 777 ./rabbitmq/log/"
+                },
+                {
+                    "type": "shell",
+                    "path": "/",
+                    "command":"docker build -t rabbitmq-custom ."
+                },
+                {
+                    "type": "template",
+                    "path": "/",
+                    "command":"docker-compose.yml"
+                },
+                {
+                    "type": "shell",
+                    "path": "/",
+                    "command":"docker-compose up -d"
+                }
+            ]
+        },
+        {
+            "name": "Redis",
+            "root_path": "/Redis",
+            "env": {
+                "REDIS_ADMIN_PASSWORD": "example",
+                "REDIS_PORTS_PROT": "6379"
+            },
+            "install_instructions": [
+                {
+                    "type": "fs",
+                    "path": "/",
+                    "command":"redis/data"
+                },
+                {
+                    "type": "shell",
+                    "path": "/",
+                    "command":"chmod -R 777 ./redis/data/"
+                },
+                {
+                    "type": "template",
+                    "path": "/",
+                    "command":"docker-compose.yml"
+                },
+                {
+                    "type": "shell",
+                    "path": "/",
+                    "command":"docker-compose up -d"
+                }
+            ]
+        }
+    ]
+}
