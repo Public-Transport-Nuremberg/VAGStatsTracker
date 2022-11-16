@@ -110,7 +110,7 @@ function executeCommand(command, cwd, message, live = false) {
                 }
             }
         } else if (Run_type == 2) {
-            if(service.update_instructions || service.update_instructions.length <= 0) {
+            if(!service.update_instructions || service.update_instructions.length <= 0) {
                 console.log(`\nThis is where i would put my ${name} update instructions, if i had any!`)
                 continue;
             }
