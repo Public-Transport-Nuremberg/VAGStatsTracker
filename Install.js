@@ -5,7 +5,15 @@ const fs = require("node:fs");
 const readline = require('node:readline');
 const { exit } = require('node:process');
 
-const global_config = require('./global.json');
+let global_config;
+
+if (!fs.existsSync(path.join(__dirname, "global.json"))) {
+    fs.rename(path.join(__dirname, "global.json.example"), path.join(__dirname, "global.json"), (err) => {
+        if (err) throw err;
+    });
+}
+
+global_config = require('./global.json');
 
 const debug = false;
 
