@@ -1,0 +1,29 @@
+{
+  "name": "aufzugstracker",
+  "version": "0.0.1",
+  "description": "Collects all elevator malfunctions",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Public-Transport-Nuremberg/VAGStatsTracker.git"
+  },
+  "author": "BolverBlitz",
+  "license": "AGPL-3.0",
+  "bugs": {
+    "url": "https://github.com/Public-Transport-Nuremberg/VAGStatsTracker/issues"
+  },
+  "_moduleAliases": {
+    "@lib": "lib/",
+    "@src": "src/"
+  },
+  "homepage": "https://github.com/Public-Transport-Nuremberg/VAGStatsTracker#readme",
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "event-watchdog": "^0.0.2",
+    "module-alias": "^2.2.2",
+    "oepnv-nuremberg": "^0.2.6"
+  }
+}

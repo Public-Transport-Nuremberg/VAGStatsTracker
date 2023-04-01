@@ -3,7 +3,6 @@ const exec = require('node:child_process').exec;
 
 const fs = require("node:fs");
 const readline = require('node:readline');
-const { exit } = require('node:process');
 
 let global_config;
 
@@ -82,7 +81,6 @@ function executeCommand(command, cwd, message, live = false) {
 }
 
 // Installer
-//await executeCommand(YARN_Install, PlugsServerPath, 'Installed PlugsServer dependencies');
 (async () => {
     const Run_type = await askQuestion('What do you want to do?\n1: Install\n2: Update\n> ');
 
