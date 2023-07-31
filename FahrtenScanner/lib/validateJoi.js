@@ -1,6 +1,6 @@
 const Joi = require('joi');
 
-// create a function that validates a value using a comma seperated list of validation rules with joi
+// create a function that validates a value using a pipe seperated list of validation rules with joi
 // like 'required,max:255,min:3' or 'required,regex:^[a-zA-Z0-9]{3,30}$'
 const validateWithJoi = (newValue, valueObject) => {
     const {key, type, lable, validation} = valueObject;
@@ -9,7 +9,7 @@ const validateWithJoi = (newValue, valueObject) => {
 
     const schema = Joi.object({
         [key]: createValidationRule(validation, type)
-    })
+    });
 
     // validate the value
     const {error} = schema.validate({[key]: newValue});
@@ -20,8 +20,8 @@ const validateWithJoi = (newValue, valueObject) => {
 const createValidationRule = (validation, type) => {
     let settingsValidation = Joi[type]();
 
-    // split the validation rules by comma
-    const validationRules = validation.split(',');
+    // split the validation rules by pipe
+    const validationRules = validation.split('|');
 
     // loop through the rules and add them to the validation
     validationRules.forEach(rule => {
@@ -40,6 +40,8 @@ const createValidationRule = (validation, type) => {
         if (ruleValue === 'false') parsedRuleValue = false;
         if (ruleValue.match(/^\/.+\/$/)) parsedRuleValue = new RegExp(ruleValue.replace(/^\/|\/$/g, ''));
 
+        console.log(parsedRuleValue)
+
         settingsValidation = settingsValidation[ruleName](parsedRuleValue);
     })
 
@@ -52,9 +54,11 @@ module.exports = {
 
 //Test
 
-const output = validateWithJoi('test', {
+const output = validateWithJoi('ter', {
     key: 'test',
     type: 'string',
     lable: 'test',
-    validation: 'required,min:1,max:32'
+    validation: 'required|min:2|max:32|regex:/h(e|a)llo/gi'
 })
+
+console.log(output)
