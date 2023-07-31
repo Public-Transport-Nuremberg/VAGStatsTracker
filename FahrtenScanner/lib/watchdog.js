@@ -2,7 +2,7 @@ const Watchdog = require('event-watchdog');
 
 const watchdog = new Watchdog(parseInt(process.env.watchdog_timeout, 10), 1, (function (){if( process.env.DEBUG === 'true' || process.env.DEBUG === true) {return true;} else {return false;}})());
 
-process.env.products.split(',').forEach(async (product) => {
+process.env.PRODUCTS.split(',').forEach(async (product) => {
     watchdog.addMonitor(product.toLocaleLowerCase());
 });
 

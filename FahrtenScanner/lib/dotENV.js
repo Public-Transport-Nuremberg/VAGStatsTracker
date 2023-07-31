@@ -2,23 +2,23 @@ const validate = require('@lib/validateJoi');
 
 // Check all .env values if they are valid
 
-const checkEnv = () => {
-    const env = process.env;
+const checkEnv = (envSchema) => {
     let failed = false;
 
-    const envKeys = Object.keys(env);
+    const envKeys = Object.keys(envSchema);
 
     envKeys.forEach(key => {
-        const value = env[key];
+        const value = process.env[key];
 
         const validation = validate.validateWithJoi(value, {
             key,
-            type: 'string',
+            type: envSchema[key].type,
             lable: key,
-            validation: process.app.envSchema[key]
+            validation: envSchema[key].validation
         });
 
         if (validation) {
+            console.log(value)
             console.log(`Invalid value for ${key}: ${value}`);
             console.log(validation.details.message);
             failed = true;

@@ -49,3 +49,12 @@ const createValidationRule = (validation, type) => {
 module.exports = {
     validateWithJoi
 }
+
+//Test
+
+const output = validateWithJoi('test', {
+    key: 'test',
+    type: 'string',
+    lable: 'test',
+    validation: 'required,min:1,max:32'
+})
