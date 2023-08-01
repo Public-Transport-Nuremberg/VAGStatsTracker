@@ -18,9 +18,7 @@ const checkEnv = (envSchema) => {
         });
 
         if (validation) {
-            console.log(value)
-            console.log(`Invalid value for ${key}: ${value}`);
-            console.log(validation.details.message);
+            process.log.error(`Invalid value for ${key}: ${validation.details[0].message}`);
             failed = true;
         }
     })
