@@ -20,28 +20,28 @@ const logger = function (level, text, skipLog = false) {
     const levelnumber = Levels.indexOf(level.toLowerCase()) + 1
 
     if (levelnumber <= loglevel && levelnumber === 1) {
-        //if (!skipLog) { stream.write(`[${process.env.application || "Application"}] [${getTimestamp()}] [E] ` + text + '\n'); }
-        console.log(`[${process.env.application || "Application"}] [${getTimestamp()}] \x1b[31m[E]\x1b[0m`, text)
+        //if (!skipLog) { stream.write(`[${process.env.APPLICATION || "Application"}] [${getTimestamp()}] [E] ` + text + '\n'); }
+        console.log(`[${process.env.APPLICATION || "Application"}] [${getTimestamp()}] \x1b[31m[E]\x1b[0m`, text)
     }
 
     if (levelnumber <= loglevel && levelnumber === 2) {
-        //if (!skipLog) { stream.write(`[${process.env.application || "Application"}] [${getTimestamp()}] [W] ` + text + '\n'); }
-        console.log(`[${process.env.application || "Application"}] [${getTimestamp()}] \x1b[33m[W]\x1b[0m`, text)
+        //if (!skipLog) { stream.write(`[${process.env.APPLICATION || "Application"}] [${getTimestamp()}] [W] ` + text + '\n'); }
+        console.log(`[${process.env.APPLICATION || "Application"}] [${getTimestamp()}] \x1b[33m[W]\x1b[0m`, text)
     }
 
     if (levelnumber <= loglevel && levelnumber === 3) {
-        //if (!skipLog) { stream.write(`[${process.env.application || "Application"}] [${getTimestamp()}] [I] ` + text + '\n'); }
-        console.log(`[${process.env.application || "Application"}] [${getTimestamp()}] \x1b[32m[I]\x1b[0m`, text)
+        //if (!skipLog) { stream.write(`[${process.env.APPLICATION || "Application"}] [${getTimestamp()}] [I] ` + text + '\n'); }
+        console.log(`[${process.env.APPLICATION || "Application"}] [${getTimestamp()}] \x1b[32m[I]\x1b[0m`, text)
     }
 
     if (levelnumber <= loglevel && levelnumber === 4) {
-        //if (!skipLog) { stream.write(`[${process.env.application || "Application"}] [${getTimestamp()}] [D] ` + text + '\n'); }
-        console.log(`[${process.env.application || "Application"}] [${getTimestamp()}] \x1b[35m[D]\x1b[0m`, text)
+        //if (!skipLog) { stream.write(`[${process.env.APPLICATION || "Application"}] [${getTimestamp()}] [D] ` + text + '\n'); }
+        console.log(`[${process.env.APPLICATION || "Application"}] [${getTimestamp()}] \x1b[35m[D]\x1b[0m`, text)
     }
 
     if (levelnumber === 5) {
-        //if (!skipLog) { stream.write(`[${process.env.application || "Application"}] [${getTimestamp()}] [S] ` + text + '\n'); }
-        console.log(`[${process.env.application || "Application"}] [${getTimestamp()}] \x1b[36m[S]\x1b[0m`, text)
+        //if (!skipLog) { stream.write(`[${process.env.APPLICATION || "Application"}] [${getTimestamp()}] [S] ` + text + '\n'); }
+        console.log(`[${process.env.APPLICATION || "Application"}] [${getTimestamp()}] \x1b[36m[S]\x1b[0m`, text)
     }
 }
 

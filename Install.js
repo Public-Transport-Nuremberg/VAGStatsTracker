@@ -97,9 +97,7 @@ function executeCommand(command, cwd, message, live = false) {
             for (j = 0; j < service.install_instructions.length; j++) {
                 const instruction = service.install_instructions[j];
 
-                const type = instruction.type;
-                const path_rel = instruction.path;
-                const command = instruction.command;
+                const { type, path_rel, command } = instruction;
 
                 if (type === 'fs') {
                     if (!fs.existsSync(path.join(__dirname, root_path, path_rel, command))) {
@@ -127,9 +125,7 @@ function executeCommand(command, cwd, message, live = false) {
             for (j = 0; j < service.update_instructions.length; j++) {
                 const instruction = service.update_instructions[j];
 
-                const type = instruction.type;
-                const path_rel = instruction.path;
-                const command = instruction.command;
+                const { type, path_rel, command } = instruction;
 
                 if (type === 'fs') {
                     if (!fs.existsSync(path.join(__dirname, root_path, path_rel, command))) {
