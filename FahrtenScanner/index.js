@@ -1,17 +1,24 @@
 require('dotenv').config();
 require('module-alias/register');
 const { log } = require('@lib/logger');
-const { checkEnv } = require('@lib/dotENV');
+const fs = require('node:fs');
+const { checkEnv, genEnv } = require('dotenv-joi');
 const envSchema = require('./envSchema');
 
 // Init logger
 process.log = log;
 
-// Check if all .env values are valid
-const isENVok = checkEnv(envSchema);
-
-if(isENVok) {
-    process.log.error('Invalid ENV values. Please check your .env file and fix the above mentioned errors.');
+if (fs.existsSync('.env')) {
+    // Check if all .env values are valid
+    const isENVok = checkEnv(envSchema);
+    if (isENVok) {
+        process.log.error('Invalid ENV values. Please check your .env file and fix the above mentioned errors.');
+        process.exit(1);
+    }
+} else {
+    const envFile = genEnv(envSchema);
+    fs.writeFileSync('.env', envFile);
+    process.log.error('No .env file found. A new one has been generated. Please fill it with your values and restart the application.');
     process.exit(1);
 }
 
