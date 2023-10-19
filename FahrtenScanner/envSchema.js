@@ -10,6 +10,24 @@ module.exports = {
         "validation": "min:1||max:32",
         "default": "FahrtenScanner"
     },
+    "LOG_TYPE": {
+        "type": "string",
+        "validation": "required||custom_list:console,stdout",
+        "default": "console",
+        "discription": "console or stdout"
+    },
+    "LOG_COLOR": {
+        "type": "string",
+        "validation": "required||custom_list:true,false",
+        "default": "true",
+        "discription": "true or false"
+    },
+    "LOG_TEMPLATE": {
+        "type": "string",
+        "validation": "min:0||max:255",
+        "default": "",
+        "discription": "leave empty for default or enter a custom template"
+    },
     "PRODUCTS": {
         "section": "GENERAL",
         "type": "string",
