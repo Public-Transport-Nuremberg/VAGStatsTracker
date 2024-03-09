@@ -30,4 +30,4 @@ process.app = {};
 process.app.watchdog = watchdog;
 
 // Go application livecycle
-//const app = require('@src');
+const app = require('@src');
