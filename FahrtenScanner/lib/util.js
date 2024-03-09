@@ -27,7 +27,7 @@ const findFutureTimestampIndex = (timestamps, minFuture = 5000) => {
  * @param {Array} fahrten 
  * @returns 
  */
-async function filterDuplicates(fahrten) {
+const filterDuplicates = async (fahrten) => {
     // Use map to initiate a check for each item in the array
     const checkPromises = fahrten.map(async (fahrt) => {
       const exists = await checkTripKey(fahrt.Fahrtnummer);

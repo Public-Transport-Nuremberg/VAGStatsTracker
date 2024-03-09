@@ -1,7 +1,7 @@
 const vgn_wrapper = require('oepnv-nuremberg');
 
-const { writeNewDatapoint } = require('@lib/redis');
-const { findFutureTimestampIndex } = require('@lib/util');
+const { writeNewDatapoint, ScheduleJob } = require('@lib/redis');
+const { findFutureTimestampIndex, filterDuplicates } = require('@lib/util');
 
 const vgn = new vgn_wrapper.openvgn();
 
@@ -15,7 +15,7 @@ const MakeTripRequests = async () => {
     try {
         const results = await Promise.allSettled(ProductPromiseArray)
 
-        results.map((result) => {
+        results.map(async (result) => {
             const { status, value } = result;
             const { Fahrt, Meta } = value;
 
@@ -23,7 +23,10 @@ const MakeTripRequests = async () => {
 
             const { Fahrten, Produkt } = Fahrt;
 
-            Fahrten.map(async (fahrt) => {
+            const filteredFahrten = await filterDuplicates(Fahrten); // Check for duplicates we already have in the queue
+            process.log.debug(`Filtered ${Fahrten.length - filteredFahrten.length} duplicates for ${Produkt}`);
+
+            filteredFahrten.map(async (fahrt) => {
                 const { Fahrtnummer, Betriebstag } = fahrt;
                 const abfaht = await vgn.getTrip(Fahrtnummer, { product: Produkt, date: Betriebstag })
 
@@ -35,12 +38,16 @@ const MakeTripRequests = async () => {
                 if (futureIndex === -1) return;
                 
                 const futureFahrt = Fahrtverlauf[futureIndex]; // Get data for the next stop in the future
-                futureFahrt.Fahrtnummer = Fahrtnummer;
-                console.log(futureFahrt);
+                futureFahrt.Fahrtnummer = Fahrtnummer; // Store that so we can filter the exact trip later
+                const timestamp = new Date(futureFahrt.AnkunftszeitSoll || futureFahrt.AbfahrtszeitSoll).getTime();
+
+                ScheduleJob(Fahrtnummer, futureFahrt, timestamp)
             });
 
             if (status === 'rejected') return;
         });
+
+        process.log.info('All requests completed');
 
     } catch (error) {
         process.log.error(error);

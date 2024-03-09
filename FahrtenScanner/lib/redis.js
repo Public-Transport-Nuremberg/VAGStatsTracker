@@ -15,7 +15,7 @@ const redis = new Redis(redisData);
 queueData = redisData
 queueData.db = queueData.db + 1
 
-const fahrten_q = new Queue('q:fahrten', { connection: queueData });
+const trips_q = new Queue('q:trips', { connection: queueData });
 
 /**
  * Write a new datapoint to the Redis list, specified by the listKey, to avrage out later
@@ -39,20 +39,21 @@ const checkTripKey = async (number) => {
  * @param {Number} timestamp The timestamp for when the job should be nearly executed.
  */
 const ScheduleJob = async (number, data, timestamp) => {
+    const key = `TRIP:${number}`;
 
-    // The key does not exist, so add the key to Redis
-    await redis.set(key, timestamp);
+    // Check that the timestamp is at least 5 seconds in the future
+    const timeNow = new Date().getTime();
+    const delay = timestamp - timeNow;
 
-    // Calculate the delay for the job to be executed 5 seconds before the timestamp
-    const now = Date.now();
-    const delay = timestamp - now - 5000; // Delay in milliseconds
-
-    if (delay > 0) {
+    if (delay > 5000) {
+        // The key does not exist, so add the key to Redis
+        await redis.set(key, timestamp);
         // Schedule the job with BullMQ
-        await fahrten_q.add(`${number}:${data.VGNKennung}:${data.Haltepunkt}`, data, { delay });
-        console.log(`Job for ${key} scheduled to run in ${new Date(delay).toLocaleString()}`);
+        await trips_q.add(`${number}:${data.VGNKennung}:${data.Haltepunkt}`, data, { delay });
+        console.log(`${number}:${data.VGNKennung}:${data.Haltepunkt}`)
+        process.log.info(`Job for ${key} scheduled to run in ${new Date(timestamp).toLocaleString()} - Delay: ${(delay/1000).toFixed(0)} Seconds`);
     } else {
-        console.log(`Cannot schedule job for ${key} because the timestamp is too soon or in the past.`);
+        process.log.info(`Cannot schedule job for ${key} because the timestamp is too soon or in the past. ${new Date(timestamp).toLocaleString()} - ${delay}`);
     }
 };
 
