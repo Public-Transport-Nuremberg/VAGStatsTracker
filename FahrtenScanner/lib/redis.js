@@ -35,12 +35,13 @@ const checkTripKey = async (number) => {
 /**
  * Adds the key and schedules a job.
  * @param {Number} number The unique identifier for the key.
+ * @param {Object} trip Entire trip object.
  * @param {Object} data The data to complete the job.
  * @param {Array} tripTimeline The timeline of the trip.
  * @param {Array} tripDepartureTimeline The timeline of the trip departure times.
  * @param {Number} timestamp The timestamp for when the job should be nearly executed.
  */
-const ScheduleJob = async (number, data, tripTimeline, tripDepartureTimeline, timestamp) => {
+const ScheduleJob = async (number, trip, data, tripTimeline, tripDepartureTimeline, timestamp) => {
     const key = `TRIP:${number}`;
 
     // Check that the timestamp is at least 5 seconds in the future
@@ -49,7 +50,7 @@ const ScheduleJob = async (number, data, tripTimeline, tripDepartureTimeline, ti
 
     if (delay > 5000) {
         // The key does not exist, so add the key to Redis
-        await redis.set(key, timestamp);
+        await redis.set(key, JSON.stringify(trip));
         // Schedule the job with BullMQ
         data.tripTimeline = tripTimeline;
         data.tripDepartureTimeline = tripDepartureTimeline;

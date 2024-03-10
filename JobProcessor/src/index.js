@@ -18,7 +18,10 @@ const queueData = {
 new Worker('q:trips', async (job) => {
     try {
         const { Fahrtnummer, VGNKennung, Linienname, tripTimeline, tripDepartureTimeline, needsProcessingUntil } = job.data;
-        if(needsProcessingUntil - new Date().getTime() > 5000) return;
+        if(needsProcessingUntil - new Date().getTime() > 0) {
+            process.log.info(`Job for ${Fahrtnummer} (Linie: ${Linienname}) is not ready to be processed yet. NeedsProcessingUntil: ${new Date(needsProcessingUntil).toLocaleString()}`);
+            return;
+        }
         const requestDepartureAmount = job.attemptsStarted * 8
         const departure = await vgn.getDepartures(VGNKennung, { Line: Linienname, timespan: 60, LimitCount: requestDepartureAmount });
 
