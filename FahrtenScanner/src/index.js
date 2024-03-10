@@ -60,7 +60,5 @@ const MakeTripRequests = async () => {
 };
 
 (async () => {
-    await MakeTripRequests();
+    setInterval(MakeTripRequests, 10 * 1000);
 })();
-
-//setInterval(MakeTripRequests, 10 * 1000);
