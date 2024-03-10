@@ -18,11 +18,14 @@ const MakeTripRequests = async () => {
         // We use "Soll" (planned) times, because we wanna track the punctuality
         results.map(async (result) => {
             const { status, value } = result;
+            if (status === 'rejected') return;
+
             const { Fahrt, Meta } = value;
 
             writeNewDatapoint('Trips.RequestTime', Meta.RequestTime); // Store the request time for later analysis
 
             const { Fahrten, Produkt } = Fahrt;
+            process.app.watchdog.updateMonitor(Produkt); // Update the watchdog monitor for the product
 
             const filteredFahrten = await filterDuplicates(Fahrten); // Check for duplicates we already have in the queue
             process.log.debug(`Filtered ${Fahrten.length - filteredFahrten.length} duplicates for ${Produkt}`);
@@ -48,8 +51,6 @@ const MakeTripRequests = async () => {
 
                 ScheduleJob(Fahrtnummer, futureFahrt, TripTimeline, timestamp) // Create the job and a key to use for filtering
             });
-
-            if (status === 'rejected') return;
         });
 
         process.log.info('All requests completed');

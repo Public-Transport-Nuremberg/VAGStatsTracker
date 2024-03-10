@@ -37,8 +37,8 @@ module.exports = {
     "PRODUCTS": {
         "section": "GENERAL",
         "type": "string",
-        "validation": "required||custom_list:ubahn,bus,tram",
-        "default": "ubahn,bus,tram"
+        "validation": "required||custom_list:UBahn,Bus,Tram",
+        "default": "UBahn,Bus,Tram"
     },
     "WATCHDOG_TIMEOUT": {
         "type": "number",
