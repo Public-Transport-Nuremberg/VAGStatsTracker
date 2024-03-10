@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  dragonfly:
+    image: 'docker.dragonflydb.io/dragonflydb/dragonfly'
+    command: ["/usr/local/bin/dragonfly", "--default_lua_flags=allow-undeclared-keys"]
+    container_name: "VAGStatus-Dragonfly"
+    ulimits:
+      memlock: -1
+    ports:
+      - "6379:6379"
+    volumes:
+      - dragonflydata:/data
+    environment:
+      DRAGONFLY_USERNAME: "default"
+      DRAGONFLY_PASSWORD: "example"
+
+  postgres:
+    image: 'postgres'
+    container_name: "VAGStatus-Postgres"
+    environment:
+      POSTGRES_USER: "admin"
+      POSTGRES_PASSWORD: "adminpassword"
+    volumes:
+      - postgresdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  dragonflydata:
+  postgresdata:
