@@ -67,6 +67,7 @@ const MakeTripRequests = async () => {
                 futureFahrt.Linienname = Fahrt.Linienname; // Store that so we can filter the exact trip later
                 const timestamp = new Date(futureFahrt.AnkunftszeitSoll || futureFahrt.AbfahrtszeitSoll).getTime();
 
+                // Filter fake Linien, like 84 is only a TAXI
                 ScheduleJob(Fahrtnummer, futureFahrt, TripTimeline, TripDepartureTimeline, timestamp) // Create the job and a key to use for filtering
             });
         });

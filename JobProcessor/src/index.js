@@ -19,7 +19,7 @@ new Worker('q:trips', async (job) => {
     try {
         const { Fahrtnummer, VGNKennung, Linienname, tripTimeline, tripDepartureTimeline, needsProcessingUntil } = job.data;
         const requestDepartureAmount = job.attemptsStarted * 4
-        const departure = await vgn.getDepartures(VGNKennung, { Line: Linienname, timespan: 10, LimitCount: requestDepartureAmount });
+        const departure = await vgn.getDepartures(VGNKennung, { Line: Linienname, timespan: 60, LimitCount: requestDepartureAmount });
 
         // Check if value is instance of Error
         if (departure instanceof Error) {
@@ -51,10 +51,29 @@ new Worker('q:trips', async (job) => {
                 // VAG will show trips, that are operated by a third party, even when the third party never shows up. This can only be kinda checked this way
                 return;
             }
-            if(job.attemptsStarted > 3) {
+            if (job.attemptsStarted >= 3) {
                 // The trip started too early. So before env.SCANBEFORE
+                if (nextStopID === tripTimeline.length - 1) {
+                    process.log.info(`Tryed looking ahead for ${Fahrtnummer} ${departure.Stop} (Linie: ${Linienname}) but its final destination was reached`);
+                    return;
+                }
+                const departureNextStop = await vgn.getDepartures(nextStopID, { Line: Linienname, timespan: 60, LimitCount: 10 });
+                const { Departures, Meta } = departureNextStop;
+
+                // if(!Meta) console.log(departure, job.data)
+                writeNewDatapoint('Departure.RequestTime', Meta.RequestTime); // Store the request time for later analysis
+
+                const tripDepartureNextStop = Departures.find((departure) => departure.Fahrtnummer === Fahrtnummer);
+
+                if(!tripDepartureNextStop) {
+                    process.log.error(`Could not find departure for next stop ${nextStopID} for ${Fahrtnummer} (Linie: ${Linienname})`);
+                    return;
+                }
+
+                process.log.info(`Looked ahead for ${Fahrtnummer} ${departure.Stop} (Linie: ${Linienname}) to ${nextStopID} with a delay of ${tripDeparture.Verspätung} seconds`);
+                return;
             }
-            //process.log.error(`Could not find departure on try ${job.attemptsStarted} for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
+            process.log.error(`Could not find departure on try ${job.attemptsStarted} for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
             throw new Error(`Could not find departure on try ${job.attemptsStarted} for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
         }
 
