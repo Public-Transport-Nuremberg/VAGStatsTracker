@@ -43,6 +43,7 @@ const MakeTripRequests = async () => {
 
                 const futureFahrt = Fahrtverlauf[futureIndex]; // Get data for the next stop in the future
                 futureFahrt.Fahrtnummer = Fahrtnummer; // Store that so we can filter the exact trip later
+                futureFahrt.Linienname = Fahrt.Linienname; // Store that so we can filter the exact trip later
                 const timestamp = new Date(futureFahrt.AnkunftszeitSoll || futureFahrt.AbfahrtszeitSoll).getTime();
 
                 ScheduleJob(Fahrtnummer, futureFahrt, TripTimeline, timestamp) // Create the job and a key to use for filtering
@@ -60,5 +61,6 @@ const MakeTripRequests = async () => {
 };
 
 (async () => {
+    await MakeTripRequests();
     setInterval(MakeTripRequests, 10 * 1000);
 })();
