@@ -85,5 +85,16 @@ module.exports = {
         "type": "number",
         "validation": "required",
         "default": 0
+    },
+    "SCANBEFORE": {
+        "section": "MISC",
+        "type": "number",
+        "validation": "required",
+        "default": 5
+    },
+    "ERROR_EXPIRE": {
+        "type": "number",
+        "validation": "required",
+        "default": 3600
     }
 }

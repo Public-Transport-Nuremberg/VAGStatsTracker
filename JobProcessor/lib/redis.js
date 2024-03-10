@@ -57,7 +57,7 @@ const delTripKey = async (number) => {
 const errorExporter = (errorMessage, errorData, jobData) => {
     const errorToken = randomstring.generate(10);
     const errorKey = `ERROR:${errorToken}`;
-    redis.set(errorKey, JSON.stringify({ errorMessage, errorData, jobData }));
+    redis.set(errorKey, JSON.stringify({ errorMessage, errorData, jobData }, "EX", process.env.ERROR_EXPIRE || 3600));
     return errorToken;
 }
 
