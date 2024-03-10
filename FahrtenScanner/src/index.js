@@ -1,6 +1,6 @@
 const vgn_wrapper = require('oepnv-nuremberg');
 
-const { writeNewDatapoint, ScheduleJob } = require('@lib/redis');
+const { writeNewDatapoint, writeNewDatapointKey, ScheduleJob } = require('@lib/redis');
 const { findFutureTimestampIndex, filterDuplicates } = require('@lib/util');
 
 const vgn = new vgn_wrapper.openvgn();
@@ -33,6 +33,7 @@ const MakeTripRequests = async () => {
 
             const { Fahrten, Produkt } = Fahrt;
             process.app.watchdog.updateMonitor(Produkt); // Update the watchdog monitor for the product
+            writeNewDatapointKey(`Metrics.TotalTrips.${Produkt}`, Fahrten.length); // Store the amount of trips we got
 
             const filteredFahrten = await filterDuplicates(Fahrten); // Check for duplicates we already have in the queue
             process.log.debug(`Filtered ${Fahrten.length - filteredFahrten.length} duplicates for ${Produkt}`);

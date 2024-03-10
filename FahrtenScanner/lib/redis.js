@@ -26,6 +26,16 @@ const writeNewDatapoint = (listKey, datapoint) => {
     redis.rpush(listKey, datapoint);
 }
 
+/**
+ * Write a new datapoint as a seperate key
+ * @param {String} datapoint 
+ * @param {String} listKey 
+ * @returns 
+ */
+const writeNewDatapointKey = (listKey, datapoint) => {
+    return redis.set(listKey, datapoint);
+}
+
 const checkTripKey = async (number) => {
     const key = `TRIP:${number}`;
     const exists = await redis.exists(key);
@@ -64,6 +74,7 @@ const ScheduleJob = async (number, trip, data, tripTimeline, tripDepartureTimeli
 
 module.exports = {
     writeNewDatapoint,
+    writeNewDatapointKey,
     checkTripKey,
     ScheduleJob
 }
