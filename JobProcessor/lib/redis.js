@@ -26,6 +26,11 @@ const writeNewDatapoint = (listKey, datapoint) => {
     redis.rpush(listKey, datapoint);
 }
 
+/**
+ * Check if a key exists in the Redis database
+ * @param {Number} number 
+ * @returns 
+ */
 const checkTripKey = async (number) => {
     const key = `TRIP:${number}`;
     const exists = await redis.exists(key);
@@ -33,36 +38,46 @@ const checkTripKey = async (number) => {
 }
 
 /**
+ * Delete a key from the Redis database
+ * @param {Number} number 
+ */
+const delTripKey = async (number) => {
+    const key = `TRIP:${number}`;
+    await redis.del(key);
+}
+
+/**
  * Adds the key and schedules a job.
  * @param {Number} number The unique identifier for the key.
  * @param {Object} data The data to complete the job.
  * @param {Array} tripTimeline The timeline of the trip.
- * @param {Array} tripDepartureTimeline The timeline of the trip departure times.
  * @param {Number} timestamp The timestamp for when the job should be nearly executed.
+ * @param {Number} requestDuration The duration of the request
  */
-const ScheduleJob = async (number, data, tripTimeline, tripDepartureTimeline, timestamp) => {
+const ScheduleJob = async (number, data, tripTimeline, timestamp, requestDuration) => {
     const key = `TRIP:${number}`;
 
     // Check that the timestamp is at least 5 seconds in the future
     const timeNow = new Date().getTime();
     const delay = timestamp - timeNow;
 
-    if (delay > 5000) {
-        // The key does not exist, so add the key to Redis
-        await redis.set(key, timestamp);
-        // Schedule the job with BullMQ
-        data.tripTimeline = tripTimeline;
-        data.tripDepartureTimeline = tripDepartureTimeline;
-        data.needsProcessingUntil = timestamp;
-        await trips_q.add(`${number}:${data.VGNKennung}:${data.Haltepunkt}`, data, { delay, attempts: 3 });
-        process.log.info(`Job for ${key} scheduled to run in ${new Date(timestamp).toLocaleString()} - Scheduled in: ${(delay / 1000).toFixed(0)} Seconds`);
-    } else {
-        process.log.info(`Cannot schedule job for ${number} (Linie: ${data.Linienname}) because the timestamp is too soon or in the past. ${new Date(timestamp).toLocaleString()} - ${delay}`);
+    if( delay < 5000 ) {
+        delTripKey(number);
+        return process.log.info(`Cannot schedule job for ${number} (Linie: ${data.Linienname}) because the timestamp is too soon or in the past. ${new Date(timestamp).toLocaleString()} - ${delay}, Ping: ${requestDuration}ms`);
     }
+
+    // The key does not exist, so add the key to Redis
+    await redis.set(key, timestamp);
+    // Schedule the job with BullMQ
+    data.tripTimeline = tripTimeline;
+    await trips_q.add(`${number}:${data.VGNKennung}:${data.Haltepunkt}`, data, { delay, attempts: 3, });
+    process.log.debug(`Job for ${key} scheduled to run in ${new Date(timestamp).toLocaleString()} - Scheduled in: ${(delay / 1000).toFixed(0)} Seconds`);
+
 };
 
 module.exports = {
     writeNewDatapoint,
     checkTripKey,
+    delTripKey,
     ScheduleJob
 }
