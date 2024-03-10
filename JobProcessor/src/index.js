@@ -5,7 +5,7 @@ const vgn = new openvgn();
 const Redis = require('ioredis');
 const { Worker } = require('bullmq');
 
-const { writeNewDatapoint, ScheduleJob, delTripKey } = require('@lib/redis');
+const { writeNewDatapoint, ScheduleJob, delTripKey, errorExporter } = require('@lib/redis');
 
 const queueData = {
     port: process.env.Redis_Port || 6379,
@@ -18,7 +18,8 @@ const queueData = {
 new Worker('q:trips', async (job) => {
     try {
         const { Fahrtnummer, VGNKennung, Linienname, tripTimeline, tripDepartureTimeline, needsProcessingUntil } = job.data;
-        const requestDepartureAmount = job.attemptsStarted * 4
+        if(needsProcessingUntil - new Date().getTime() > 5000) return;
+        const requestDepartureAmount = job.attemptsStarted * 8
         const departure = await vgn.getDepartures(VGNKennung, { Line: Linienname, timespan: 60, LimitCount: requestDepartureAmount });
 
         // Check if value is instance of Error
@@ -65,20 +66,27 @@ new Worker('q:trips', async (job) => {
 
                 const tripDepartureNextStop = Departures.find((departure) => departure.Fahrtnummer === Fahrtnummer);
 
-                if(!tripDepartureNextStop) {
-                    process.log.error(`Could not find departure for next stop ${nextStopID} for ${Fahrtnummer} (Linie: ${Linienname})`);
+                if (!tripDepartureNextStop) {
+                    const errorID = errorExporter(`Could not find departure for next stop ${nextStopID} for ${Fahrtnummer} (Linie: ${Linienname})`, departure, job.data);
+                    process.log.error(`ID:${errorID} Could not find departure for next stop ${nextStopID} for ${Fahrtnummer} (Linie: ${Linienname})`);
                     return;
                 }
 
                 process.log.info(`Looked ahead for ${Fahrtnummer} ${departure.Stop} (Linie: ${Linienname}) to ${nextStopID} with a delay of ${tripDeparture.Verspätung} seconds`);
+
                 return;
             }
-            process.log.error(`Could not find departure on try ${job.attemptsStarted} for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
+            if (job.attemptsStarted > 1) {
+                const errorID = errorExporter(`Could not find departure on try ${job.attemptsStarted} for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`, departure, job.data);
+                process.log.error(`ID:${errorID} Could not find departure on try ${job.attemptsStarted} for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
+            }
             throw new Error(`Could not find departure on try ${job.attemptsStarted} for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
         }
 
         if (thisStopIndex === -1) {
-            process.log.error(`Could not find stop in tripTimeline for ${Fahrtnummer}`);
+            const errorID = errorExporter(`Could not find stop in tripTimeline for ${Fahrtnummer}`, departure, job.data);
+            process.log.error(`ID:${errorID} Could not find stop in tripTimeline for ${Fahrtnummer}`);
+
             process.log.error(departure);
             return;
         }

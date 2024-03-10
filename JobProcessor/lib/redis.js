@@ -1,5 +1,6 @@
 const Redis = require('ioredis');
 const { Queue } = require('bullmq');
+const randomstring = require('randomstring');
 
 const redisData = {
     port: process.env.Redis_Port || 6379,
@@ -47,6 +48,20 @@ const delTripKey = async (number) => {
 }
 
 /**
+ * Write a new error to the Redis database with all available information
+ * @param {String} errorMessage 
+ * @param {Any} errorData 
+ * @param {Object} jobData
+ * @returns 
+ */
+const errorExporter = (errorMessage, errorData, jobData) => {
+    const errorToken = randomstring.generate(10);
+    const errorKey = `ERROR:${errorToken}`;
+    redis.set(errorKey, JSON.stringify({ errorMessage, errorData, jobData }));
+    return errorToken;
+}
+
+/**
  * Adds the key and schedules a job.
  * @param {Number} number The unique identifier for the key.
  * @param {Object} data The data to complete the job.
@@ -59,7 +74,7 @@ const ScheduleJob = async (number, data, tripTimeline, timestamp, requestDuratio
 
     // Check that the timestamp is at least 5 seconds in the future
     const timeNow = new Date().getTime();
-    const delay = timestamp - timeNow;
+    const delay = (timestamp - timeNow) - requestDuration;
 
     if( delay < 5000 ) {
         delTripKey(number);
@@ -79,5 +94,6 @@ module.exports = {
     writeNewDatapoint,
     checkTripKey,
     delTripKey,
+    errorExporter,
     ScheduleJob
 }
