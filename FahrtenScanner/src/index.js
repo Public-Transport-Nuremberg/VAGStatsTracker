@@ -15,11 +15,12 @@ const MakeTripRequests = async () => {
     try {
         const results = await Promise.allSettled(ProductPromiseArray)
 
+        // We use "Soll" (planned) times, because we wanna track the punctuality
         results.map(async (result) => {
             const { status, value } = result;
             const { Fahrt, Meta } = value;
 
-            writeNewDatapoint('Trips.RequestTime', Meta.RequestTime);
+            writeNewDatapoint('Trips.RequestTime', Meta.RequestTime); // Store the request time for later analysis
 
             const { Fahrten, Produkt } = Fahrt;
 
@@ -32,16 +33,19 @@ const MakeTripRequests = async () => {
 
                 const { Fahrt, Meta } = abfaht;
                 const { Fahrtverlauf } = Fahrt;
-                writeNewDatapoint('Trip.RequestTime', Meta.RequestTime);
+                writeNewDatapoint('Trip.RequestTime', Meta.RequestTime); // Store the request time for later analysis
 
+                // Find the next stop in the near future
                 const futureIndex = findFutureTimestampIndex(Fahrtverlauf);
                 if (futureIndex === -1) return;
-                
+
+                const TripTimeline = Fahrtverlauf.map((stop) => { return stop.VGNKennung }); // Get the timeline of the trip, so we can recreate the job without another trip request
+
                 const futureFahrt = Fahrtverlauf[futureIndex]; // Get data for the next stop in the future
                 futureFahrt.Fahrtnummer = Fahrtnummer; // Store that so we can filter the exact trip later
                 const timestamp = new Date(futureFahrt.AnkunftszeitSoll || futureFahrt.AbfahrtszeitSoll).getTime();
 
-                ScheduleJob(Fahrtnummer, futureFahrt, timestamp)
+                ScheduleJob(Fahrtnummer, futureFahrt, TripTimeline, timestamp) // Create the job and a key to use for filtering
             });
 
             if (status === 'rejected') return;

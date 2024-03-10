@@ -40,7 +40,7 @@ const WipeCache = (db) => {
             }
         });
         stream.on('end', function () {
-            resolve(`Cleaned ${db} successfully`);
+            resolve(`Cleaned DB:${db} successfully`);
             redis.quit();
         });
     })

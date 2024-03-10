@@ -36,9 +36,10 @@ const checkTripKey = async (number) => {
  * Adds the key and schedules a job.
  * @param {Number} number The unique identifier for the key.
  * @param {Object} data The data to complete the job.
+ * @param {Array} tripTimeline The timeline of the trip.
  * @param {Number} timestamp The timestamp for when the job should be nearly executed.
  */
-const ScheduleJob = async (number, data, timestamp) => {
+const ScheduleJob = async (number, data, tripTimeline, timestamp) => {
     const key = `TRIP:${number}`;
 
     // Check that the timestamp is at least 5 seconds in the future
@@ -49,9 +50,9 @@ const ScheduleJob = async (number, data, timestamp) => {
         // The key does not exist, so add the key to Redis
         await redis.set(key, timestamp);
         // Schedule the job with BullMQ
+        data.tripTimeline = tripTimeline;
         await trips_q.add(`${number}:${data.VGNKennung}:${data.Haltepunkt}`, data, { delay });
-        console.log(`${number}:${data.VGNKennung}:${data.Haltepunkt}`)
-        process.log.info(`Job for ${key} scheduled to run in ${new Date(timestamp).toLocaleString()} - Delay: ${(delay/1000).toFixed(0)} Seconds`);
+        process.log.info(`Job for ${key} scheduled to run in ${new Date(timestamp).toLocaleString()} - Delay: ${(delay / 1000).toFixed(0)} Seconds`);
     } else {
         process.log.info(`Cannot schedule job for ${key} because the timestamp is too soon or in the past. ${new Date(timestamp).toLocaleString()} - ${delay}`);
     }
