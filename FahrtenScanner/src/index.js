@@ -33,7 +33,16 @@ const MakeTripRequests = async () => {
 
             const { Fahrten, Produkt } = Fahrt;
             process.app.watchdog.updateMonitor(Produkt); // Update the watchdog monitor for the product
-            writeNewDatapointKey(`Metrics.TotalTrips.${Produkt}`, Fahrten.length); // Store the amount of trips we got
+            writeNewDatapointKey(`Metrics.TotalTripsTracked.${Produkt}`, Fahrten.length); // Store the amount of trips we got
+
+            const now = new Date();
+            const currentlyActive = Fahrten.filter(fahrt => {
+                const startZeit = new Date(fahrt.Startzeit);
+                const endZeit = new Date(fahrt.Endzeit);
+                return now >= startZeit && now <= endZeit;
+            });
+
+            writeNewDatapointKey(`Metrics.TotalTripsActive.${Produkt}`, currentlyActive.length); // Store the amount of trips are currently active
 
             const filteredFahrten = await filterDuplicates(Fahrten); // Check for duplicates we already have in the queue
             process.log.debug(`Filtered ${Fahrten.length - filteredFahrten.length} duplicates for ${Produkt}`);
