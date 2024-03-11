@@ -86,7 +86,7 @@ const ScheduleJob = async (number, data, tripTimeline, timestamp, requestDuratio
     // Schedule the job with BullMQ
     data.tripTimeline = tripTimeline;
     await trips_q.add(`${number}:${data.VGNKennung}:${data.Haltepunkt}`, data, { delay, attempts: 3, });
-    process.log.debug(`Job for ${key} scheduled to run in ${new Date(timestamp).toLocaleString()} - Scheduled in: ${(delay / 1000).toFixed(0)} Seconds`);
+    process.log.debug(`Job for ${key} scheduled to run at ${new Date(timestamp).toLocaleString()} - Scheduled in: ${(delay / 1000).toFixed(0)} Seconds`);
 
 };
 

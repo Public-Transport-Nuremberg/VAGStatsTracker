@@ -61,12 +61,12 @@ const MakeTripRequests = async () => {
                 if (futureIndex === -1) return;
 
                 const TripTimeline = Fahrtverlauf.map((stop) => { return stop.VGNKennung }); // Get the timeline of the trip, so we can recreate the job without another trip request
-                const TripDepartureTimeline = Fahrtverlauf.map((stop) => { return new Date(stop.AnkunftszeitSoll || stop.AbfahrtszeitSoll).getTime() - parseInt(process.env.SCANBEFORE, 10) || 5 }); // Get the timeline of the trip, so we can recreate the job without another trip request
+                const TripDepartureTimeline = Fahrtverlauf.map((stop) => { return new Date(stop.AnkunftszeitSoll || stop.AbfahrtszeitSoll).getTime() }); // Get the timeline of the trip, so we can recreate the job without another trip request
 
                 const futureFahrt = Fahrtverlauf[futureIndex]; // Get data for the next stop in the future
                 futureFahrt.Fahrtnummer = Fahrtnummer; // Store that so we can filter the exact trip later
                 futureFahrt.Linienname = Fahrt.Linienname; // Store that so we can filter the exact trip later
-                const timestamp = new Date(futureFahrt.AnkunftszeitSoll || futureFahrt.AbfahrtszeitSoll).getTime();
+                const timestamp = new Date(futureFahrt.AnkunftszeitSoll || futureFahrt.AbfahrtszeitSoll).getTime() - (parseInt(process.env.SCANBEFORE, 10) || 30) * 1000;
 
                 // Filter fake Linien, like 84 is only a TAXI
                 ScheduleJob(Fahrtnummer, Fahrt, futureFahrt, TripTimeline, TripDepartureTimeline, timestamp) // Create the job and a key to use for filtering

@@ -35,20 +35,20 @@ new Worker('q:trips', async (job) => {
 
         const { Departures, Meta } = departure;
 
-        // if(!Meta) console.log(departure, job.data)
+        if(!Meta) console.log(departure, job.data)
         writeNewDatapoint('Departure.RequestTime', Meta.RequestTime); // Store the request time for later analysis
 
         // Find the next stop in tripTimeline, and check if its the last stop
         const thisStopIndex = tripTimeline.indexOf(VGNKennung);
         const nextStopID = tripTimeline[thisStopIndex + 1];
-        const nextTimestamp = tripDepartureTimeline[thisStopIndex + 1] - parseInt(process.env.SCANBEFORE, 10) || 5000; // Scan x seconds before the expected arrival time
+        const nextTimestamp = tripDepartureTimeline[thisStopIndex + 1] - (parseInt(process.env.SCANBEFORE, 10) || 30) * 1000; // Scan x seconds before the expected arrival time
 
         // Find the departure for the trip we are interested in (Fahrtnummer)
         const tripDeparture = Departures.find((departure) => departure.Fahrtnummer === Fahrtnummer);
         if (!tripDeparture) {
             // console.log(departure.Stop, "thisStopIndex", thisStopIndex, "tripLegth", tripTimeline.length);
             //console.log(Fahrtnummer, Departures);
-            if (thisStopIndex === tripTimeline.length - 1) {
+            if (thisStopIndex >= tripTimeline.length - 1) {
                 process.log.info(`Trip ${Fahrtnummer} (Linie: ${Linienname}) has reached its final destination at ${departure.Stop}`);
                 delTripKey(Fahrtnummer);
 
@@ -57,7 +57,8 @@ new Worker('q:trips', async (job) => {
                 return;
             }
             if (job.attemptsStarted > 1) { // We failed once, lets look ahead
-                if (nextStopID === tripTimeline.length - 1) {
+                console.log(Fahrtnummer)
+                if (thisStopIndex + 1 >= tripTimeline.length - 1) {
                     process.log.info(`Tryed looking ahead for ${Fahrtnummer} ${departure.Stop} (Linie: ${Linienname}) but its final destination was reached`);
                     delTripKey(Fahrtnummer);
                     return;
@@ -77,12 +78,12 @@ new Worker('q:trips', async (job) => {
                     return;
                 }
 
-                process.log.info(`Looked ahead for ${Fahrtnummer} ${departure.Stop} (Linie: ${Linienname}) to ${nextStopID} with a delay of ${tripDeparture.Verspätung} seconds`);
+                process.log.info(`Looked ahead for ${Fahrtnummer} ${departure.Stop} (Linie: ${Linienname}) to ${nextStopID} with a delay of ${tripDepartureNextStop.Verspätung} seconds`);
                 return;
             }
 
-            process.log.warn(`Could not find departure on try ${job.attemptsStarted} for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
-            throw new Error(`Could not find departure on try ${job.attemptsStarted} for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
+            process.log.warn(`Could not find departure on first try for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
+            throw new Error(`Could not find departure on first try for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
         }
 
         if (thisStopIndex === -1) {
@@ -94,6 +95,7 @@ new Worker('q:trips', async (job) => {
         }
 
         process.log.info(`Processed ${Fahrtnummer} at ${departure.Stop} (Linie: ${Linienname}) to ${nextStopID} with a delay of ${tripDeparture.Verspätung} seconds`);
+        process.log.debug(`Job scan at ${new Date(nextTimestamp).toLocaleString()} - Departure: ${new Date(tripDepartureTimeline[thisStopIndex + 1]).toLocaleString()}`);
 
         const nextData = {
             Fahrtnummer,
@@ -106,6 +108,7 @@ new Worker('q:trips', async (job) => {
         ScheduleJob(Fahrtnummer, nextData, tripTimeline, nextTimestamp, Meta.RequestTime);
 
     } catch (error) {
+        console.log(error)
         throw error;
     }
 }, {

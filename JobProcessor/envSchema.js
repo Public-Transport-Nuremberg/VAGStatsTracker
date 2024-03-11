@@ -90,7 +90,7 @@ module.exports = {
         "section": "MISC",
         "type": "number",
         "validation": "required",
-        "default": 5
+        "default": 30
     },
     "ERROR_EXPIRE": {
         "type": "number",
