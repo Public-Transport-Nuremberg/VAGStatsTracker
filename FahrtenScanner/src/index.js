@@ -57,8 +57,8 @@ const MakeTripRequests = async () => {
                 writeNewDatapoint('Trip.RequestTime', Meta.RequestTime); // Store the request time for later analysis
 
                 // Find the next stop in the near future
-                const futureIndex = findFutureTimestampIndex(Fahrtverlauf);
-                if (futureIndex === -1) return;
+                const futureIndex = findFutureTimestampIndex(Fahrtverlauf, (parseInt(process.env.SCANBEFORE, 10) || 30) * 1000);
+                if (futureIndex === -1) return; //
 
                 const TripTimeline = Fahrtverlauf.map((stop) => { return stop.VGNKennung }); // Get the timeline of the trip, so we can recreate the job without another trip request
                 const TripDepartureTimeline = Fahrtverlauf.map((stop) => { return new Date(stop.AnkunftszeitSoll || stop.AbfahrtszeitSoll).getTime() }); // Get the timeline of the trip, so we can recreate the job without another trip request

@@ -5,6 +5,8 @@ const vgn = new openvgn();
 const Redis = require('ioredis');
 const { Worker } = require('bullmq');
 
+const { NotDeparturesFound } = require('@lib/errors');
+
 const { writeNewDatapoint, ScheduleJob, delTripKey, errorExporter } = require('@lib/redis');
 
 const queueData = {
@@ -57,7 +59,6 @@ new Worker('q:trips', async (job) => {
                 return;
             }
             if (job.attemptsStarted > 1) { // We failed once, lets look ahead
-                console.log(Fahrtnummer)
                 if (thisStopIndex + 1 >= tripTimeline.length - 1) {
                     process.log.info(`Tryed looking ahead for ${Fahrtnummer} ${departure.Stop} (Linie: ${Linienname}) but its final destination was reached`);
                     delTripKey(Fahrtnummer);
@@ -83,7 +84,7 @@ new Worker('q:trips', async (job) => {
             }
 
             process.log.warn(`Could not find departure on first try for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
-            throw new Error(`Could not find departure on first try for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
+            throw new NotDeparturesFound(`Could not find departure on first try for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
         }
 
         if (thisStopIndex === -1) {
@@ -108,7 +109,10 @@ new Worker('q:trips', async (job) => {
         ScheduleJob(Fahrtnummer, nextData, tripTimeline, nextTimestamp, Meta.RequestTime);
 
     } catch (error) {
-        console.log(error)
+        if(error instanceof NotDeparturesFound) {
+            throw error;
+        }
+        console.log(error);
         throw error;
     }
 }, {

@@ -76,13 +76,11 @@ const ScheduleJob = async (number, data, tripTimeline, timestamp, requestDuratio
     const timeNow = new Date().getTime();
     const delay = (timestamp - timeNow) - requestDuration;
 
-    if( delay < 5000 ) {
+    if( delay < 10000 ) {
         delTripKey(number);
         return process.log.info(`Cannot schedule job for ${number} (Linie: ${data.Linienname}) because the timestamp is too soon or in the past. ${new Date(timestamp).toLocaleString()} - ${delay}, Ping: ${requestDuration}ms`);
     }
-
-    // The key does not exist, so add the key to Redis
-    await redis.set(key, timestamp);
+    
     // Schedule the job with BullMQ
     data.tripTimeline = tripTimeline;
     await trips_q.add(`${number}:${data.VGNKennung}:${data.Haltepunkt}`, data, { delay, attempts: 3, });

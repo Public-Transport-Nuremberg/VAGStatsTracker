@@ -58,9 +58,9 @@ const ScheduleJob = async (number, trip, data, tripTimeline, tripDepartureTimeli
     const timeNow = new Date().getTime();
     const delay = timestamp - timeNow;
 
-    if (delay > 5000) {
+    if (delay > 10000) {
         // The key does not exist, so add the key to Redis
-        await redis.set(key, JSON.stringify(trip));
+        await redis.set(key, JSON.stringify(trip), "EX", parseInt(((tripDepartureTimeline[tripDepartureTimeline.length - 1] - timeNow) / 1000).toFixed(0)) + 60);
         // Schedule the job with BullMQ
         data.tripTimeline = tripTimeline;
         data.tripDepartureTimeline = tripDepartureTimeline;
