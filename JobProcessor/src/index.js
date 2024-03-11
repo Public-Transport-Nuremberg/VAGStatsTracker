@@ -18,12 +18,13 @@ const queueData = {
 new Worker('q:trips', async (job) => {
     try {
         const { Fahrtnummer, VGNKennung, Linienname, tripTimeline, tripDepartureTimeline, needsProcessingUntil } = job.data;
-        if(needsProcessingUntil - new Date().getTime() > 0) {
+        // Kina not working i think
+        if (needsProcessingUntil - new Date().getTime() > 0) {
             process.log.info(`Job for ${Fahrtnummer} (Linie: ${Linienname}) is not ready to be processed yet. NeedsProcessingUntil: ${new Date(needsProcessingUntil).toLocaleString()}`);
             return;
         }
-        const requestDepartureAmount = job.attemptsStarted * 8
-        const departure = await vgn.getDepartures(VGNKennung, { Line: Linienname, timespan: 60, LimitCount: requestDepartureAmount });
+
+        const departure = await vgn.getDepartures(VGNKennung, { Line: Linienname, timespan: 5, LimitCount: 50 });
 
         // Check if value is instance of Error
         if (departure instanceof Error) {
@@ -40,7 +41,7 @@ new Worker('q:trips', async (job) => {
         // Find the next stop in tripTimeline, and check if its the last stop
         const thisStopIndex = tripTimeline.indexOf(VGNKennung);
         const nextStopID = tripTimeline[thisStopIndex + 1];
-        const nextTimestamp = tripDepartureTimeline[thisStopIndex + 1] - parseInt(process.env.SCANBEFORE, 10) || 5; // Scan x seconds before the expected arrival time
+        const nextTimestamp = tripDepartureTimeline[thisStopIndex + 1] - parseInt(process.env.SCANBEFORE, 10) || 5000; // Scan x seconds before the expected arrival time
 
         // Find the departure for the trip we are interested in (Fahrtnummer)
         const tripDeparture = Departures.find((departure) => departure.Fahrtnummer === Fahrtnummer);
@@ -55,13 +56,13 @@ new Worker('q:trips', async (job) => {
                 // VAG will show trips, that are operated by a third party, even when the third party never shows up. This can only be kinda checked this way
                 return;
             }
-            if (job.attemptsStarted >= 3) {
-                // The trip started too early. So before env.SCANBEFORE
+            if (job.attemptsStarted > 1) { // We failed once, lets look ahead
                 if (nextStopID === tripTimeline.length - 1) {
                     process.log.info(`Tryed looking ahead for ${Fahrtnummer} ${departure.Stop} (Linie: ${Linienname}) but its final destination was reached`);
+                    delTripKey(Fahrtnummer);
                     return;
                 }
-                const departureNextStop = await vgn.getDepartures(nextStopID, { Line: Linienname, timespan: 60, LimitCount: 10 });
+                const departureNextStop = await vgn.getDepartures(nextStopID, { Line: Linienname, timespan: 20, LimitCount: 15 });
                 const { Departures, Meta } = departureNextStop;
 
                 // if(!Meta) console.log(departure, job.data)
@@ -72,17 +73,15 @@ new Worker('q:trips', async (job) => {
                 if (!tripDepartureNextStop) {
                     const errorID = errorExporter(`Could not find departure for next stop ${nextStopID} for ${Fahrtnummer} (Linie: ${Linienname})`, departure, job.data);
                     process.log.error(`ID:${errorID} Could not find departure for next stop ${nextStopID} for ${Fahrtnummer} (Linie: ${Linienname})`);
+                    delTripKey(Fahrtnummer);
                     return;
                 }
 
                 process.log.info(`Looked ahead for ${Fahrtnummer} ${departure.Stop} (Linie: ${Linienname}) to ${nextStopID} with a delay of ${tripDeparture.Verspätung} seconds`);
-
                 return;
             }
-            if (job.attemptsStarted > 1) {
-                const errorID = errorExporter(`Could not find departure on try ${job.attemptsStarted} for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`, departure, job.data);
-                process.log.error(`ID:${errorID} Could not find departure on try ${job.attemptsStarted} for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
-            }
+
+            process.log.warn(`Could not find departure on try ${job.attemptsStarted} for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
             throw new Error(`Could not find departure on try ${job.attemptsStarted} for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
         }
 
