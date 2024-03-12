@@ -26,6 +26,22 @@ services:
     ports:
       - "5432:5432"
 
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus-config.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=2y'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    restart: always
+
 volumes:
   dragonflydata:
   postgresdata:
+  prometheus_data:

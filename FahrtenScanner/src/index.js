@@ -23,17 +23,17 @@ const MakeTripRequests = async () => {
             // Check if value is instance of Error
             if (value instanceof Error) {
                 process.log.error(value);
-                writeNewDatapoint('Trips.Error', value.code) // Log the error code
+                writeNewDatapoint('ERRORLIST:Trips.Statuscode', value.code) // Log the error code
                 return;
             }
 
             const { Fahrt, Meta } = value;
 
-            writeNewDatapoint('Trips.RequestTime', Meta.RequestTime); // Store the request time for later analysis
+            writeNewDatapoint('METRICLIST:Trips.RequestTime', Meta.RequestTime); // Store the request time for later analysis
 
             const { Fahrten, Produkt } = Fahrt;
             process.app.watchdog.updateMonitor(Produkt); // Update the watchdog monitor for the product
-            writeNewDatapointKey(`Metrics.TotalTripsTracked.${Produkt}`, Fahrten.length); // Store the amount of trips we got
+            writeNewDatapointKey(`METRIC:TotalTripsTracked.${Produkt}`, Fahrten.length); // Store the amount of trips we got
 
             const now = new Date();
             const currentlyActive = Fahrten.filter(fahrt => {
@@ -42,7 +42,7 @@ const MakeTripRequests = async () => {
                 return now >= startZeit && now <= endZeit;
             });
 
-            writeNewDatapointKey(`Metrics.TotalTripsActive.${Produkt}`, currentlyActive.length); // Store the amount of trips are currently active
+            writeNewDatapointKey(`METRIC:TotalTripsActive.${Produkt}`, currentlyActive.length); // Store the amount of trips are currently active
 
             const filteredFahrten = await filterDuplicates(Fahrten); // Check for duplicates we already have in the queue
             process.log.debug(`Filtered ${Fahrten.length - filteredFahrten.length} duplicates for ${Produkt}`);
@@ -57,13 +57,13 @@ const MakeTripRequests = async () => {
                 // Check if value is instance of Error
                 if (abfahrt instanceof Error) {
                     process.log.error(abfahrt);
-                    writeNewDatapoint('Trip.Error', abfahrt.code) // Log the error code
+                    writeNewDatapoint('ERRORLIST:Trip.Statuscode', abfahrt.code) // Log the error code
                     return;
                 }
 
                 const { Fahrt, Meta } = abfahrt;
                 const { Fahrtverlauf } = Fahrt;
-                writeNewDatapoint('Trip.RequestTime', Meta.RequestTime); // Store the request time for later analysis
+                writeNewDatapoint('METRICLIST:Trip.RequestTime', Meta.RequestTime); // Store the request time for later analysis
 
                 // Find the next stop in the near future
                 const futureIndex = findFutureTimestampIndex(Fahrtverlauf, (parseInt(process.env.SCANBEFORE, 10) || 30) * 1000);

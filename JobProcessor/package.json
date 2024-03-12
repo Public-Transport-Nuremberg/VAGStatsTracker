@@ -1,5 +1,5 @@
 {
-  "name": "fahrtenscanner",
+  "name": "jobprocessor",
   "version": "0.0.1",
   "description": "Collects new drives",
   "main": "index.js",

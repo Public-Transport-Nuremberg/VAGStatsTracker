@@ -5,7 +5,7 @@ const redisData = {
     port: process.env.Redis_Port || 6379,
     host: process.env.Redis_Host || "127.0.0.1",
     username: process.env.Redis_User || "default",
-    password: process.env.Redis_Password || "default",
+    password: process.env.Redis_Password || "example",
     db: process.env.Redis_DB || 0,
 }
 

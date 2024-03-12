@@ -31,14 +31,14 @@ new Worker('q:trips', async (job) => {
         // Check if value is instance of Error
         if (departure instanceof Error) {
             process.log.error(departure);
-            writeNewDatapoint('Departure.Error', departure.code) // Log the error code
+            writeNewDatapoint('ERRORLIST:Departure.Statuscode', departure.code) // Log the error code
             return;
         }
 
         const { Departures, Meta } = departure;
 
         if(!Meta) console.log(departure, job.data)
-        writeNewDatapoint('Departure.RequestTime', Meta.RequestTime); // Store the request time for later analysis
+        writeNewDatapoint('METRICLIST:Departure.RequestTime', Meta.RequestTime); // Store the request time for later analysis
 
         // Find the next stop in tripTimeline, and check if its the last stop
         const thisStopIndex = tripTimeline.indexOf(VGNKennung);
@@ -68,7 +68,7 @@ new Worker('q:trips', async (job) => {
                 const { Departures, Meta } = departureNextStop;
 
                 // if(!Meta) console.log(departure, job.data)
-                writeNewDatapoint('Departure.RequestTime', Meta.RequestTime); // Store the request time for later analysis
+                writeNewDatapoint('METRICLIST:Departure.RequestTime', Meta.RequestTime); // Store the request time for later analysis
 
                 const tripDepartureNextStop = Departures.find((departure) => departure.Fahrtnummer === Fahrtnummer);
 

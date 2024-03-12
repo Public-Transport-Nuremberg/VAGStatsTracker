@@ -3,18 +3,21 @@
 ## Goal
 ### Features
 ToDo:
-- [ ] Track delays of everything
-    - [ ] Bus
-    - [ ] U-Bahn
-    - [ ] Tram
+- [X] Track delays of everything
+    - [X] Bus
+    - [X] U-Bahn
+    - [X] Tram
+- [ ] Live Map of ALL services
+- [ ] Generate Heatmaps of delays
+- [ ] Easy way to report delays or other stuff (Not directly to the company)
+
+Things i´d like also like to do but got not enough time for:  
+- [ ] Smart warnings of potential delays
 - [ ] Link common delay causes to the average delay they cause
 - [ ] Track Elevator malfunctions and duration
-- [ ] Smart warnings of potential delays
-- [ ] Smarter departure lookup tool
-- [ ] Smarter connection lookup tool
+- [ ] Smarter departure lookup endpoint
+- [ ] Smarter connection lookup endpoint
 - [ ] Something like Flightradar24s "People on my plane"
-- [ ] Live Map of ALL services
-- [ ] Easy way to report delays or other stuff (Not directly to the company)
 - [ ] Smart alexa alarmclock (Alexa, wake me up so i´ll be in scool by 8 o´clock)
 - [ ] New API Methods to extend the VAG PULS API (If i figure out how to install PGSQL Plugins, lol)
 - [ ] More...

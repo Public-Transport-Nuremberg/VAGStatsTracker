@@ -6,7 +6,7 @@ const redisData = {
     port: process.env.Redis_Port || 6379,
     host: process.env.Redis_Host || "127.0.0.1",
     username: process.env.Redis_User || "default",
-    password: process.env.Redis_Password || "default",
+    password: process.env.Redis_Password || "example",
     db: process.env.Redis_DB || 0,
 }
 
@@ -55,8 +55,11 @@ const delTripKey = async (number) => {
  * @returns 
  */
 const errorExporter = (errorMessage, errorData, jobData) => {
-    const errorToken = randomstring.generate(10);
-    const errorKey = `ERROR:${errorToken}`;
+    const errorToken = randomstring.generate({
+        length: 20,
+        charset: 'alphanumeric'
+    });
+    const errorKey = `ERRORID:${errorToken}`;
     redis.set(errorKey, JSON.stringify({ errorMessage, errorData, jobData }, "EX", process.env.ERROR_EXPIRE || 3600));
     return errorToken;
 }
