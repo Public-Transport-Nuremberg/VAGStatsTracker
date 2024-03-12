@@ -20,9 +20,28 @@ const queueData = {
 new Worker('q:trips', async (job) => {
     try {
         const { Fahrtnummer, VGNKennung, Linienname, tripTimeline, tripDepartureTimeline, needsProcessingUntil } = job.data;
-        // Kina not working i think
-        if (needsProcessingUntil - new Date().getTime() > 0) {
-            process.log.info(`Job for ${Fahrtnummer} (Linie: ${Linienname}) is not ready to be processed yet. NeedsProcessingUntil: ${new Date(needsProcessingUntil).toLocaleString()}`);
+        // Find the next stop in tripTimeline, and check if its the last stop
+        const thisStopIndex = tripTimeline.indexOf(VGNKennung);
+        const nextStopID = tripTimeline[thisStopIndex + 1];
+        const nextTimestamp = tripDepartureTimeline[thisStopIndex + 1] - (parseInt(process.env.SCANBEFORE, 10) || 30) * 1000; // Scan x seconds before the expected arrival time
+
+        const nextData = {
+            Fahrtnummer,
+            VGNKennung: nextStopID,
+            Linienname,
+            tripTimeline,
+            tripDepartureTimeline
+        }
+
+        // If the job enterd the worker later than the SCANBEFORE time, we rescedule it for the next stop
+        if (new Date().getTime() - needsProcessingUntil > parseInt(process.env.SCANBEFORE, 10) * 1000) {
+            if (thisStopIndex + 1 >= tripTimeline.length - 1) {
+                process.log.info(`Tryed looking ahead for ${Fahrtnummer} (Linie: ${Linienname}) but its final destination was reached`);
+                delTripKey(Fahrtnummer);
+                return;
+            }
+            process.log.info(`JobTime: ${new Date(needsProcessingUntil).toLocaleString()} Job for ${Fahrtnummer} (Linie: ${Linienname}) is too late. Resceduled for next stop`);
+            ScheduleJob(Fahrtnummer, nextData, tripTimeline, tripDepartureTimeline, nextTimestamp, 0);
             return;
         }
 
@@ -39,19 +58,19 @@ new Worker('q:trips', async (job) => {
 
         if(!Meta) console.log(departure, job.data)
         writeNewDatapoint('METRICLIST:Departure.RequestTime', Meta.RequestTime); // Store the request time for later analysis
-
-        // Find the next stop in tripTimeline, and check if its the last stop
-        const thisStopIndex = tripTimeline.indexOf(VGNKennung);
-        const nextStopID = tripTimeline[thisStopIndex + 1];
-        const nextTimestamp = tripDepartureTimeline[thisStopIndex + 1] - (parseInt(process.env.SCANBEFORE, 10) || 30) * 1000; // Scan x seconds before the expected arrival time
-
+        
         // Find the departure for the trip we are interested in (Fahrtnummer)
         const tripDeparture = Departures.find((departure) => departure.Fahrtnummer === Fahrtnummer);
         if (!tripDeparture) {
+            if( Meta.RequestTime >= parseInt(process.env.SCANBEFORE, 10 ) * 1000) {
+                process.log.warn(`JobTime: ${new Date(needsProcessingUntil).toLocaleString()} (${Meta.RequestTime}ms) Check for ${Fahrtnummer} (Linie: ${Linienname}) way skipped API delay and resceduled for next stop`);
+                ScheduleJob(Fahrtnummer, nextData, tripTimeline, tripDepartureTimeline, nextTimestamp, Meta.RequestTime);
+                return;
+            }
             // console.log(departure.Stop, "thisStopIndex", thisStopIndex, "tripLegth", tripTimeline.length);
             //console.log(Fahrtnummer, Departures);
             if (thisStopIndex >= tripTimeline.length - 1) {
-                process.log.info(`Trip ${Fahrtnummer} (Linie: ${Linienname}) has reached its final destination at ${departure.Stop}`);
+                process.log.info(`JobTime: ${new Date(needsProcessingUntil).toLocaleString()} (${Meta.RequestTime}ms) Trip ${Fahrtnummer} (Linie: ${Linienname}) has reached its final destination at ${departure.Stop}`);
                 delTripKey(Fahrtnummer);
 
                 // Here we can check where the product is and will head on next, if we want. This can be used to find out if a trip actually never existed
@@ -83,7 +102,7 @@ new Worker('q:trips', async (job) => {
                 return;
             }
 
-            process.log.warn(`Could not find departure on first try for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
+            process.log.warn(`JobTime: ${new Date(needsProcessingUntil).toLocaleString()} (${Meta.RequestTime}ms) Could not find departure on first try for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
             throw new NotDeparturesFound(`Could not find departure on first try for ${Fahrtnummer} ${departure.Stop} (${VGNKennung}) (Linie: ${Linienname})`);
         }
 
@@ -95,18 +114,10 @@ new Worker('q:trips', async (job) => {
             return;
         }
 
-        process.log.info(`Processed ${Fahrtnummer} at ${departure.Stop} (Linie: ${Linienname}) to ${nextStopID} with a delay of ${tripDeparture.Verspätung} seconds`);
-        process.log.debug(`Job scan at ${new Date(nextTimestamp).toLocaleString()} - Departure: ${new Date(tripDepartureTimeline[thisStopIndex + 1]).toLocaleString()}`);
+        process.log.info(`JobTime: ${new Date(needsProcessingUntil).toLocaleString()} (${Meta.RequestTime}ms) Processed ${Fahrtnummer} at ${departure.Stop} (Linie: ${Linienname}) to ${nextStopID} with a delay of ${tripDeparture.Verspätung} seconds`);
+        process.log.debug(`Job scan at ${new Date(nextTimestamp).toLocaleString()} (${Meta.RequestTime}ms) Departure: ${new Date(tripDepartureTimeline[thisStopIndex + 1]).toLocaleString()}`);
 
-        const nextData = {
-            Fahrtnummer,
-            VGNKennung: nextStopID,
-            Linienname,
-            tripTimeline,
-            tripDepartureTimeline
-        }
-
-        ScheduleJob(Fahrtnummer, nextData, tripTimeline, nextTimestamp, Meta.RequestTime);
+        ScheduleJob(Fahrtnummer, nextData, tripTimeline, tripDepartureTimeline, nextTimestamp, Meta.RequestTime);
 
     } catch (error) {
         if(error instanceof NotDeparturesFound) {
@@ -119,5 +130,5 @@ new Worker('q:trips', async (job) => {
     connection: queueData,
     removeOnComplete: { count: 1 },
     removeOnFail: { count: 50 },
-    concurrency: 10
+    concurrency: 25
 });

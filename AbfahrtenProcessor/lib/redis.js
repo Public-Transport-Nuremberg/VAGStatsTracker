@@ -69,23 +69,32 @@ const errorExporter = (errorMessage, errorData, jobData) => {
  * @param {Number} number The unique identifier for the key.
  * @param {Object} data The data to complete the job.
  * @param {Array} tripTimeline The timeline of the trip.
+ * @param {Array} tripDepartureTimeline The timeline of the trip departure times.
  * @param {Number} timestamp The timestamp for when the job should be nearly executed.
  * @param {Number} requestDuration The duration of the request
  */
-const ScheduleJob = async (number, data, tripTimeline, timestamp, requestDuration) => {
+const ScheduleJob = async (number, data, tripTimeline, tripDepartureTimeline, timestamp, requestDuration) => {
     const key = `TRIP:${number}`;
+
+    if (timestamp == null) {
+        process.log(number, data, tripTimeline, tripDepartureTimeline, timestamp, requestDuration)
+        delTripKey(number);
+        return process.log.error(`Cannot schedule job for ${number} (Linie: ${data.Linienname}) because the timestamp is null`);
+    }
 
     // Check that the timestamp in the future or can be called in time
     const timeNow = new Date().getTime();
     const delay = (timestamp - timeNow) - requestDuration;
 
-    if( delay < 10000 ) {
+    if (delay < 10000) {
         delTripKey(number);
         return process.log.info(`Cannot schedule job for ${number} (Linie: ${data.Linienname}) because the timestamp is too soon or in the past. ${new Date(timestamp).toLocaleString()} - ${delay}, Ping: ${requestDuration}ms`);
     }
-    
+
     // Schedule the job with BullMQ
     data.tripTimeline = tripTimeline;
+    data.tripDepartureTimeline = tripDepartureTimeline;
+    data.needsProcessingUntil = timestamp;
     await trips_q.add(`${number}:${data.VGNKennung}:${data.Haltepunkt}`, data, { delay, attempts: 3, });
     process.log.debug(`Job for ${key} scheduled to run at ${new Date(timestamp).toLocaleString()} - Scheduled in: ${(delay / 1000).toFixed(0)} Seconds`);
 

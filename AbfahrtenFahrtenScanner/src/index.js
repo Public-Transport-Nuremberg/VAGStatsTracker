@@ -91,6 +91,7 @@ const MakeTripRequests = async () => {
 };
 
 (async () => {
+    process.log.system('Starting FahrtenScanner, scanning every ' + process.env.SCAN_INTERVAL + ' minutes');
     await MakeTripRequests();
-    setInterval(MakeTripRequests, 10 * 1000);
+    setInterval(MakeTripRequests, parseInt(process.env.SCAN_INTERVAL, 10) * 60 * 1000);
 })();

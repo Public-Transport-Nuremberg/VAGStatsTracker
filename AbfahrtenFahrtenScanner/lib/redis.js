@@ -54,6 +54,11 @@ const checkTripKey = async (number) => {
 const ScheduleJob = async (number, trip, data, tripTimeline, tripDepartureTimeline, timestamp) => {
     const key = `TRIP:${number}`;
 
+    if (timestamp == null) {
+        process.log(number, data, tripTimeline, tripDepartureTimeline, timestamp, requestDuration)
+        return process.log.error(`Cannot schedule job for ${number} (Linie: ${data.Linienname}) because the timestamp is null`);
+    }
+
     // Check that the timestamp is at least 5 seconds in the future
     const timeNow = new Date().getTime();
     const delay = timestamp - timeNow;

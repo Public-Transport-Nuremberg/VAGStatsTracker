@@ -1,12 +1,14 @@
 const { checkTripKey } = require('@lib/redis');
 
+const minFutureMS = parseInt(process.env.SCANBEFORE) * 1000;
+
 /**
  * Find the index of the first timestamp that is at least x seconds in the future.
  * @param {Array} timestamps Array of timestamps
  * @param {Number} minFuture Minimum time in milliseconds
  * @returns 
  */
-const findFutureTimestampIndex = (timestamps, minFuture = 5000) => {
+const findFutureTimestampIndex = (timestamps, minFuture = minFutureMS) => {
     const now = new Date();
     const futureTime = now.getTime() + minFuture;
 
