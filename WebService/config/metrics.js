@@ -56,6 +56,18 @@ module.exports = {
                 "Help": "The average response time of requests",
             }
         },
+        "Departure.RequestTime": {
+            "rate": {
+                "Metric": "DepartureRequestTimeRate",
+                "Type": "gauge",
+                "Help": "The rate of requests per second",
+            },
+            "averageResponseTime": {
+                "Metric": "DepartureRequestTimeAverage",
+                "Type": "gauge",
+                "Help": "The average response time of requests",
+            }
+        },
     },
     "ErrorList": {
         "Trips.Statuscode": {

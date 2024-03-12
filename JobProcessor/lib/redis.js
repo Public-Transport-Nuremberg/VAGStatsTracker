@@ -75,7 +75,7 @@ const errorExporter = (errorMessage, errorData, jobData) => {
 const ScheduleJob = async (number, data, tripTimeline, timestamp, requestDuration) => {
     const key = `TRIP:${number}`;
 
-    // Check that the timestamp is at least 5 seconds in the future
+    // Check that the timestamp in the future or can be called in time
     const timeNow = new Date().getTime();
     const delay = (timestamp - timeNow) - requestDuration;
 
