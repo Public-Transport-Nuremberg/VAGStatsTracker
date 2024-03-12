@@ -76,6 +76,7 @@ const findAllTripKeys = async () => {
 }
 
 const getValuesFromKeys = async (keys) => {
+    if(keys.length === 0) return {};
     const values = await redis.mget(keys); // Fetch the values for the given keys
     // Combine keys and values into an object
     const result = keys.reduce((obj, key, index) => {
