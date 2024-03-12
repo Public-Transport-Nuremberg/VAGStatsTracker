@@ -42,6 +42,7 @@ const monitorRedis = async () => {
         } else {
             const [key, value] = line.split(':');
             const trimmedKey = key.trim();
+            if(!relevantKeys.includes(trimmedKey)) continue; // If the key is not present in the relevantKeys array, skip it
             if (relevantKeys.includes(trimmedKey)) {
                 data[section][trimmedKey] = value.trim();
             }

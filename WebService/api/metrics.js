@@ -20,7 +20,7 @@ const updateMetrics = async () => {
     metricsTempObject.allMetricValues = await getValuesFromKeys(allMetricKeys);
     metricsTempObject.ratesAndAverages = await calculateRateAndAverageResponseTimeAndReset(allMetricListKeys, metricsScanTime);
     metricsTempObject.statusCodeCounts = await countStatusCodesByKey(allErrorListKeys);
-    metricsTempObject.RedisInfo = await monitorRedis();
+    metricsTempObject.RedisInfo = await monitorRedis() ?? {};
     metricsFirstScan = true;
 }
 
