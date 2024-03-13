@@ -1,0 +1,36 @@
+{
+  "name": "fahrtenscanner",
+  "version": "0.0.1",
+  "description": "Collects new drives",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "update": "npx npm-check-updates -u",
+    "clearRedis": "node ./tools/clearRedis.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Public-Transport-Nuremberg/VAGStatsTracker.git"
+  },
+  "author": "BolverBlitz",
+  "license": "AGPL-3.0",
+  "bugs": {
+    "url": "https://github.com/Public-Transport-Nuremberg/VAGStatsTracker/issues"
+  },
+  "_moduleAliases": {
+    "@lib": "lib/",
+    "@src": "src/",
+    "@config": "./config"
+  },
+  "homepage": "https://github.com/Public-Transport-Nuremberg/VAGStatsTracker#readme",
+  "dependencies": {
+    "bullmq": "^5.4.2",
+    "dotenv": "^16.4.5",
+    "dotenv-joi": "^0.0.4",
+    "event-watchdog": "^0.0.2",
+    "ioredis": "^5.3.2",
+    "joi": "^17.12.2",
+    "module-alias": "^2.2.3",
+    "oepnv-nuremberg": "^0.3.3"
+  }
+}
