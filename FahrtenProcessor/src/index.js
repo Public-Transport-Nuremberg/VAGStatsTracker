@@ -25,6 +25,8 @@ new Worker('q:trips', async (job) => {
         const { Fahrt, Meta } = tripData;
         const { Linienname, Fahrzeugnummer, Besetzgrad, Richtung, Richtungstext, Fahrtverlauf } = Fahrt;
 
+        writeNewDatapoint('METRICLIST:Trip.RequestTime', Meta.RequestTime); // Store the request time for later analysis
+
         const currentTime = new Date();
         const Fahrtverlauf_result = getLastStopAndProgress(Fahrtverlauf, currentTime);
         const unProcessedStopsList = removeDuplicatesAndKeepOrder(AlreadyTrackedStops, Fahrtverlauf_result.vgnCodes); // All those stops we need to write to db
