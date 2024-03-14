@@ -1,7 +1,7 @@
 const vgn_wrapper = require('oepnv-nuremberg');
 
-const { writeNewDatapoint, writeNewDatapointKey, ScheduleJob } = require('@lib/redis');
-const { findFutureTimestampIndex, filterDuplicates } = require('@lib/util');
+const { writeNewDatapoint, writeNewDatapointKey, addJob } = require('@lib/redis');
+const { filterDuplicates } = require('@lib/util');
 
 const vgn = new vgn_wrapper.openvgn();
 
@@ -49,15 +49,14 @@ const MakeTripRequests = async () => {
             //Limit it at 1 to test the system
             // const testfilteredFahrten = filteredFahrten.slice(0, 1)
 
-            console.log(filteredFahrten)
+            filteredFahrten.map(async (fahrt) => {
+                const { Fahrtnummer, Linienname, Betriebstag, Startzeit, Endzeit } = fahrt;
 
-            // Cache key Needs: Fahrtnummer as Key, Current VGNKennung where the Vehicle is + The percentage of the time between last and next stop
-            // We leave this information emptry for now, because we track this in the other process.
-            
-            // Job needs: Fahrtnummer, Betriebstag, Array of already tracked & written to DB Stops
+                console.log(Fahrtnummer, Linienname, Betriebstag, Startzeit, Endzeit)
 
-            //AddJob()
-            
+                const jobDelay = await addJob(Fahrtnummer, Betriebstag, Produkt, new Date(Startzeit).getTime(), new Date(Endzeit).getTime());
+                process.log.info(`Added job for ${Fahrtnummer} (Produkt: ${Produkt}) to run at ${new Date(Startzeit).toLocaleString()} (${jobDelay})`);
+            }); 
         });
 
         process.log.info('All requests completed');

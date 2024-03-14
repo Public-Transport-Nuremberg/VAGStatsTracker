@@ -42,9 +42,53 @@ const checkTripKey = async (number) => {
     return exists;
 }
 
+/**
+ * Add a new fahrten job to the queue
+ * @param {Number} Fahrtnummer 
+ * @param {String} Betriebstag 
+ * @param {String} Produkt 
+ * @param {Number} runAtTimestamp 
+ * @param {Number} Endzeit 
+ */
+const addJob = async (Fahrtnummer, Betriebstag, Produkt, runAtTimestamp, Endzeit) => {
+    const key = `TRIP:${Fahrtnummer}`;
+
+    const ttl = parseInt(((Endzeit - new Date().getTime()) / 1000) + (60 * 60), 10);
+    const delay = parseInt((runAtTimestamp - new Date().getTime()) / 1000, 10);
+
+    const keyData = {
+        VGNKennung: 0,
+        VAGKennung: 0,
+        Produkt: 0,
+        Linienname: 0,
+        Richtung: 0,
+        Richtungstext: 0,
+        Fahrzeugnummer: 0,
+        Betriebstag: 0,
+        Besetzgrad: 0,
+        Haltepunkt: 0,
+        AbfahrtszeitSoll: 0,
+        AbfahrtszeitIst: 0,
+        PercentageToNextStop: 0,
+    }
+
+    redis.set(key, JSON.stringify(keyData), "EX", ttl);
+
+    await trips_q.add(`${Fahrtnummer}`, {
+        Fahrtnummer: Fahrtnummer,
+        Betriebstag: Betriebstag,
+        Produkt: Produkt,
+        AlreadyTrackedStops: [],
+        Startzeit: runAtTimestamp,
+        Endzeit: Endzeit
+    }, { delay: delay, attempts: 2 });
+
+    return delay
+}
 
 module.exports = {
     writeNewDatapoint,
     writeNewDatapointKey,
-    checkTripKey
+    checkTripKey,
+    addJob
 }
