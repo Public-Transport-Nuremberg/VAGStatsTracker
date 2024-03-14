@@ -52,8 +52,6 @@ const MakeTripRequests = async () => {
             filteredFahrten.map(async (fahrt) => {
                 const { Fahrtnummer, Linienname, Betriebstag, Startzeit, Endzeit } = fahrt;
 
-                console.log(Fahrtnummer, Linienname, Betriebstag, Startzeit, Endzeit)
-
                 const jobDelay = await addJob(Fahrtnummer, Betriebstag, Produkt, new Date(Startzeit).getTime(), new Date(Endzeit).getTime());
                 process.log.info(`Added job for ${Fahrtnummer} (Produkt: ${Produkt}) to run at ${new Date(Startzeit).toLocaleString()} (${jobDelay})`);
             }); 

@@ -25,11 +25,9 @@ new Worker('q:trips', async (job) => {
         const { Fahrt, Meta } = tripData;
         const { Linienname, Fahrzeugnummer, Besetzgrad, Richtung, Richtungstext, Fahrtverlauf } = Fahrt;
 
-        const Fahrtverlauf_result = getLastStopAndProgress(Fahrtverlauf, new Date());
-        const newStopsList = removeDuplicatesAndKeepOrder(AlreadyTrackedStops, Fahrtverlauf_result.vgnCodes); // All those stops we need to write to db
-
-        const lastStopObject = Fahrtverlauf[Fahrtverlauf_result.lastStopIndex];
-        let nextStopObject = {};
+        const currentTime = new Date();
+        const Fahrtverlauf_result = getLastStopAndProgress(Fahrtverlauf, currentTime);
+        const unProcessedStopsList = removeDuplicatesAndKeepOrder(AlreadyTrackedStops, Fahrtverlauf_result.vgnCodes); // All those stops we need to write to db
 
         // Check if there is a next stop or not
         if (Fahrtverlauf_result.lastStopIndex === Fahrtverlauf_result.length - 1) {
@@ -37,7 +35,12 @@ new Worker('q:trips', async (job) => {
             return;
         }
 
-        nextStopObject = Fahrtverlauf[Fahrtverlauf_result.lastStopIndex + 1];
+        const lastStopObject = Fahrtverlauf[Fahrtverlauf_result.lastStopIndex];
+        const nextStopObject = Fahrtverlauf[Fahrtverlauf_result.lastStopIndex + 1];
+
+        if(Fahrtverlauf_result.lastStopIndex === -1) {
+            throw new Error(`Could not find last stop for ${Fahrtnummer} (${Produkt})`);
+        }
 
         const tripKeyData = {
             VGNKennung: Fahrtnummer,
@@ -55,9 +58,9 @@ new Worker('q:trips', async (job) => {
             PercentageToNextStop: Fahrtverlauf_result.progress,
         }
 
-        //console.log(lastStopObject, nextStopObject)
+        //console.log(lastStopObject, nextStopObject);
 
-        process.log.info(`Processed [${Fahrtnummer}] ${Produkt} (${Linienname}) @ ${lastStopObject.Haltestellenname} Next stop: ${nextStopObject.Haltestellenname}`);
+        process.log.info(`Processed [${Fahrtnummer}] ${Produkt} (${Linienname}) [${lastStopObject.AbfahrtszeitIst}] ${lastStopObject.Haltestellenname} Next stop: ${nextStopObject.Haltestellenname} [${nextStopObject.AnkunftszeitIst}] Progress: ${Fahrtverlauf_result.progress}`);
         ScheduleJob(Fahrtnummer, Betriebstag, Produkt, tripKeyData, Fahrtverlauf_result.vgnCodes, new Date(nextStopObject.AnkunftszeitIst).getTime(), Startzeit, Endzeit);
 
     } catch (error) {
@@ -69,5 +72,5 @@ new Worker('q:trips', async (job) => {
     connection: queueData,
     removeOnComplete: { count: 1 },
     removeOnFail: { count: 50 },
-    concurrency: 10
+    concurrency: 5
 });

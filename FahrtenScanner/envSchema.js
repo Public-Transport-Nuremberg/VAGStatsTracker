@@ -91,5 +91,11 @@ module.exports = {
         "type": "number",
         "validation": "required",
         "default": 0
-    }
+    },
+    "SCAN_INTERVAL": {
+        "section": "GENERAL",
+        "type": "number",
+        "validation": "min:1||max:60",
+        "default": 5
+    },
 }

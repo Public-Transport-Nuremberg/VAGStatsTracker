@@ -10,20 +10,25 @@ const getLastStopAndProgress = (routeData, currentTimestamp) => {
     let vgnCodes = [];
     let progress = 0;
 
-    for (let i = 0; i < routeData.length; i++) {
-        const stop = routeData[i];
-        let departureTime = stop.AbfahrtszeitIst ? new Date(stop.AbfahrtszeitIst) : null;
+    // Check if the first stop's departure time is in the future
+    if (routeData.length > 0 && new Date(routeData[0].AbfahrtszeitIst) > now) {
+        lastStopIndex = 0; // Trip hasn't started
+    } else {
+        for (let i = 0; i < routeData.length; i++) {
+            const stop = routeData[i];
+            let departureTime = stop.AbfahrtszeitIst ? new Date(stop.AbfahrtszeitIst) : null;
 
-        if (departureTime && departureTime < now) {
-            lastStopIndex = i;
-            vgnCodes.push(stop.VGNKennung);
-        } else {
-            break; // Stop iteration if we found the last stop
+            if (departureTime && departureTime < now) {
+                lastStopIndex = i;
+                vgnCodes.push(stop.VGNKennung);
+            } else {
+                break; // Stop iteration if we found the last stop
+            }
         }
     }
 
     if (lastStopIndex !== -1 && lastStopIndex < routeData.length - 1) {
-        const lastDepartureTime = new Date(routeData[lastStopIndex].AbfahrtszeitIst);
+        const lastDepartureTime = lastStopIndex === 0 ? now : new Date(routeData[lastStopIndex].AbfahrtszeitIst);
         const nextArrivalTime = new Date(routeData[lastStopIndex + 1].AnkunftszeitIst);
 
         const totalTime = nextArrivalTime - lastDepartureTime;
@@ -39,6 +44,7 @@ const getLastStopAndProgress = (routeData, currentTimestamp) => {
         progress
     };
 }
+
 
 /**
  * Filter out duplicate Fahrten from the array

@@ -8,8 +8,8 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}/JobProcessor/index.js",
-            "cwd": "${workspaceFolder}/JobProcessor"
+            "program": "${workspaceFolder}/FahrtenProcessor/index.js",
+            "cwd": "${workspaceFolder}/FahrtenProcessor"
         }
     ]
 }
