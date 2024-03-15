@@ -61,6 +61,7 @@ new Worker('q:trips', async (job) => {
         }
 
         //console.log(lastStopObject, nextStopObject);
+        // ADD REDIS GEO KEY
 
         process.log.info(`Processed [${Fahrtnummer}] ${Produkt} (${Linienname}) [${lastStopObject.AbfahrtszeitIst}] ${lastStopObject.Haltestellenname} Next stop: ${nextStopObject.Haltestellenname} [${nextStopObject.AnkunftszeitIst}] Progress: ${Fahrtverlauf_result.progress}`);
         ScheduleJob(Fahrtnummer, Betriebstag, Produkt, tripKeyData, Fahrtverlauf_result.vgnCodes, new Date(nextStopObject.AnkunftszeitIst).getTime(), Startzeit, Endzeit);
