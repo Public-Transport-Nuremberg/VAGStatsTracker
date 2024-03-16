@@ -17,7 +17,7 @@ const updateMetrics = async () => {
     const allMetricKeys = await findAllMetricKeys();
     const allMetricListKeys = await findAllMetricListKeys();
     const allErrorListKeys = await findAllErrorListKeys();
-    metricsTempObject.allMetricValues = await getValuesFromKeys(allMetricKeys);
+    metricsTempObject.allMetricValues = await getValuesFromKeys("METRIC:", allMetricKeys);
     metricsTempObject.ratesAndAverages = await calculateRateAndAverageResponseTimeAndReset(allMetricListKeys, metricsScanTime);
     metricsTempObject.statusCodeCounts = await countStatusCodesByKey(allErrorListKeys);
     metricsTempObject.RedisInfo = await monitorRedis() ?? {};

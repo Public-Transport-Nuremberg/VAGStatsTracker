@@ -116,7 +116,7 @@ const ScheduleJob = async (Fahrtnummer, Betriebstag, Produkt, keyData, AlreadyTr
     const ttl = parseInt(((Endzeit - new Date().getTime()) / 1000) + (60 * 60), 10);
     const delay = parseInt((runAtTimestamp - new Date().getTime()), 10);
 
-    redis.set(key, JSON.stringify(keyData), "EX", ttl);
+    redis.set(key, JSON.stringify(keyData), "EX", Math.max(ttl, 1));
 
     await trips_q.add(`${Fahrtnummer}`, {
         Fahrtnummer: Fahrtnummer,
@@ -125,7 +125,7 @@ const ScheduleJob = async (Fahrtnummer, Betriebstag, Produkt, keyData, AlreadyTr
         AlreadyTrackedStops: AlreadyTrackedStops,
         Startzeit: Startzeit,
         Endzeit: Endzeit
-    }, { delay: Math.max(delay, 30000), attempts: 2 });
+    }, { delay: Math.max(delay, 60000), attempts: 2 });
 
     return delay
 }

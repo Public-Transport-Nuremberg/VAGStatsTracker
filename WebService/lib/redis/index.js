@@ -76,12 +76,12 @@ const findAllTripKeys = async () => {
     return keys;
 }
 
-const getValuesFromKeys = async (keys) => {
+const getValuesFromKeys = async (keyName, keys) => {
     if(keys.length === 0) return {};
     const values = await redis.mget(keys); // Fetch the values for the given keys
     // Combine keys and values into an object
     const result = keys.reduce((obj, key, index) => {
-        obj[key.replace("METRIC:", "")] = values[index]; // Assign each value to its corresponding key
+        obj[key.replace(keyName, "")] = JSON.parse(values[index]); // Assign each value to its corresponding key
         return obj;
     }, {});
     return result;
