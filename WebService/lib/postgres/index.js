@@ -24,7 +24,8 @@ const createTables = async () => {
       Produkt_UBahn    boolean,
       Produkt_Tram     boolean,
       Produkt_SBahn    boolean,
-      Produkt_RBahn    boolean
+      Produkt_RBahn    boolean,
+      timestamptz      timestamp WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
   );`, "haltestellen")
     await createTable(`CREATE TABLE IF NOT EXISTS fahrten
   (

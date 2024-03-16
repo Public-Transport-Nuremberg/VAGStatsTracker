@@ -36,13 +36,15 @@ new Worker('q:trips', async (job) => {
         const dbInsertPromises = unProcessedStopsList.map((stop) => {
             const stopObject = Fahrtverlauf.find((obj) => obj.VGNKennung === stop);
             process.log.warn(`Inserting fahrt ${Fahrtnummer} (${Produkt}) stop ${stopObject.Haltestellenname} into the database...`);
-            return insertOrUpdateFahrtEntry(Fahrtnummer, Betriebstag, Produkt, stopObject.VGNKennung, stopObject.Haltepunkt, stopObject.Richtungstext, stopObject.AnkunftszeitSoll, stopObject.AnkunftszeitVerspätung, stopObject.AbfahrtszeitSoll, stopObject.AbfahrtszeitVerspätung);
+            const AnkunftszeitVerspätung = stopObject.AnkunftszeitIst ? Math.floor((new Date(stopObject.AnkunftszeitIst) - new Date(stopObject.AnkunftszeitSoll)) / 1000) : 0;
+            const AbfahrtszeitVerspätung = stopObject.AbfahrtszeitIst ? Math.floor((new Date(stopObject.AbfahrtszeitIst) - new Date(stopObject.AbfahrtszeitSoll)) / 1000) : 0;
+            return insertOrUpdateFahrtEntry(Fahrtnummer, Betriebstag, Produkt, stopObject.VGNKennung, stopObject.Haltepunkt, stopObject.Richtungstext, stopObject.AnkunftszeitSoll, AnkunftszeitVerspätung, stopObject.AbfahrtszeitSoll, AbfahrtszeitVerspätung);
         });
 
         const insertResult = await Promise.allSettled(dbInsertPromises);
         for (const result of insertResult) {
             if (result.status === 'rejected') {
-                if(result.reason.code === '23503') {
+                if (result.reason.code === '23503') {
                     try {
                         // GANZ EHRLICH WAS IST FUCKING FALSCH MIT EUCH? DAS IST JA ABRARTIG PEINLICH
                         // Because the DB is kinda... normalized, there are some cases where a fahrt stops at stops not existing. Nice, isn´t it?
@@ -52,7 +54,9 @@ new Worker('q:trips', async (job) => {
                         process.log.warn(`Could not find stop ${stopObject.VGNKennung} in the database, trying to insert it now...`);
                         await insertOrUpdateHaltestelle(stopObject.VGNKennung, stopObject.VAGKennung, stopObject.Haltestellenname, stopObject.Latitude, stopObject.Longitude, Produkt);
                         // Insert the trip again... now that we actualy HAVE it.
-                        await insertOrUpdateFahrtEntry(Fahrtnummer, Betriebstag, Produkt, stopObject.VGNKennung, stopObject.Haltepunkt, stopObject.Richtungstext, stopObject.AnkunftszeitSoll, stopObject.AnkunftszeitVerspätung, stopObject.AbfahrtszeitSoll, stopObject.AbfahrtszeitVerspätung);
+                        const AnkunftszeitVerspätung = stopObject.AnkunftszeitIst ? Math.floor((new Date(stopObject.AnkunftszeitIst) - new Date(stopObject.AnkunftszeitSoll)) / 1000) : 0;
+                        const AbfahrtszeitVerspätung = stopObject.AbfahrtszeitIst ? Math.floor((new Date(stopObject.AbfahrtszeitIst) - new Date(stopObject.AbfahrtszeitSoll)) / 1000) : 0;
+                        await insertOrUpdateFahrtEntry(Fahrtnummer, Betriebstag, Produkt, stopObject.VGNKennung, stopObject.Haltepunkt, stopObject.Richtungstext, stopObject.AnkunftszeitSoll, AnkunftszeitVerspätung, stopObject.AbfahrtszeitSoll, AbfahrtszeitVerspätung);
                         continue;
                     } catch (error) {
                         errorExporter(error, error, job.data);
@@ -73,7 +77,7 @@ new Worker('q:trips', async (job) => {
         const lastStopObject = Fahrtverlauf[Fahrtverlauf_result.lastStopIndex];
         const nextStopObject = Fahrtverlauf[Fahrtverlauf_result.lastStopIndex + 1];
 
-        if(Fahrtverlauf_result.lastStopIndex === -1) {
+        if (Fahrtverlauf_result.lastStopIndex === -1) {
             throw new Error(`Could not find last stop for ${Fahrtnummer} (${Produkt})`);
         }
 
