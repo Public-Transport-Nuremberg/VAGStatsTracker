@@ -65,6 +65,22 @@ const errorExporter = (errorMessage, errorData, jobData) => {
 }
 
 /**
+ * Add a new tripId to the geo set
+ * @param {Number} tripId 
+ * @param {Number} latitude 
+ * @param {Number} longitude 
+ */
+const addTripLocation = async (tripId, latitude, longitude) => {
+    const geoKey = 'TRIPS_GEO'; // Key for the geo set
+    try {
+      await redis.geoadd(geoKey, longitude, latitude, tripId);
+    } catch (error) {
+        console.log(error);
+      process.log.error(error);
+    }
+  }
+
+/**
  * @typedef {Object} tripData
  * @property {Number} VGNKennung
  * @property {String} VAGKennung
@@ -119,5 +135,6 @@ module.exports = {
     checkTripKey,
     delTripKey,
     errorExporter,
+    addTripLocation,
     ScheduleJob
 }

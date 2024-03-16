@@ -6,7 +6,7 @@ const Redis = require('ioredis');
 const { Worker } = require('bullmq');
 
 const { getLastStopAndProgress, removeDuplicatesAndKeepOrder } = require('@lib/util');
-const { writeNewDatapoint, ScheduleJob, delTripKey, errorExporter } = require('@lib/redis');
+const { writeNewDatapoint, ScheduleJob, delTripKey, errorExporter, addTripLocation } = require('@lib/redis');
 
 const { insertOrUpdateFahrtEntry, insertOrUpdateHaltestelle } = require('@lib/postgres');
 
@@ -97,11 +97,12 @@ new Worker('q:trips', async (job) => {
             PercentageToNextStop: Fahrtverlauf_result.progress,
         }
 
-        //console.log(lastStopObject, nextStopObject);
-        // ADD REDIS GEO KEY
+        addTripLocation(lastStopObject.VGNKennung, lastStopObject.Latitude, lastStopObject.Longitude);
 
-        process.log.info(`Processed [${Fahrtnummer}] ${Produkt} (${Linienname}) [${lastStopObject.AbfahrtszeitIst}] ${lastStopObject.Haltestellenname} Next stop: ${nextStopObject.Haltestellenname} [${nextStopObject.AnkunftszeitIst}] Progress: ${Fahrtverlauf_result.progress}`);
-        await ScheduleJob(Fahrtnummer, Betriebstag, Produkt, tripKeyData, Fahrtverlauf_result.vgnCodes, new Date(nextStopObject.AnkunftszeitIst).getTime(), Startzeit, Endzeit);
+        const nextRunAt = new Date(nextStopObject.AnkunftszeitIst).getTime() + 5000 // experimental
+
+        process.log.info(`Processed [${Fahrtnummer}] ${Produkt} (${Linienname}) [${new Date(lastStopObject.AbfahrtszeitIst).toLocaleTimeString()}] ${lastStopObject.Haltestellenname} Next stop: ${nextStopObject.Haltestellenname} [${new Date(nextStopObject.AnkunftszeitIst).toLocaleTimeString()}] Progress: ${Fahrtverlauf_result.progress}`);
+        await ScheduleJob(Fahrtnummer, Betriebstag, Produkt, tripKeyData, Fahrtverlauf_result.vgnCodes, nextRunAt, Startzeit, Endzeit);
 
     } catch (error) {
 
