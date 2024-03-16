@@ -12,6 +12,54 @@ const pool = new db.Pool({
 const createTables = async () => {
   await createTable(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`, "uuid-ossp extension");
   // Create User Table
+  await createTable(`CREATE TABLE IF NOT EXISTS haltestellen
+  (
+      VGNKennung       smallint PRIMARY KEY,
+      VAGKennung       text[],
+      Haltestellenname text,
+      Latitude         double precision,
+      Longitude        double precision,
+      Produkt_Bus      boolean,
+      Produkt_UBahn    boolean,
+      Produkt_Tram     boolean,
+      Produkt_SBahn    boolean,
+      Produkt_RBahn    boolean
+  );`, "haltestellen")
+  await createTable(`CREATE TABLE IF NOT EXISTS fahrten
+  (
+      Fahrtnummer      integer,
+      Betriebstag      date,
+      Produkt          smallint,
+      Linienname       text,
+      Besetzungsgrad   smallint,
+      Fahrzeugnummer   smallint,
+      Richtung         smallint,
+  );`, "fahrten")
+  await createTable(`CREATE TABLE IF NOT EXISTS fahrten_halte
+  (
+      Fahrtnummer      integer,
+      Betriebstag      date,
+      Produkt          smallint,
+      VGNKennung       smallint,
+      Haltepunkt       smallint,
+      Richtungstext    text,
+      AnkunftszeitSoll timestamp WITH TIME ZONE,
+      AnkunftszeitVerspätung smallint,
+      AbfahrtszeitSoll timestamp WITH TIME ZONE,
+      AbfahrtszeitVerspätung smallint,
+      FOREIGN KEY (Fahrtnummer, Betriebstag, Produkt) REFERENCES fahrten(Fahrtnummer, Betriebstag, Produkt) ON DELETE CASCADE,
+      FOREIGN KEY (VGNKennung) REFERENCES haltestellen (VGNKennung) ON DELETE CASCADE,
+      PRIMARY KEY (Fahrtnummer, Betriebstag, Produkt)
+  );`, "fahrten_halte")
+  // Create Indexes
+  await createTable(`create index if not exists fahrten_halte_betriebstag_vgnkennung_index
+  on abfahrten_liste (betriebstag desc, vgnkennung asc);`)
+  await createTable(`CREATE MATERIALIZED VIEW IF NOT EXISTS delay_map AS
+      SELECT (SUM(AbfahrtszeitVerspätung) / COUNT(*)) AS avg_delay, h.VGNKennung, h.Latitude, h.Longitude, Betriebstag
+      FROM fahrten_halte
+        INNER JOIN haltestellen h on fahrten_halte.VGNKennung = h.VGNKennung
+      WHERE Betriebstag < (CURRENT_DATE - 7)
+      GROUP BY h.VGNKennung, Betriebstag;`)
   await createTable(`CREATE TABLE IF NOT EXISTS users (
     id serial PRIMARY KEY,
     puuid UUID NOT NULL UNIQUE DEFAULT uuid_generate_v4(),
