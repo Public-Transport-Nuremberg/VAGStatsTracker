@@ -8,6 +8,8 @@ const { Worker } = require('bullmq');
 const { getLastStopAndProgress, removeDuplicatesAndKeepOrder } = require('@lib/util');
 const { writeNewDatapoint, ScheduleJob, delTripKey, errorExporter } = require('@lib/redis');
 
+const { insertOrUpdateFahrtEntry, insertOrUpdateHaltestelle } = require('@lib/postgres');
+
 const queueData = {
     port: process.env.Redis_Port || 6379,
     host: process.env.Redis_Host || "127.0.0.1",
@@ -29,7 +31,38 @@ new Worker('q:trips', async (job) => {
 
         const currentTime = new Date();
         const Fahrtverlauf_result = getLastStopAndProgress(Fahrtverlauf, currentTime);
-        const unProcessedStopsList = removeDuplicatesAndKeepOrder(AlreadyTrackedStops, Fahrtverlauf_result.vgnCodes); // All those stops we need to write to db
+        const unProcessedStopsList = removeDuplicatesAndKeepOrder(Fahrtverlauf_result.vgnCodes, AlreadyTrackedStops); // All those stops we need to write to db
+
+        const dbInsertPromises = unProcessedStopsList.map((stop) => {
+            const stopObject = Fahrtverlauf.find((obj) => obj.VGNKennung === stop);
+            process.log.warn(`Inserting fahrt ${Fahrtnummer} (${Produkt}) stop ${stopObject.Haltestellenname} into the database...`);
+            return insertOrUpdateFahrtEntry(Fahrtnummer, Betriebstag, Produkt, stopObject.VGNKennung, stopObject.Haltepunkt, stopObject.Richtungstext, stopObject.AnkunftszeitSoll, stopObject.AnkunftszeitVerspätung, stopObject.AbfahrtszeitSoll, stopObject.AbfahrtszeitVerspätung);
+        });
+
+        const insertResult = await Promise.allSettled(dbInsertPromises);
+        for (const result of insertResult) {
+            if (result.status === 'rejected') {
+                if(result.reason.code === '23503') {
+                    try {
+                        // GANZ EHRLICH WAS IST FUCKING FALSCH MIT EUCH? DAS IST JA ABRARTIG PEINLICH
+                        // Because the DB is kinda... normalized, there are some cases where a fahrt stops at stops not existing. Nice, isn´t it?
+                        // Thats why we add all stops missing in /haltestellen here... 
+                        const resultIndex = insertResult.indexOf(result);
+                        const stopObject = Fahrtverlauf.find((obj) => obj.VGNKennung === unProcessedStopsList[resultIndex]);
+                        process.log.warn(`Could not find stop ${stopObject.VGNKennung} in the database, trying to insert it now...`);
+                        await insertOrUpdateHaltestelle(stopObject.VGNKennung, stopObject.VAGKennung, stopObject.Haltestellenname, stopObject.Latitude, stopObject.Longitude, Produkt);
+                        // Insert the trip again... now that we actualy HAVE it.
+                        await insertOrUpdateFahrtEntry(Fahrtnummer, Betriebstag, Produkt, stopObject.VGNKennung, stopObject.Haltepunkt, stopObject.Richtungstext, stopObject.AnkunftszeitSoll, stopObject.AnkunftszeitVerspätung, stopObject.AbfahrtszeitSoll, stopObject.AbfahrtszeitVerspätung);
+                        continue;
+                    } catch (error) {
+                        errorExporter(error, error, job.data);
+                        throw new Error(error);
+                    }
+                }
+                errorExporter(result.reason, result, job.data);
+                throw new Error(result.reason);
+            }
+        }
 
         // Check if there is a next stop or not
         if (Fahrtverlauf_result.lastStopIndex === Fahrtverlauf_result.length - 1) {
@@ -64,7 +97,7 @@ new Worker('q:trips', async (job) => {
         // ADD REDIS GEO KEY
 
         process.log.info(`Processed [${Fahrtnummer}] ${Produkt} (${Linienname}) [${lastStopObject.AbfahrtszeitIst}] ${lastStopObject.Haltestellenname} Next stop: ${nextStopObject.Haltestellenname} [${nextStopObject.AnkunftszeitIst}] Progress: ${Fahrtverlauf_result.progress}`);
-        ScheduleJob(Fahrtnummer, Betriebstag, Produkt, tripKeyData, Fahrtverlauf_result.vgnCodes, new Date(nextStopObject.AnkunftszeitIst).getTime(), Startzeit, Endzeit);
+        await ScheduleJob(Fahrtnummer, Betriebstag, Produkt, tripKeyData, Fahrtverlauf_result.vgnCodes, new Date(nextStopObject.AnkunftszeitIst).getTime(), Startzeit, Endzeit);
 
     } catch (error) {
 

@@ -36,8 +36,20 @@ files.forEach(file => {
 renderEJSToPublic(path.join(__dirname, 'views'), path.join(__dirname, 'public'), ["error-xxx.ejs", "landingpage.ejs"]);
 
 (async () => {
-    const { createTables } = require('@lib/postgres');
-    await createTables();
+    const { ObjectStore } = require('@lib/haltestellen_cache');
+    const { createTables, haltestellen } = require('@lib/postgres');
+    try {
+        await createTables();
+        await ObjectStore.init()
+        const haltestellen_data = await ObjectStore.getKeysAmount();
+        haltestellen_data.forEach(async (haltestelle) => {
+            const { Haltestellenname, VAGKennung, VGNKennung, Longitude, Latitude, Produkte } = ObjectStore.get(haltestelle);
+            await haltestellen.insertOrUpdate(VGNKennung, VAGKennung, Haltestellenname, Latitude, Longitude, Produkte);
+        });
+    } catch (error) {
+        process.log.error(`Failed to create tables: ${error}`);
+        process.exit(1);
+    }
 
     setTimeout(() => {
         const app = require('@src/app');

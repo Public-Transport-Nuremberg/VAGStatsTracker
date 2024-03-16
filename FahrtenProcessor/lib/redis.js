@@ -60,7 +60,7 @@ const errorExporter = (errorMessage, errorData, jobData) => {
         charset: 'alphanumeric'
     });
     const errorKey = `ERRORID:${errorToken}`;
-    redis.set(errorKey, JSON.stringify({ errorMessage, errorData, jobData }, "EX", process.env.ERROR_EXPIRE || 3600));
+    redis.set(errorKey, JSON.stringify({ errorMessage, errorData, jobData }, "EX", parseInt(process.env.ERROR_EXPIRE, 10) || 3600));
     return errorToken;
 }
 
