@@ -128,32 +128,48 @@ map.on('singleclick', function (event) {
             const properties = features.map(function (feature) { return feature.getProperties(); });
             console.log(properties)
 
-            popupContent.innerHTML = '<strong>Fahrzeuge</strong><br/>' +
+            popupContent.innerHTML = `<div class="lm-content">
+                <h2>Fahrzeuge</h2>
+                ${properties.map(function (property)  {
 
-                // Add the properties of all features in the cluster use 1 row per feature
-                properties.map(function (properties) {
-                    return `Linie: ${properties.Linienname} | Richtung: ${properties.Richtungstext} | Fahrzeugnummer: ${properties.Fahrzeugnummer} | Betriebstag: ${properties.Betriebstag} | Besetzgrad: ${properties.Besetzgrad} | Haltepunkt: ${properties.Haltepunkt} | Haltestelle: ${properties.Haltestellenname}`;
-                }).join('<br/>');
+                    return `
+                        <p><span>Linie</span>: ${property.Linienname}</p>
+                        <p><span>Richtung</span>: ${property.Richtung}</p>
+                        <p><span>Haltepunkt</span>: ${property.Haltepunkt}</p>
+                        <p><span>Haltestelle</span>: ${property.Haltestellenname}</p>
+                    `;
+
+                }).join("<div class='lm-split'></div>") }
+                </div>
+            `;
+
+            // popupContent.innerHTML = '<strong>Fahrzeuge</strong><br/>' +
+
+            //     // Add the properties of all features in the cluster use 1 row per feature
+            //     properties.map(function (properties) {
+            //         return `Linie: ${properties.Linienname} | Richtung: ${properties.Richtungstext} | Fahrzeugnummer: ${properties.Fahrzeugnummer} | Betriebstag: ${properties.Betriebstag} | Besetzgrad: ${properties.Besetzgrad} | Haltepunkt: ${properties.Haltepunkt} | Haltestelle: ${properties.Haltestellenname}`;
+            //     }).join('<br/>');
 
 
             
-            overlay.setPosition(event.coordinate);
+            overlay.setPosition(clusterPoints[0].getProperties().geometry.flatCoordinates); // set position absolute to coords
             popup.style.display = 'block';
         } else {
             const feature = clusterPoints[0];
             const properties = feature.getProperties();
             console.log(properties)
 
-            popupContent.innerHTML = '<strong>Fahrzeug</strong><br/>' +
-                `Linie: ${properties.Linienname}<br/>` +
-                `Richtung: ${properties.Richtungstext}<br/>` +
-                `Fahrzeugnummer: ${properties.Fahrzeugnummer}<br/>` +
-                `Betriebstag: ${properties.Betriebstag}<br/>` +
-                `Besetzgrad: ${properties.Besetzgrad}<br/>` +
-                `Haltepunkt: ${properties.Haltepunkt}<br/>` +
-                `Haltestelle: ${properties.Haltestellenname}`;
-
-            overlay.setPosition(event.coordinate);
+            popupContent.innerHTML = `<div class="lm-content">
+                <h2>Fahrzeug</h2>
+                <p><span>Linie</span>: ${properties.Linienname}</p>
+                <p><span>Richtung</span>: ${properties.Richtungstext}</p>
+                <p><span>Fahrzeugnummer</span>: ${properties.Fahrzeugnummer}</p>
+                <p><span>Betriebstag</span>: ${properties.Betriebstag}</p>
+                <p><span>Besetzgrad</span>: ${properties.Besetzgrad}</p>
+                <p><span>Haltepunkt</span>: ${properties.Haltepunkt}</p>
+                <p><span>Haltestelle</span>: ${properties.Haltestellenname}</p>
+            </div>`;
+            overlay.setPosition(properties.geometry.flatCoordinates); // set position absolute to coords
             popup.style.display = 'block';
         }
     });
