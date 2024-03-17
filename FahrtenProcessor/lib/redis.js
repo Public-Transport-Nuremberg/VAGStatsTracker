@@ -18,6 +18,15 @@ queueData.db = queueData.db + 1
 
 const trips_q = new Queue('q:trips', { connection: queueData });
 
+const metricsTime = 1
+setInterval(async () => {
+    queueMetrics = await trips_q.getJobCounts()
+    redis.set('METRIC:QueuedTotalTripsActive', queueMetrics.active, "EX", metricsTime * 2);
+    redis.set('METRIC:QueuedTotalTripsDelayed', queueMetrics.delayed, "EX", metricsTime * 2);
+    redis.set('METRIC:QueuedTotalTripsCompleted', queueMetrics.completed, "EX", metricsTime * 2);
+    redis.set('METRIC:QueuedTotalTripsFailed', queueMetrics.failed, "EX", metricsTime * 2);
+}, metricsTime * 1000);
+
 /**
  * Write a new datapoint to the Redis list, specified by the listKey, to avrage out later
  * @param {String} datapoint 
