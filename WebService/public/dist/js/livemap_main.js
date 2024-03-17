@@ -136,8 +136,9 @@ map.on('singleclick', function (event) {
                 }).join('<br/>');
 
 
-            popup.style.display = 'block';
+            
             overlay.setPosition(event.coordinate);
+            popup.style.display = 'block';
         } else {
             const feature = clusterPoints[0];
             const properties = feature.getProperties();
@@ -151,15 +152,16 @@ map.on('singleclick', function (event) {
                 `Besetzgrad: ${properties.Besetzgrad}<br/>` +
                 `Haltepunkt: ${properties.Haltepunkt}<br/>` +
                 `Haltestelle: ${properties.Haltestellenname}`;
-            popup.style.display = 'block';
+
             overlay.setPosition(event.coordinate);
+            popup.style.display = 'block';
         }
     });
 });
 
 // Hide the popup when the map is moved
 map.on('movestart', function () {
-    popupContent.style.display = 'none';
+    popup.style.display = 'none';
 });
 
 // Create a vector layer using the cluster source
