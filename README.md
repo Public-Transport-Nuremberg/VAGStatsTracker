@@ -11,7 +11,7 @@ ToDo:
 - [ ] Generate Heatmaps of delays
 - [ ] Easy way to report delays or other stuff (Not directly to the company)
 
-Things i´d like also like to do but got not enough time for:  
+Things i´d like to do but got not enough time for:  
 - [ ] Smart warnings of potential delays
 - [ ] Link common delay causes to the average delay they cause
 - [ ] Track Elevator malfunctions and duration
@@ -21,7 +21,8 @@ Things i´d like also like to do but got not enough time for:
 - [ ] Smart alexa alarmclock (Alexa, wake me up so i´ll be in scool by 8 o´clock)
 - [ ] New API Methods to extend the VAG PULS API (If i figure out how to install PGSQL Plugins, lol)
 - [ ] More...
-### Project
+      
+### Project (The kickstarted still didn´t deliver :/)
 Unlike my other projects this project will be built around my learning curve to cloud like software architecture.  
 Target Hardware:
 - 4 Nodes each with:
