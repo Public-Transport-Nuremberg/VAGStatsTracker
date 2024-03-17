@@ -36,16 +36,17 @@ files.forEach(file => {
 renderEJSToPublic(path.join(__dirname, 'views'), path.join(__dirname, 'public'), ["error-xxx.ejs", "landingpage.ejs"]);
 
 (async () => {
-    const { ObjectStore } = require('@lib/haltestellen_cache');
+    const { StopObjectStore } = require('@lib/haltestellen_cache');
     const { createTables, haltestellen } = require('@lib/postgres');
     try {
         await createTables();
-        await ObjectStore.init()
-        const haltestellen_data = await ObjectStore.getKeysAmount();
+        await StopObjectStore.init()
+        const haltestellen_data = await StopObjectStore.getKeysAmount();
         haltestellen_data.forEach(async (haltestelle) => {
-            const { Haltestellenname, VAGKennung, VGNKennung, Longitude, Latitude, Produkte } = ObjectStore.get(haltestelle);
+            const { Haltestellenname, VAGKennung, VGNKennung, Longitude, Latitude, Produkte } = StopObjectStore.get(haltestelle);
             await haltestellen.insertOrUpdate(VGNKennung, VAGKennung, Haltestellenname, Latitude, Longitude, Produkte);
         });
+        StopObjectStore.update();
     } catch (error) {
         process.log.error(`Failed to create tables: ${error}`);
         process.exit(1);

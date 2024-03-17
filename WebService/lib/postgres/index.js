@@ -167,6 +167,15 @@ const insertOrUpdateHaltestelle = async (VGNKennung, VAGKennung, Haltestellennam
   }
 }
 
+const getAllHaltestellen = () => {
+  return new Promise((resolve, reject) => {
+    pool.query(`SELECT * FROM haltestellen`, (err, result) => {
+      if (err) { reject(err) }
+      resolve(result.rows)
+    })
+  })
+}
+
 /* --- --- --- Webtokens --- --- --- */
 
 /**
@@ -217,7 +226,8 @@ const WebtokensDelete = (token) => {
 /* --- --- --- Exports --- --- --- */
 
 const haltestellen = {
-  insertOrUpdate: insertOrUpdateHaltestelle
+  insertOrUpdate: insertOrUpdateHaltestelle,
+  getAllHaltestellen: getAllHaltestellen
 }
 
 const webtoken = {

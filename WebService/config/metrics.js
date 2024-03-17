@@ -51,6 +51,26 @@ module.exports = {
             "Metric": "TotalTripsActive_Tram",
             "Type": "gauge",
             "Help": "The total number of Tram trips currently active",
+        },
+        "QueuedTotalTrips.Failed": {
+            "Metric": "QueuedTotalTrips_Failed",
+            "Type": "gauge",
+            "Help": "The current number of failed trips in queue",
+        },
+        "QueuedTotalTrips.Active": {
+            "Metric": "QueuedTotalTrips_Active",
+            "Type": "gauge",
+            "Help": "The current number of active trips in queue",
+        },
+        "QueuedTotalTrips.Delayed": {
+            "Metric": "QueuedTotalTrips_Delayed",
+            "Type": "gauge",
+            "Help": "The current number of delayed trips in queue",
+        },
+        "QueuedTotalTrips.Completed": {
+            "Metric": "QueuedTotalTrips_Completed",
+            "Type": "gauge",
+            "Help": "The current number of completed trips in queue",
         }
     },
     "MetricList": {

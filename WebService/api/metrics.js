@@ -9,7 +9,7 @@ const PluginName = 'Metrics'; //This plugins name
 const PluginRequirements = []; //Put your Requirements and version here <Name, not file name>|Version
 const PluginVersion = '0.0.1'; //This plugins version
 
-const metricsScanTime = 10; // Scan for metrics every 5 seconds
+const metricsScanTime = 2; // Scan for metrics every 5 seconds
 let metricsFirstScan = false;
 const metricsTempObject = {};
 
