@@ -131,3 +131,4 @@ global.json
 # Container Mount Points
 RabbitMQ/rabbitmq
 Redis/data
+*.html
