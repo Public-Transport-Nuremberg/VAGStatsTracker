@@ -1,4 +1,26 @@
 module.exports = {
+    "Keys": {
+        "allMetricKeys":{
+            "Metric": "AmountAllMetricKeysx",
+            "Type": "gauge",
+            "Help": "The amount of all metric keys",
+        },
+        "allMetricListKeys":{
+            "Metric": "AmountAllMetricListKeys",
+            "Type": "gauge",
+            "Help": "The amount of all metric list keys",
+        },
+        "allErrorListKeys":{
+            "Metric": "AmountAllErrorListKeys",
+            "Type": "gauge",
+            "Help": "The amount of all error list keys",
+        },
+        "allTripKeys":{
+            "Metric": "AmountAllTripKeys",
+            "Type": "gauge",
+            "Help": "The amount of all trip keys",
+        }
+    },
     "Metric": {
         "TotalTripsTracked.UBahn": {
             "Metric": "TotalTripsTracked_UBahn",
