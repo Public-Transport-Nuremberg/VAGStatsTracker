@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>VGN Livemap</title>
+    <script src="https://cdn.jsdelivr.net/npm/ol@v8.2.0/dist/ol.js"></script>
+    <script src="/dist/js/lib/geolib.js" type="text/javascript"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css">
+    <style>
+    html, body {
+        margin: 0;
+        padding: 0;
+    }
+
+    .map {
+        height: 100vh; /* 100% of the viewport height */
+        width: 100vw; /* 100% of the viewport width */
+        position: fixed; /* This will position the map relative to the viewport */
+        top: 0;
+         left: 0;
+        z-index: 1; /* Make sure this is behind any other positioned elements */
+    }
+
+    /* Container for a-scene */
+    .scene-container {
+        position: relative;
+        height: 100vh;
+        width: 100vw;
+        top: 0;
+        left: 0;
+        z-index: 2; /* Adjust z-index as needed */
+    }
+
+	/* Popup Styles */
+    .ol-popup {
+        position: absolute;
+        background-color: white;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #cccccc;
+        bottom: 12px;
+        left: -50px;
+        display: none;
+        overflow: auto; /* Enable scroll if content overflows */
+        width: auto; /* Adjust width as needed */
+        max-width: 800px; /* Set a max-width for larger screens */
+        box-sizing: border-box; /* Include padding and border in the element's total width and height */
+    }
+
+    #popup-content {
+        word-wrap: break-word; /* Ensure long words do not overflow */
+        font-size: 14px; /* Adjust font size as needed */
+        line-height: 1.6; /* Adjust line height for better readability */
+    }
+
+    #overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.8);
+        z-index: 1000;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    #content {
+        margin: auto;
+        padding: 20px;
+        box-sizing: border-box;
+        width: 90vw; 
+        height: 90vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+    }
+
+    .media-display {
+        width: 100%;   /* Use full width */
+        height: 100%;  /* Use full height */
+        object-fit: contain;
+    }
+
+    .media-display img {
+        max-width: 100%;    /* Limits the width to the parent's width */
+        max-height: 100%;   /* Limits the height to the parent's height */
+        object-fit: contain; /* Ensures that the aspect ratio is maintained */
+    }
+
+    .media-display iframe {
+        border: none;        /* Optional: Removes the border around the iframe */
+    }
+
+    #closePopup {
+        position: fixed; /* Change to fixed to make it relative to the viewport */
+        top: 10px;
+        right: 15px;
+        z-index: 2000; /* Increase z-index to bring it above the a-scene */
+        font-size: 36px;
+        cursor: pointer;
+        color: white;
+    }
+    </style>
+</head>
+<body>
+    <div id="map" class="map"></div>
+    <div id="popup" class="ol-popup">
+        <div id="popup-content"></div>
+    </div>
+
+    <div id="overlay" style="display:none;">
+        <span id="closePopup">&times;</span>
+        <div id="content"></div>
+    </div>
+</body>
+<script src="/dist/js/livemap_main.js"></script>
+</html>

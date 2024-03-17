@@ -105,6 +105,11 @@ class ObjectStore extends DB_Store {
      */
     get(key) {
         if (!key) throw new Error('Missing Parameters')
+        // log if the key is not found
+        if (!this.data[key]) {
+            process.log.warn(`Could not find key ${key} in the database`);
+            return {};
+        }
         return this.data[key];
     }
 
@@ -167,7 +172,7 @@ class ObjectStore extends DB_Store {
      */
     filterByQuery(query) {
         let results = null;
-        
+
         if(Object.keys(query).length === 0) return Object.values(this.data); // If the query is empty, return all values (no filtering needed)
 
         Object.keys(query).forEach(key => {

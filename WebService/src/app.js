@@ -12,14 +12,15 @@ const { log_errors } = require('@config/errors')
 app.use(expressCspHeader({
     directives: {
         'default-src': [SELF],
-        'script-src': [SELF, INLINE],
-        'style-src': [SELF, INLINE, "https://rsms.me/inter/inter.css"],
+        'script-src': [SELF, INLINE, "https://cdn.jsdelivr.net/"],
+        'style-src': [SELF, INLINE, "https://rsms.me/inter/inter.css", "https://cdn.jsdelivr.net/"],
         'font-src': [SELF, "https://rsms.me/inter/font-files/"],
         'img-src': [
             SELF,
             INLINE,
+            "https://tile.openstreetmap.org/",
         ],
-        'worker-src': [NONE],
+        'worker-src': [SELF, INLINE],
         'connect-src': [
             SELF,
             `ws://${process.env.WebSocketURL}`,
@@ -34,7 +35,12 @@ app.use(expressCspHeader({
 app.get('/', (req, res) => {
     res.header('Content-Type', 'text/html');
     res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html')));
-})
+});
+
+app.get('/livemap', (req, res) => {
+    res.header('Content-Type', 'text/html');
+    res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'livemap.html')));
+});
 
 // Legal Pages
 app.get('/legal/legal', (req, res) => {
@@ -80,9 +86,9 @@ app.get('/*', (req, res) => {
         res.send(fs.readFileSync(path.join(__dirname, '..', 'public', filePath)));
     } catch (error) {
         process.log.error(error)
-        ejs.renderFile(path.join(__dirname, '..', 'views', 'error', 'error-xxx.ejs'), {statusCode: 404, message: "Page not found", info: "Request can not be served", reason: "The requested page was not found", back_url: process.env.DOMAIN, domain: process.env.DOMAIN}, (err, str) => {
+        ejs.renderFile(path.join(__dirname, '..', 'views', 'error', 'error-xxx.ejs'), { statusCode: 404, message: "Page not found", info: "Request can not be served", reason: "The requested page was not found", back_url: process.env.DOMAIN, domain: process.env.DOMAIN }, (err, str) => {
             res.header('Content-Type', 'text/html');
-            if(err) process.log.error(err);
+            if (err) process.log.error(err);
             res.send(str);
         });
     };

@@ -82,7 +82,7 @@ new Worker('q:trips', async (job) => {
         }
 
         const tripKeyData = {
-            VGNKennung: Fahrtnummer,
+            VGNKennung: lastStopObject.VGNKennung,
             VAGKennung: lastStopObject.VAGKennung,
             Produkt: Produkt,
             Linienname: Linienname,

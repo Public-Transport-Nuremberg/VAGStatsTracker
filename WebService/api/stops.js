@@ -1,9 +1,7 @@
 const HyperExpress = require('hyper-express');
 const { limiter } = require('@middleware/limiter');
 const Joi = require('joi');
-const {  } = require('@lib/postgres');
 const { StopObjectStore } = require('@lib/haltestellen_cache');
-const { findAllTripKeys, getValuesFromKeys } = require('@lib/redis');
 const router = new HyperExpress.Router();
 
 /* Plugin info*/
