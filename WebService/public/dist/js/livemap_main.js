@@ -33,7 +33,7 @@ function propertiesToColor(item) {
 }
 
 const refreshLiveMap = () => {
-	fetch("localhost:3000/api/v1/live/map")
+	fetch("/api/v1/live/map")
 		.then((response) => response.json())
 		.then((data) => {
 			vectorSource.clear();
@@ -142,7 +142,7 @@ map.on("singleclick", function (event) {
                 ${properties
 					.map(function (property) {
 						return `
-                        <p><span>Linie</span>: ${property.Linienname}</p>
+                        <p><span>Linie</span>: <span style="color:${propertiesToColor(property)}">${property.Linienname}</span></p>
                         <p><span>Richtung</span>: ${property.Richtung}</p>
                         <p><span>Haltepunkt</span>: ${property.Haltepunkt}</p>
                         <p><span>Haltestelle</span>: ${property.Haltestellenname}</p>
@@ -170,7 +170,7 @@ map.on("singleclick", function (event) {
 
 			popupContent.innerHTML = `<div class="lm-content">
                 <h2>Fahrzeug</h2>
-                <p><span>Linie</span>: ${properties.Linienname}</p>
+                <p><span>Linie</span>: <span style="color:${propertiesToColor(properties)}">${properties.Linienname}</span></p>
                 <p><span>Richtung</span>: ${properties.Richtungstext}</p>
                 <p><span>Fahrzeugnummer</span>: ${properties.Fahrzeugnummer}</p>
                 <p><span>Betriebstag</span>: ${properties.Betriebstag}</p>
