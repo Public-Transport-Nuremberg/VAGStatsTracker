@@ -9,7 +9,7 @@ const vgn = new vgn_wrapper.openvgn();
 const MakeTripRequests = async () => {
     const ProductPromiseArray = [];
 
-    process.env.products.split(',').forEach(async (product) => {
+    process.env.PRODUCTS.split(',').forEach(async (product) => {
         ProductPromiseArray.push(vgn.getTrips(product.toLocaleLowerCase(), { timespan: 10 }));
     });
 
