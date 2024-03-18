@@ -68,14 +68,8 @@ new Worker('q:trips', async (job) => {
             }
         }
 
-        // Check if there is a next stop or not
-        if (Fahrtverlauf_result.lastStopIndex === Fahrtverlauf_result.length - 1) {
-            delTripKey(Fahrtnummer); // We are done with this trip
-            return;
-        }
 
         const lastStopObject = Fahrtverlauf[Fahrtverlauf_result.lastStopIndex];
-        const nextStopObject = Fahrtverlauf[Fahrtverlauf_result.lastStopIndex + 1];
 
         if (Fahrtverlauf_result.lastStopIndex === -1) {
             throw new Error(`Could not find last stop for ${Fahrtnummer} (${Produkt})`);
@@ -92,16 +86,36 @@ new Worker('q:trips', async (job) => {
             Betriebstag: Betriebstag,
             Besetzgrad: Besetzgrad,
             Haltepunkt: lastStopObject.Haltepunkt,
-            AbfahrtszeitSoll: lastStopObject.AbfahrtszeitSoll,
-            AbfahrtszeitIst: lastStopObject.AbfahrtszeitIst,
+            AnkunftszeitSoll: lastStopObject.AnkunftszeitSoll ?? -1,
+            AnkunftszeitIst: lastStopObject.AnkunftszeitIst ?? -1,
+            AbfahrtszeitSoll: lastStopObject.AbfahrtszeitSoll ?? -1,
+            AbfahrtszeitIst: lastStopObject.AbfahrtszeitIst ?? -1,
             PercentageToNextStop: Fahrtverlauf_result.progress,
         }
 
         addTripLocation(lastStopObject.VGNKennung, lastStopObject.Latitude, lastStopObject.Longitude);
 
-        const nextRunAt = new Date(nextStopObject.AnkunftszeitIst).getTime() + 5000 // experimental
+        // Check if we have reached the end of the trip
+        if (Fahrtverlauf_result.lastStopIndex === Fahrtverlauf_result.length) {
+            process.log.info(`Trip ${Fahrtnummer} ${Produkt} (${Linienname}) has reached the end of its route. Removing trip key...`);
+            delTripKey(Fahrtnummer); // We are done with this trip
+            return;
+        }
+        const nextStopObject = Fahrtverlauf[Fahrtverlauf_result.lastStopIndex + 1];
 
         process.log.info(`Processed [${Fahrtnummer}] ${Produkt} (${Linienname}) [${new Date(lastStopObject.AbfahrtszeitIst).toLocaleTimeString()}] ${lastStopObject.Haltestellenname} Next stop: ${nextStopObject.Haltestellenname} [${new Date(nextStopObject.AnkunftszeitIst).toLocaleTimeString()}] Progress: ${Fahrtverlauf_result.progress}`);
+
+        let nextRunAtTimestamp = 0
+        if (nextStopObject.AnkunftszeitIst) {
+            nextRunAtTimestamp = new Date(nextStopObject.AnkunftszeitIst).getTime();
+        } else if (nextStopObject.AbfahrtszeitIst) {
+            nextRunAtTimestamp = new Date(nextStopObject.AbfahrtszeitIst).getTime();
+        } else {
+            process.log.error(`Could not find next stop time for ${Fahrtnummer} (${Produkt})`);
+        }
+
+        const nextRunAt = new Date().getTime() + 5000 // experimental
+
         await ScheduleJob(Fahrtnummer, Betriebstag, Produkt, tripKeyData, Fahrtverlauf_result.vgnCodes, nextRunAt, Startzeit, Endzeit);
 
     } catch (error) {
