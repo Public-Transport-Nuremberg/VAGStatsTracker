@@ -7,7 +7,7 @@ ToDo:
     - [X] Bus
     - [X] U-Bahn
     - [X] Tram
-- [ ] Live Map of ALL services
+- [X] Live Map of ALL services (Experimental)
 - [ ] Generate Heatmaps of delays
 - [ ] Easy way to report delays or other stuff (Not directly to the company)
 
