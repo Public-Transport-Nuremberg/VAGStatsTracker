@@ -12,15 +12,16 @@ const { log_errors } = require('@config/errors')
 app.use(expressCspHeader({
     directives: {
         'default-src': [SELF],
-        'script-src': [SELF, INLINE, "https://cdn.jsdelivr.net/"],
-        'style-src': [SELF, INLINE, "https://rsms.me/inter/inter.css", "https://cdn.jsdelivr.net/"],
+        'script-src': [SELF, INLINE],
+        'style-src': [SELF, INLINE, "https://rsms.me/inter/inter.css"],
         'font-src': [SELF, "https://rsms.me/inter/font-files/"],
         'img-src': [
             SELF,
             INLINE,
             "https://tile.openstreetmap.org/",
         ],
-        'worker-src': [SELF, INLINE],
+        // Add 'blob:' to the 'worker-src' directive
+        'worker-src': [SELF, INLINE, 'blob:'],
         'connect-src': [
             SELF,
             `ws://${process.env.WebSocketURL}`,
@@ -29,6 +30,7 @@ app.use(expressCspHeader({
         'block-all-mixed-content': true
     }
 }));
+
 
 /* Server Static Files */
 
