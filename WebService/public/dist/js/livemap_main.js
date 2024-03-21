@@ -33,7 +33,9 @@ function propertiesToColor(item) {
 }
 
 const refreshLiveMap = () => {
-	fetch("/api/v1/live/map")
+	const queryString = window.location.search;
+
+	fetch(`/api/v1/live/map${queryString}`)
 		.then((response) => response.json())
 		.then((data) => {
 			vectorSource.clear();
