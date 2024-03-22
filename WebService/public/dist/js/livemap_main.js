@@ -145,7 +145,7 @@ map.on("singleclick", function (event) {
 					.map(function (property) {
 						return `
                         <p><span>Linie</span>: <span style="color:${propertiesToColor(property)}">${property.Linienname}</span></p>
-                        <p><span>Richtung</span>: ${property.Richtung}</p>
+                        <p><span>Richtung</span>: ${property.Richtungstext}</p>
                         <p><span>Haltepunkt</span>: ${property.Haltepunkt}</p>
                         <p><span>Haltestelle</span>: ${property.Haltestellenname}</p>
                     `;

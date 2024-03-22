@@ -16,7 +16,7 @@ const getLastStopAndProgress = (routeData, currentTimestamp) => {
     } else {
         for (let i = 0; i < routeData.length; i++) {
             const stop = routeData[i];
-            let departureTime = stop.AbfahrtszeitIst ? new Date(stop.AbfahrtszeitIst) : null;
+            let departureTime = stop.AbfahrtszeitIst ? new Date(stop.AbfahrtszeitIst) : new Date(stop.AnkunftszeitIst);
 
             if (departureTime && departureTime < now) {
                 lastStopIndex = i;

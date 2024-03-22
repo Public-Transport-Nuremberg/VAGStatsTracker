@@ -96,14 +96,12 @@ new Worker('q:trips', async (job) => {
         addTripLocation(lastStopObject.VGNKennung, lastStopObject.Latitude, lastStopObject.Longitude);
 
         // Check if we have reached the end of the trip
-        if (Fahrtverlauf_result.lastStopIndex === Fahrtverlauf_result.length) {
-            process.log.info(`Trip ${Fahrtnummer} ${Produkt} (${Linienname}) has reached the end of its route. Removing trip key...`);
+        if (Fahrtverlauf_result.lastStopIndex === Fahrtverlauf.length - 1) {
+            process.log.info(`Trip [${Fahrtnummer}] ${Produkt} (${Linienname}) has reached the end of its route ${lastStopObject.Haltestellenname}`);
             delTripKey(Fahrtnummer); // We are done with this trip
             return;
         }
         const nextStopObject = Fahrtverlauf[Fahrtverlauf_result.lastStopIndex + 1];
-
-        process.log.info(`Processed [${Fahrtnummer}] ${Produkt} (${Linienname}) [${new Date(lastStopObject.AbfahrtszeitIst).toLocaleTimeString()}] ${lastStopObject.Haltestellenname} Next stop: ${nextStopObject.Haltestellenname} [${new Date(nextStopObject.AnkunftszeitIst).toLocaleTimeString()}] Progress: ${Fahrtverlauf_result.progress}`);
 
         let nextRunAtTimestamp = 0
         if (nextStopObject.AnkunftszeitIst) {
@@ -117,6 +115,7 @@ new Worker('q:trips', async (job) => {
         const nextRunAt = new Date().getTime() + 5000 // experimental
 
         await ScheduleJob(Fahrtnummer, Betriebstag, Produkt, tripKeyData, Fahrtverlauf_result.vgnCodes, nextRunAt, Startzeit, Endzeit);
+        process.log.info(`Processed [${Fahrtnummer}] ${Produkt} (${Linienname}) [${new Date(lastStopObject.AbfahrtszeitIst).toLocaleTimeString()}] ${lastStopObject.Haltestellenname} Next stop: ${nextStopObject.Haltestellenname} [${new Date(nextStopObject.AnkunftszeitIst).toLocaleTimeString()}] Progress: ${Fahrtverlauf_result.progress.toFixed(0)}`);
 
     } catch (error) {
 
