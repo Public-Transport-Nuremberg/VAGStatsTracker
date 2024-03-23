@@ -60,10 +60,12 @@ new Worker('q:trips', async (job) => {
                         continue;
                     } catch (error) {
                         errorExporter(error, error, job.data);
+                        if (process.env.SENTRY_DSN) process.sentry.captureException(error);
                         throw new Error(error);
                     }
                 }
                 errorExporter(result.reason, result, job.data);
+                if (process.env.SENTRY_DSN) process.sentry.captureException(result);
                 throw new Error(result.reason);
             }
         }
@@ -75,9 +77,21 @@ new Worker('q:trips', async (job) => {
             throw new Error(`Could not find last stop for ${Fahrtnummer} (${Produkt})`);
         }
 
+        addTripLocation(lastStopObject.VGNKennung, lastStopObject.Latitude, lastStopObject.Longitude);
+
+        // Check if we have reached the end of the trip
+        if (Fahrtverlauf_result.lastStopIndex === Fahrtverlauf.length - 1) {
+            process.log.info(`Trip [${Fahrtnummer}] ${Produkt} (${Linienname}) has reached the end of its route ${lastStopObject.Haltestellenname}`);
+            delTripKey(Fahrtnummer); // We are done with this trip
+            return;
+        }
+        const nextStopObject = Fahrtverlauf[Fahrtverlauf_result.lastStopIndex + 1];
+
         const tripKeyData = {
             VGNKennung: lastStopObject.VGNKennung,
             VAGKennung: lastStopObject.VAGKennung,
+            nextVGNKennung: nextStopObject.VGNKennung,
+            nextVAGKennung: nextStopObject.VAGKennung,
             Produkt: Produkt,
             Linienname: Linienname,
             Richtung: Richtung,
@@ -92,16 +106,6 @@ new Worker('q:trips', async (job) => {
             AbfahrtszeitIst: lastStopObject.AbfahrtszeitIst ?? -1,
             PercentageToNextStop: Fahrtverlauf_result.progress,
         }
-
-        addTripLocation(lastStopObject.VGNKennung, lastStopObject.Latitude, lastStopObject.Longitude);
-
-        // Check if we have reached the end of the trip
-        if (Fahrtverlauf_result.lastStopIndex === Fahrtverlauf.length - 1) {
-            process.log.info(`Trip [${Fahrtnummer}] ${Produkt} (${Linienname}) has reached the end of its route ${lastStopObject.Haltestellenname}`);
-            delTripKey(Fahrtnummer); // We are done with this trip
-            return;
-        }
-        const nextStopObject = Fahrtverlauf[Fahrtverlauf_result.lastStopIndex + 1];
 
         let nextRunAtTimestamp = 0
         if (nextStopObject.AnkunftszeitIst) {
@@ -118,7 +122,7 @@ new Worker('q:trips', async (job) => {
         process.log.info(`Processed [${Fahrtnummer}] ${Produkt} (${Linienname}) [${new Date(lastStopObject.AbfahrtszeitIst).toLocaleTimeString()}] ${lastStopObject.Haltestellenname} Next stop: ${nextStopObject.Haltestellenname} [${new Date(nextStopObject.AnkunftszeitIst).toLocaleTimeString()}] Progress: ${Fahrtverlauf_result.progress.toFixed(0)}`);
 
     } catch (error) {
-
+        if (process.env.SENTRY_DSN) process.sentry.captureException(error);
         console.log(error);
         throw error;
     }

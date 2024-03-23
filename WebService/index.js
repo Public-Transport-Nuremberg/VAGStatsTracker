@@ -5,7 +5,12 @@ const port = process.env.PORT || 80;
 //This timeout is used to delay accepting connections until the server is fully loaded. 
 //It could come to a crash if a request comes in before the settings cache was fully laoded.
 
+const fs = require('fs');
 const { log } = require('@lib/logger');
+
+process.log = {};
+process.log = log;
+
 if (process.env.SENTRY_DSN) {
     const Sentry = require("@sentry/node");
 
@@ -15,12 +20,8 @@ if (process.env.SENTRY_DSN) {
     });
 
     process.sentry = Sentry;
+    process.log.system('Sentry initialized');
 }
-
-const fs = require('fs');
-
-process.log = {};
-process.log = log;
 
 // Render Templates
 const path = require('path');

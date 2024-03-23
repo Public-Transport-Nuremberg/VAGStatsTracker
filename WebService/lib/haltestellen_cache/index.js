@@ -40,6 +40,7 @@ class DB_Store {
 
             return true;
         } catch (error) {
+            if (process.env.SENTRY_DSN) process.sentry.captureException(error);
             console.error(error);
             throw error;
         }
@@ -57,6 +58,7 @@ class DB_Store {
 
             return true;
         } catch (error) {
+            if (process.env.SENTRY_DSN) process.sentry.captureException(error);
             console.error(error);
             throw error;
         }

@@ -63,6 +63,7 @@ const MakeTripRequests = async () => {
         process.log.info('All requests completed');
 
     } catch (error) {
+        if (process.env.SENTRY_DSN) process.sentry.captureException(error);
         process.log.error(error);
     }
 

@@ -8,6 +8,18 @@ const envSchema = require('./envSchema');
 // Init logger
 process.log = log;
 
+if (process.env.SENTRY_DSN) {
+    const Sentry = require("@sentry/node");
+
+    Sentry.init({
+        dsn: process.env.SENTRY_DSN,
+        tracesSampleRate: 1.0, //  Capture 100% of the transactions
+    });
+
+    process.sentry = Sentry;
+    process.log.system('Sentry initialized');
+}
+
 if (fs.existsSync('.env')) {
     // Check if all .env values are valid
     const isENVok = checkEnv(envSchema);
