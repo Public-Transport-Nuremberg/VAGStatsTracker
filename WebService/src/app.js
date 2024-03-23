@@ -88,9 +88,13 @@ app.get('/*', (req, res) => {
         res.send(fs.readFileSync(path.join(__dirname, '..', 'public', filePath)));
     } catch (error) {
         process.log.error(error)
+        if (process.env.SENTRY_DSN) process.sentry.captureException(error, "404");
         ejs.renderFile(path.join(__dirname, '..', 'views', 'error', 'error-xxx.ejs'), { statusCode: 404, message: "Page not found", info: "Request can not be served", reason: "The requested page was not found", back_url: process.env.DOMAIN, domain: process.env.DOMAIN }, (err, str) => {
             res.header('Content-Type', 'text/html');
-            if (err) process.log.error(err);
+            if (err){
+                process.log.error(err);
+                if (process.env.SENTRY_DSN) process.sentry.captureException(err, "renderFile");
+            }
             res.send(str);
         });
     };
@@ -100,6 +104,7 @@ app.use('/api/v1', apiv1);
 
 /* Handlers */
 app.set_error_handler((req, res, error) => {
+    if (process.env.SENTRY_DSN) process.sentry.captureException(error, { req, res });
     console.log(error)
     process.log.debug(error);
     const outError = {

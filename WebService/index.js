@@ -6,6 +6,16 @@ const port = process.env.PORT || 80;
 //It could come to a crash if a request comes in before the settings cache was fully laoded.
 
 const { log } = require('@lib/logger');
+if (process.env.SENTRY_DSN) {
+    const Sentry = require("@sentry/node");
+
+    Sentry.init({
+        dsn: process.env.SENTRY_DSN,
+        tracesSampleRate: 1.0, //  Capture 100% of the transactions
+    });
+
+    process.sentry = Sentry;
+}
 
 const fs = require('fs');
 
@@ -15,6 +25,7 @@ process.log = log;
 // Render Templates
 const path = require('path');
 const { renderEJSToPublic } = require('@lib/template');
+const { exit } = require('process');
 /* Load some config data, thats needed to render the HTML pages on startup */
 // Get all translation files from \public\dist\locales and generate a context object ({ [language]: [file key.language] })
 const localesDir = path.join(__dirname, 'public', 'dist', 'locales');
@@ -49,7 +60,8 @@ renderEJSToPublic(path.join(__dirname, 'views'), path.join(__dirname, 'public'),
         StopObjectStore.update();
     } catch (error) {
         process.log.error(`Failed to create tables: ${error}`);
-        process.exit(1);
+        if (process.env.SENTRY_DSN) Sentry.captureException(error);
+        exit(1);
     }
 
     setTimeout(() => {
@@ -61,7 +73,10 @@ renderEJSToPublic(path.join(__dirname, 'views'), path.join(__dirname, 'public'),
             }
             app.listen(port)
                 .then((socket) => process.log.system(`Listening on port: ${port}`))
-                .catch((error) => process.log.error(`Failed to start webserver on: ${port}\nError: ${error}`));
+                .catch((error) => {
+                    process.log.error(`Failed to start webserver on: ${port}\nError: ${error}`);
+                    if (process.env.SENTRY_DSN) Sentry.captureException(error, port);
+                });
         }, 1500);
     }, process.env.GlobalWaitTime || 100);
 })();

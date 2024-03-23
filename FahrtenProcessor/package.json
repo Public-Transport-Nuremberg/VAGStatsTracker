@@ -24,6 +24,7 @@
   },
   "homepage": "https://github.com/Public-Transport-Nuremberg/VAGStatsTracker#readme",
   "dependencies": {
+    "@sentry/node": "^7.108.0",
     "bullmq": "^5.4.2",
     "dotenv": "^16.4.5",
     "dotenv-joi": "^0.0.4",
