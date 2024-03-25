@@ -142,4 +142,5 @@ REDIS_DB=0
 
 SCANBEFORE=30 # Scan before x seconds
 SCAN_INTERVAL=5 # Scan every x seconds
+ERROR_EXPIRE=600 # Expire errors after X seconds
 ```
