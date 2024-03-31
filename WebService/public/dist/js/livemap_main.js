@@ -1,3 +1,24 @@
+const emojiMap = {
+	"UBahn": "🚇",
+	"Tram": "🚋",
+	"Bus": "🚌",
+}
+
+const formatSecondsToHTML = (seconds) => {
+	const minutes = Math.round(Math.abs(seconds) / 60);
+	const sign = seconds >= 0 ? "+" : "-";
+  
+	return `<span title="${seconds} Sek">${sign}${minutes} Min</span>`;
+  }
+  
+  // Example usage
+  const resultHTML = formatSecondsToHTML(150); // For 150 seconds
+  console.log(resultHTML); // Outputs: <span title="150 seconds">+2 minutes</span>
+  
+  const resultHTMLNegative = formatSecondsToHTML(-150); // For -150 seconds
+  console.log(resultHTMLNegative); // Outputs: <span title="-150 seconds">-2 minutes</span>
+  
+
 const map = new ol.Map({
 	target: "map",
 	layers: [
@@ -12,23 +33,19 @@ const map = new ol.Map({
 });
 
 const vectorSource = new ol.source.Vector({
-	features: [], // We will add features here
+	features: [],
 });
 
-function propertiesToColor(item) {
+const propertiesToColor = (item) => {
 	switch (item.Produkt) {
 		case "UBahn":
-			return item.Linienname === "U1"
-				? "blue"
-				: item.Linienname === "U2"
-					? "red"
-					: "green";
+			return item.Linienname === "U1" ? "blue" : item.Linienname === "U2" ? "red" : "green";
 		case "Tram":
 			return "purple";
 		case "Bus":
 			return "red";
 		default:
-			return "black"; // Default color
+			return "black";
 	}
 }
 
@@ -45,12 +62,13 @@ const refreshLiveMap = () => {
 				let color = propertiesToColor(item);
 
 				const marker = new ol.Feature({
-					geometry: new ol.geom.Point(
-						ol.proj.fromLonLat([item.Longitude, item.Latitude])
-					),
+					geometry: new ol.geom.Point(ol.proj.fromLonLat([item.Longitude, item.Latitude])),
 					VGNKennung: item.VGNKennung,
-					VAGKennung: item.VAGKennung,
+					VGNKennung: item.VGNKennung,
+					nextVGNKennung: item.nextVGNKennung,
+					nextVAGKennung: item.nextVAGKennung,
 					Produkt: item.Produkt,
+					nextProdukte: item.nextProdukte,
 					Linienname: item.Linienname,
 					Richtung: item.Richtung,
 					Richtungstext: item.Richtungstext,
@@ -58,8 +76,22 @@ const refreshLiveMap = () => {
 					Betriebstag: item.Betriebstag,
 					Besetzgrad: item.Besetzgrad,
 					Haltepunkt: item.Haltepunkt,
+					AnkunftszeitSoll: item.AnkunftszeitSoll,
+					AnkunftszeitIst: item.AnkunftszeitIst,
+					nextAnkunftszeitSoll: item.nextAnkunftszeitSoll,
+					nextAnkunftszeitIst: item.nextAnkunftszeitIst,
+					AbfahrtszeitSoll: item.AbfahrtszeitSoll,
+					AbfahrtszeitIst: item.AbfahrtszeitIst,
+					nextAbfahrtszeitSoll: item.nextAbfahrtszeitSoll,
+					nextAbfahrtszeitIst: item.nextAbfahrtszeitIst,
+					PercentageToNextStop: item.PercentageToNextStop,
 					Haltestellenname: item.Haltestellenname,
+					nextHaltestellenname: item.nextHaltestellenname,
 					Produkte: item.Produkte,
+					Latitude: item.Latitude,
+					nextLatitude: item.nextLatitude,
+					Longitude: item.Longitude,
+					nextLongitude: item.nextLongitude,
 					color: color,
 				});
 
@@ -137,7 +169,6 @@ map.on("singleclick", function (event) {
 			const properties = features.map(function (feature) {
 				return feature.getProperties();
 			});
-			console.log(properties);
 
 			popupContent.innerHTML = `<div class="lm-content">
                 <h2>Fahrzeuge</h2>
@@ -167,20 +198,63 @@ map.on("singleclick", function (event) {
 			popup.style.display = "block";
 		} else {
 			const feature = clusterPoints[0];
-			const properties = feature.getProperties();
-			console.log(properties);
+			const p = feature.getProperties();
+
+			/*
+					VGNKennung: item.VGNKennung,
+					VGNKennung: item.VGNKennung,
+					nextVGNKennung: item.nextVGNKennung,
+					nextVAGKennung: item.nextVAGKennung,
+					Produkt: item.Produkt,
+					nextProdukte: item.nextProdukte,
+					Linienname: item.Linienname,
+					Richtung: item.Richtung,
+					Richtungstext: item.Richtungstext,
+					Fahrzeugnummer: item.Fahrzeugnummer,
+					Betriebstag: item.Betriebstag,
+					Besetzgrad: item.Besetzgrad,
+					Haltepunkt: item.Haltepunkt,
+					AnkunftszeitSoll: item.AnkunftszeitSoll,
+					AnkunftszeitIst: item.AnkunftszeitIst,
+					nextAnkunftszeitSoll: item.nextAnkunftszeitSoll,
+					nextAnkunftszeitIst: item.nextAnkunftszeitIst,
+					AbfahrtszeitSoll: item.AbfahrtszeitSoll,
+					AbfahrtszeitIst: item.AbfahrtszeitIst,
+					nextAbfahrtszeitSoll: item.nextAbfahrtszeitSoll,
+					nextAbfahrtszeitIst: item.nextAbfahrtszeitIst,
+					PercentageToNextStop: item.PercentageToNextStop,
+					Haltestellenname: item.Haltestellenname,
+					nextHaltestellenname: item.nextHaltestellenname,
+					Produkte: item.Produkte,
+					Latitude: item.Latitude,
+					nextLatitude: item.nextLatitude,
+					Longitude: item.Longitude,
+					nextLongitude: item.nextLongitude,
+					color: color,
+			*/
+
+			const abfahrtszeitIst = new Date(p.AbfahrtszeitIst);
+			const abfahrtszeitSoll = new Date(p.AbfahrtszeitSoll);
+			const nextAnkunftszeitIst = new Date(p.nextAnkunftszeitIst);
+			const nextAnkunftszeitSoll = new Date(p.nextAnkunftszeitSoll);
+
+			// Calculate delay at departure
+			const delayLast = abfahrtszeitIst - abfahrtszeitSoll;
+
+			// Calculate expected arrival time at the next stop if the travel had no additional delays
+			const expectedTravelTime = nextAnkunftszeitSoll - abfahrtszeitSoll;
+			const expectedNextAnkunftszeit = new Date(abfahrtszeitIst.getTime() + expectedTravelTime);
+
+			// Calculate the actual delay at the next stop
+			const delayNext = nextAnkunftszeitIst - expectedNextAnkunftszeit;
 
 			popupContent.innerHTML = `<div class="lm-content">
-                <h2>Fahrzeug</h2>
-                <p><span>Linie</span>: <span style="color:${propertiesToColor(properties)}">${properties.Linienname}</span></p>
-                <p><span>Richtung</span>: ${properties.Richtungstext}</p>
-                <p><span>Fahrzeugnummer</span>: ${properties.Fahrzeugnummer}</p>
-                <p><span>Betriebstag</span>: ${properties.Betriebstag}</p>
-                <p><span>Besetzgrad</span>: ${properties.Besetzgrad}</p>
-                <p><span>Haltepunkt</span>: ${properties.Haltepunkt}</p>
-                <p><span>Haltestelle</span>: ${properties.Haltestellenname}</p>
+                <h2>${emojiMap[p.Produkt]} <span style="color: ${propertiesToColor(p)}"</span>(${p.Linienname}) ${p.Richtungstext}</span></h2>
+				<p><span>Letzter Halt</span>: ${p.Haltestellenname} @ ${abfahrtszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayLast/1000)})</p>
+				<p><span>Nächster Halt</span>: ${p.nextHaltestellenname} @ ${nextAnkunftszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayNext/1000)})</p>
+                <p><span>Besetzgrad</span>: ${p.Besetzgrad}</p>
             </div>`;
-			overlay.setPosition(properties.geometry.flatCoordinates); // set position absolute to coords
+			overlay.setPosition(p.geometry.flatCoordinates); // set position absolute to coords
 			popup.style.display = "block";
 		}
 	});

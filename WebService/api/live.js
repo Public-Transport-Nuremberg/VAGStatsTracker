@@ -1,9 +1,12 @@
 const HyperExpress = require('hyper-express');
 const { limiter } = require('@middleware/limiter');
 const Joi = require('joi');
+const { openvgn } = require('oepnv-nuremberg');
 const { StopObjectStore } = require('@lib/haltestellen_cache');
 const { findAllTripKeys, getValuesFromKeys } = require('@lib/redis');
 const router = new HyperExpress.Router();
+
+const vgn = new openvgn();
 
 /* Plugin info*/
 const PluginName = 'Live'; //This plugins name
@@ -35,6 +38,7 @@ router.get('/map', limiter(), async (req, res) => {
     const allTripKeys = await findAllTripKeys();
     const allTripValues = await getValuesFromKeys("TRIP:", allTripKeys);
 
+    // Delete keys we dont want
     Object.entries(allTripValues).forEach(([key, trip]) => {
         if (values.Linie) {
             if (!values.Linie.split(',').includes(allTripValues[key].Linienname)) {
@@ -53,6 +57,16 @@ router.get('/map', limiter(), async (req, res) => {
         allTripValues[key].Produkte = Produkte;
         allTripValues[key].Latitude = Latitude;
         allTripValues[key].Longitude = Longitude;
+    });
+
+    Object.entries(allTripValues).forEach(([key, trip]) => {
+        const { Latitude, Longitude, Haltestellenname, Produkte } = StopObjectStore.get(trip.nextVGNKennung);
+        allTripValues[key].nextHaltestellenname = Haltestellenname;
+        allTripValues[key].nextProdukte = Produkte;
+        allTripValues[key].nextLatitude = Latitude;
+        allTripValues[key].nextLongitude = Longitude;
+
+        allTripValues[key].FahrzeugInfo = vgn.getVehicleDataById(trip.Fahrzeugnummer);
     });
 
     res.status(200).json(allTripValues);
