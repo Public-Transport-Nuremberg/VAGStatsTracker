@@ -72,11 +72,13 @@ const convertRichtungToInt = (Richtung) => {
  * @param {String} Produkt 
  * @param {String} Linienname 
  * @param {String} Besetzungsgrad 
+ * @param {String} Fahrzeugnummer
  * @param {String} Richtung 
  */
-const insertOrUpdateFahrt = async (Fahrtnummer, Betriebstag, Produkt, Linienname, Besetzungsgrad, Richtung) => {
+const insertOrUpdateFahrt = async (Fahrtnummer, Betriebstag, Produkt, Linienname, Besetzungsgrad, Fahrzeugnummer, Richtung) => {
+    if(Fahrzeugnummer === "PVU") Fahrzeugnummer = 0;
     const query = `INSERT INTO fahrten (Fahrtnummer, Betriebstag, Produkt, Linienname, Besetzungsgrad, Fahrzeugnummer, Richtung) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (Fahrtnummer, Betriebstag, Produkt) DO UPDATE SET Linienname = $4, Besetzungsgrad = $5, Fahrzeugnummer = $6, Richtung = $7`;
-    const values = [Fahrtnummer, Betriebstag, convertProductToInt(Produkt), Linienname, convertBesezungsgradToInt(Besetzungsgrad), 0, convertRichtungToInt(Richtung)];
+    const values = [Fahrtnummer, Betriebstag, convertProductToInt(Produkt), Linienname, convertBesezungsgradToInt(Besetzungsgrad), Fahrzeugnummer, convertRichtungToInt(Richtung)];
     try {
         await pool.query(query, values);
     } catch (error) {
