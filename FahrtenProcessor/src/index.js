@@ -19,11 +19,13 @@ const queueData = {
 }
 
 new Worker('q:trips', async (job) => {
+    let currentTripResponse = null;
     try {
         const { Fahrtnummer, Betriebstag, Produkt, AlreadyTrackedStops, Startzeit, Endzeit } = job.data;
 
         const tripData = await vgn.getTrip(Fahrtnummer, { product: Produkt, date: Betriebstag })
 
+        currentTripResponse = tripData;
         const { Fahrt, Meta } = tripData;
         const { Linienname, Fahrzeugnummer, Besetzgrad, Richtung, Richtungstext, Fahrtverlauf } = Fahrt;
 
@@ -126,7 +128,7 @@ new Worker('q:trips', async (job) => {
         process.log.info(`Processed [${Fahrtnummer}] ${Produkt} (${Linienname}) [${new Date(lastStopObject.AbfahrtszeitIst).toLocaleTimeString()}] ${lastStopObject.Haltestellenname} Next stop: ${nextStopObject.Haltestellenname} [${new Date(nextStopObject.AnkunftszeitIst).toLocaleTimeString()}] Progress: ${Fahrtverlauf_result.progress.toFixed(0)}`);
 
     } catch (error) {
-        if (process.env.SENTRY_DSN) process.sentry.captureException(error);
+        if (process.env.SENTRY_DSN) process.sentry.captureException({error, currentTripResponse});
         console.log(error);
         throw error;
     }
