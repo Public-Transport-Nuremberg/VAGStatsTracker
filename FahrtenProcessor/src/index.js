@@ -87,8 +87,6 @@ new Worker('q:trips', async (job) => {
         }
         const nextStopObject = Fahrtverlauf[Fahrtverlauf_result.lastStopIndex + 1];
 
-        console.log(Fahrzeugnummer)
-
         const tripKeyData = {
             VGNKennung: lastStopObject.VGNKennung,
             VAGKennung: lastStopObject.VAGKennung,
