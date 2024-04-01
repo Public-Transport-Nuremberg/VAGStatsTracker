@@ -61,7 +61,7 @@ const createTables = async () => {
       SELECT (SUM(AbfahrtszeitVerspätung) / COUNT(*)) AS avg_delay, h.VGNKennung, h.Latitude, h.Longitude, Betriebstag
       FROM fahrten_halte
         INNER JOIN haltestellen h on fahrten_halte.VGNKennung = h.VGNKennung
-      WHERE Betriebstag < (CURRENT_DATE - 7)
+      WHERE Betriebstag > (CURRENT_DATE - 31)
       GROUP BY h.VGNKennung, Betriebstag;`)
     await createTable(`CREATE TABLE IF NOT EXISTS users (
     id serial PRIMARY KEY,
