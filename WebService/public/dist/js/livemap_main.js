@@ -14,9 +14,9 @@ const formatSecondsToHTML = (seconds) => {
 const getVehicleInfo = (fahrzeugnummer, info) => {
 	console.log(fahrzeugnummer, info);
 	if (fahrzeugnummer === 'PVU') {
-	  return 'Privat';
+	  return '(Privat)';
 	} else {
-	  let message = 'VAG ';
+	  let message = '(VAG) ';
 	  const emojis = {
 		Klimatisierung: '❄️',
 		Rollstuhlplätze: '♿',
@@ -24,23 +24,34 @@ const getVehicleInfo = (fahrzeugnummer, info) => {
 		Diesel: '⛽️',
 		CNG: '🍃',
 		Elektro: '🔋',
+		DoorAccessible: '♿', // Door accessible for wheelchair emoji
+		DoorNotAccessible: '🚪', // Door not accessible emoji
+		DoorNotAvailable: '🚫', // Door status not available emoji
 	  };
+
+	  // Handling door accessibility
+	  let accessibleDoors = 0;
+	  let doorRepresentation = info.FahrzeugInfo ? 'Türen: ' : '';
+	  for (let i = 1; i <= 6; i++) {
+		const doorKey = `tuer_${i}_mit_aufstellflaeche`;
+		if (info[doorKey] === 'ja') {
+		  accessibleDoors++;
+		  doorRepresentation += `<span title="Tür ${i}: Rollstuhlgerecht">[${emojis.DoorAccessible}]</span> `;
+		} else if (info[doorKey] === 'nein') {
+		  doorRepresentation += `<span title="Tür ${i}: Nicht Rollstuhlgerecht">[${emojis.DoorNotAccessible}]</span> `;
+		} else if (info[doorKey] === 'nv') {
+		  doorRepresentation += `<span title="Tür ${i}: Nicht verfügbar">[${emojis.DoorNotAvailable}]</span> `;
+		}
+	  }
+
+	  message += doorRepresentation;
   
 	  // Add air conditioning emoji
-	  if (info.Klimatisierung) {
-		message += `<span title="${info.Klimatisierung}">${emojis.Klimatisierung}</span> `;
-	  }
-  
+	  if (info.Klimatisierung) { message += `<span title="${info.Klimatisierung}">${emojis.Klimatisierung}</span> `; }
 	  // Add wheelchair space emoji
-	  if (info.Rollstuhlplätze) {
-		message += `<span title="${info.Rollstuhlplätze} Rollstuhlplätze">${emojis.Rollstuhlplätze}</span> `;
-	  }
-  
+	  if (info.Rollstuhlplätze) { message += `<span title="${info.Rollstuhlplätze} Rollstuhlplätze">${emojis.Rollstuhlplätze}</span> `; }
 	  // Add fuel type emoji
-	  if (info.Kraftstoffart && emojis[info.Kraftstoffart]) {
-		message += `<span title="${info.Kraftstoffart}">${emojis[info.Kraftstoffart]}</span>`;
-	  }
-  
+	  if (info.Kraftstoffart && emojis[info.Kraftstoffart]) { message += `<span title="${info.Kraftstoffart}">${emojis[info.Kraftstoffart]}</span>`; }
 	  return message;
 	}
   }
