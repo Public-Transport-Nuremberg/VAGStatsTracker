@@ -9,6 +9,40 @@ const formatSecondsToHTML = (seconds) => {
 	const sign = seconds >= 0 ? "+" : "-";
   
 	return `<span title="${seconds} Sek">${sign}${minutes} Min</span>`;
+}
+
+const getVehicleInfo = (fahrzeugnummer, info) => {
+	console.log(fahrzeugnummer, info);
+	if (fahrzeugnummer === 'PVU') {
+	  return 'Privat';
+	} else {
+	  let message = 'VAG ';
+	  const emojis = {
+		Klimatisierung: '❄️',
+		Rollstuhlplätze: '♿',
+		Gas: '⛽',
+		Diesel: '⛽️',
+		CNG: '🍃',
+		Elektro: '🔋',
+	  };
+  
+	  // Add air conditioning emoji
+	  if (info.Klimatisierung) {
+		message += `<span title="${info.Klimatisierung}">${emojis.Klimatisierung}</span> `;
+	  }
+  
+	  // Add wheelchair space emoji
+	  if (info.Rollstuhlplätze) {
+		message += `<span title="${info.Rollstuhlplätze} Rollstuhlplätze">${emojis.Rollstuhlplätze}</span> `;
+	  }
+  
+	  // Add fuel type emoji
+	  if (info.Kraftstoffart && emojis[info.Kraftstoffart]) {
+		message += `<span title="${info.Kraftstoffart}">${emojis[info.Kraftstoffart]}</span>`;
+	  }
+  
+	  return message;
+	}
   }
   
   // Example usage
@@ -73,6 +107,7 @@ const refreshLiveMap = () => {
 					Richtung: item.Richtung,
 					Richtungstext: item.Richtungstext,
 					Fahrzeugnummer: item.Fahrzeugnummer,
+					FahrzeugInfo: item.FahrzeugInfo,
 					Betriebstag: item.Betriebstag,
 					Besetzgrad: item.Besetzgrad,
 					Haltepunkt: item.Haltepunkt,
@@ -247,12 +282,14 @@ map.on("singleclick", function (event) {
 
 			// Calculate the actual delay at the next stop
 			const delayNext = nextAnkunftszeitIst - expectedNextAnkunftszeit;
+			console.log(p)
 
 			popupContent.innerHTML = `<div class="lm-content">
                 <h2>${emojiMap[p.Produkt]} <span style="color: ${propertiesToColor(p)}"</span>(${p.Linienname}) ${p.Richtungstext}</span></h2>
 				<p><span>Letzter Halt</span>: ${p.Haltestellenname} @ ${abfahrtszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayLast/1000)})</p>
 				<p><span>Nächster Halt</span>: ${p.nextHaltestellenname} @ ${nextAnkunftszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayNext/1000)})</p>
                 <p><span>Besetzgrad</span>: ${p.Besetzgrad}</p>
+				<p><span>Fahrzeug</span>: ${getVehicleInfo(p.Fahrzeugnummer, p.FahrzeugInfo)}</p>
             </div>`;
 			overlay.setPosition(p.geometry.flatCoordinates); // set position absolute to coords
 			popup.style.display = "block";
