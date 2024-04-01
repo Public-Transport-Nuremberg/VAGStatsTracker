@@ -21,15 +21,21 @@ Things i´d like to do but got not enough time for:
 - [ ] Smart alexa alarmclock (Alexa, wake me up so i´ll be in scool by 8 o´clock)
 - [ ] New API Methods to extend the VAG PULS API (If i figure out how to install PGSQL Plugins, lol)
 - [ ] More...
-      
-### Project (The kickstarted still didn´t deliver :/)
-Unlike my other projects this project will be built around my learning curve to cloud like software architecture.  
-Target Hardware:
-- 4 Nodes each with:
-- 8x ARMv8 SoC 
-- 16 GB DDR4
-- 1 TB NVME
-- 1 Gbit/s LAN
+
+## Pictures:
+### Real Time Map
+![grafik](https://github.com/Public-Transport-Nuremberg/VAGStatsTracker/assets/35345288/1b42237a-1d7c-4da9-9092-963dad3c6972)  
+### Vehicle + Accessibility info  
+***For private vehicles this information isn't avaible and the VAG also doesn't know all the Vehicles (Laziness on their part)***  
+Bus: (Operator) Displays AC Avaibility, Wheelchair Spots and Fule type (Diesel, Gasoline, Gas or Electro)  
+![grafik](https://github.com/Public-Transport-Nuremberg/VAGStatsTracker/assets/35345288/b2e03bc6-3e08-493d-ac58-9e44ccb7c0c0)  
+Tram: (Operator) and Door configuration (Wheelchair accessible or not)  
+![grafik](https://github.com/Public-Transport-Nuremberg/VAGStatsTracker/assets/35345288/d35b4f6f-44f6-4aae-8169-28573de6fd2c)  
+
+### Delay Heat Map
+Displays all delays of a date or timespan on the map
+![grafik](https://github.com/Public-Transport-Nuremberg/VAGStatsTracker/assets/35345288/a6953e61-28fb-4892-83ab-2da07ac3c001)
+
 
 ## Install
 ### Windows
@@ -144,3 +150,12 @@ SCANBEFORE=30 # Scan before x seconds
 SCAN_INTERVAL=5 # Scan every x seconds
 ERROR_EXPIRE=600 # Expire errors after X seconds
 ```
+
+### Project (The kickstarted still didn´t deliver :/)
+Unlike my other projects this project will be built around my learning curve to cloud like software architecture.  
+Target Hardware:
+- 4 Nodes each with:
+- 8x ARMv8 SoC 
+- 16 GB DDR4
+- 1 TB NVME
+- 1 Gbit/s LAN
