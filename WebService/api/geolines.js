@@ -22,8 +22,8 @@ const lineSchema = Joi.object({
         return value;
     }).required(),
 });
-
-router.get('/:line', limiter(), plublicStaticCache(60*1000), async (req, res) => {
+// plublicStaticCache(60*1000) also not parameter aware
+router.get('/:line', limiter(), async (req, res) => {
     const { line } = await lineSchema.validateAsync(req.params);
     const lineData = await vgn.geoLines(line);
 
