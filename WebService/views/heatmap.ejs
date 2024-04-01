@@ -20,6 +20,17 @@
 </head>
 <body>
     <div id="map" class="map"></div>
+    <!-- Legend placeholder -->
+    <div id="heatmap-legend" style="position: absolute ; z-index: 2; bottom: 20px; left: 20px; background: white; padding: 10px; border-radius: 5px;">
+    <h4>Heatmap Legend</h4>
+    <!-- Legend gradient bar will be added here -->
+    <div id="legend-bar" style="width: 200px;z-index: 2; height: 20px; border: 1px solid #000;"></div>
+    <!-- Min and max labels for the legend -->
+    <div style="display: flex;z-index: 2; justify-content: space-between;">
+      <span id="legend-min">Low</span>
+      <span id="legend-max">High</span>
+    </div>
+  </div>
 </body>
 <script src="/dist/js/heatmap.js"></script>
 </html>

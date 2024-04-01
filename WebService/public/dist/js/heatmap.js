@@ -9,6 +9,16 @@ const getYesterdaysDate = () => {
     return `${yyyy}-${mm}-${dd}`;
 }
 
+updateLegend = (minValue, maxValue) => {
+    // Update the legend's gradient bar to match the heatmap's color scale
+    const legendBar = document.getElementById('legend-bar');
+    legendBar.style.background = 'linear-gradient(to right, blue, red)';
+
+    // Update min and max labels
+    document.getElementById('legend-min').textContent = minValue.toString();
+    document.getElementById('legend-max').textContent = maxValue.toString();
+}
+
 const map = new ol.Map({
     target: 'map',
     layers: [
@@ -36,16 +46,17 @@ let queryString = window.location.search;
 queryString === '' ? queryString = `?at=${getYesterdaysDate()}` : queryString;
 
 fetch(`/api/v1/heatmap${queryString}`)
-    .then(function(response) {
+    .then(function (response) {
         return response.json();
     })
-    .then(function(data) {
-        var minDelayLog = Math.log(Math.min(...data.map(item => Math.max(item.avg_delay, 1))));
-        var maxDelayLog = Math.log(Math.max(...data.map(item => Math.max(item.avg_delay, 1))));
-        var features = data.map(function(point) {
-            var delayLog = Math.log(Math.max(point.avg_delay, 1));
-            var normalizedWeight = (delayLog - minDelayLog) / (maxDelayLog - minDelayLog);
-            var feature = new ol.Feature({
+    .then(function (data) {
+        const minDelay = Math.min(...data.map(item => Math.max(item.avg_delay, 1)));
+        const maxDelay = Math.max(...data.map(item => Math.max(item.avg_delay, 1)));
+        updateLegend(minDelay, maxDelay);
+        const features = data.map(function (point) {
+            const delay = Math.max(point.avg_delay, 1);
+            const normalizedWeight = (delay - minDelay) / (maxDelay - minDelay);
+            const feature = new ol.Feature({
                 geometry: new ol.geom.Point(ol.proj.fromLonLat([point.longitude, point.latitude])),
                 weight: normalizedWeight * normalizedWeight * normalizedWeight
             });
@@ -54,6 +65,6 @@ fetch(`/api/v1/heatmap${queryString}`)
 
         heatmapLayer.getSource().addFeatures(features);
     })
-    .catch(function(error) {
+    .catch(function (error) {
         console.log('Error fetching or parsing data:', error);
     });

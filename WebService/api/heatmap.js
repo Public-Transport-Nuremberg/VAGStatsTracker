@@ -35,7 +35,6 @@ const validateWithDefault = async (input) => {
 }
 //plublicStaticCache(60 * 1000) Make cache aware of the parameters used
 router.get('/', limiter(), async (req, res) => {
-    console.log(req.query)
     const value = await validateWithDefault(req.query);
     if (value.error) {
         throw new Error(value.error);
