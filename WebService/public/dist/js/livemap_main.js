@@ -15,6 +15,8 @@ const getVehicleInfo = (fahrzeugnummer, info) => {
 	console.log(fahrzeugnummer, info);
 	if (fahrzeugnummer === 'PVU') {
 	  return '(Privat)';
+	} else if(typeof info === "string") {
+		return info;
 	} else {
 	  let message = '(VAG) ';
 	  const emojis = {
