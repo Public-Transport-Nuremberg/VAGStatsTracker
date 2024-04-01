@@ -23,8 +23,8 @@ const lineSchema = Joi.object({
     }).required(),
 });
 
-router.get('/line', limiter(), plublicStaticCache(60*1000), async (req, res) => {
-    const { line } = await lineSchema.validateAsync(req.query);
+router.get('/:line', limiter(), plublicStaticCache(60*1000), async (req, res) => {
+    const { line } = await lineSchema.validateAsync(req.params);
     const lineData = await vgn.geoLines(line);
 
     res.json(lineData.Cords);
