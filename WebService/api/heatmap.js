@@ -20,7 +20,7 @@ const getYesterdaysDate = () => {
     const mm = String(date.getMonth() + 1).padStart(2, '0');
     const yyyy = date.getFullYear();
 
-    return `${dd}.${mm}.${yyyy}`;
+    return `${yyyy}-${mm}-${dd}`;
 }
 
 const schema = Joi.object({
@@ -33,13 +33,13 @@ const validateWithDefault = (input) => {
     if (Object.keys(input).length === 0) { input.at = getYesterdaysDate(); }
     return schema.validate(input);
 }
-//plublicStaticCache(60 * 1000)
+//plublicStaticCache(60 * 1000) Make cache aware of the parameters used
 router.get('/', limiter(), async (req, res) => {
     const value = validateWithDefault(req.query);
     if (value.error) {
         throw new Error(value.error);
     }
-    console.log(value.value);
+
     if(value.value.at) {
         const result = await heatmap.getDay(value.value.at);
         res.json(result);
