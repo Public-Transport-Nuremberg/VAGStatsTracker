@@ -51,7 +51,7 @@ const MakeTripRequests = async () => {
             // const testfilteredFahrten = filteredFahrten.slice(0, 1)
 
             filteredFahrten.map(async (fahrt) => {
-                await insertOrUpdateFahrt(fahrt.Fahrtnummer, fahrt.Betriebstag, fahrt.Produkt, fahrt.Linienname, fahrt.Besetzgrad, fahrt.Fahrzeugnummer ?? -1, fahrt.Richtung);
+                await insertOrUpdateFahrt(fahrt.Fahrtnummer, fahrt.Betriebstag, Produkt, fahrt.Linienname, fahrt.Besetzgrad, fahrt.Fahrzeugnummer ?? -1, fahrt.Richtung);
                 
                 const jobDelay = await addJob(fahrt.Fahrtnummer, fahrt.Betriebstag, Produkt, new Date(fahrt.Startzeit).getTime(), new Date(fahrt.Endzeit).getTime());
                 process.log.info(`Added job for ${fahrt.Fahrtnummer} (Produkt: ${Produkt}) to run at ${new Date(fahrt.Startzeit).toLocaleString()} (${jobDelay})`);
