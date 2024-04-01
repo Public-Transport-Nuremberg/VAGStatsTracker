@@ -61,8 +61,36 @@ const createTables = async () => {
       SELECT (SUM(AbfahrtszeitVerspätung) / COUNT(*)) AS avg_delay, h.VGNKennung, h.Latitude, h.Longitude, Betriebstag
       FROM fahrten_halte
         INNER JOIN haltestellen h on fahrten_halte.VGNKennung = h.VGNKennung
-      WHERE Betriebstag > (CURRENT_DATE - 31)
-      GROUP BY h.VGNKennung, Betriebstag;`)
+      WHERE Betriebstag > (CURRENT_DATE - INTERVAL '31 days')
+      GROUP BY h.VGNKennung, Betriebstag;`, "VIEW: delay_map")
+    await createTable(`CREATE MATERIALIZED VIEW IF NOT EXISTS delay_per_vehicle AS
+    SELECT
+      f.Fahrzeugnummer,
+      (SUM(AbfahrtszeitVerspätung) / COUNT(*)) AS avg_delay,
+      f.Betriebstag
+    FROM
+      fahrten f
+    INNER JOIN fahrten_halte fh ON f.Fahrtnummer = fh.Fahrtnummer
+      AND f.Betriebstag = fh.Betriebstag
+      AND f.Produkt = fh.Produkt
+    WHERE
+      f.Betriebstag > (CURRENT_DATE - INTERVAL '31 days')
+    GROUP BY
+      f.Fahrzeugnummer, f.Betriebstag;`, "VIEW: delay_per_vehicle")
+    await createTable(`CREATE MATERIALIZED VIEW IF NOT EXISTS delay_per_line AS
+    SELECT
+      f.Linienname,
+      (SUM(AbfahrtszeitVerspätung) / COUNT(*)) AS avg_delay,
+      f.Betriebstag
+    FROM
+      fahrten f
+    INNER JOIN fahrten_halte fh ON f.Fahrtnummer = fh.Fahrtnummer
+      AND f.Betriebstag = fh.Betriebstag
+      AND f.Produkt = fh.Produkt
+    WHERE
+      f.Betriebstag > (CURRENT_DATE - INTERVAL '31 days')
+    GROUP BY
+      f.Linienname, f.Betriebstag;`)
     await createTable(`CREATE TABLE IF NOT EXISTS users (
     id serial PRIMARY KEY,
     puuid UUID NOT NULL UNIQUE DEFAULT uuid_generate_v4(),
@@ -106,7 +134,7 @@ const convertProducttoBool = (product) => {
     Produkt_SBahn: false,
     Produkt_RBahn: false,
   };
-  if(!product) {
+  if (!product) {
     return productBooleans;
   }
   const productTypes = product.split(',');
@@ -176,6 +204,44 @@ const getAllHaltestellen = () => {
   })
 }
 
+/* --- --- --- Views --- --- --- */
+
+/**
+ * Update the delay_map view
+ */
+const updateView_delay_map = () => {
+  return new Promise((resolve, reject) => {
+    pool.query(`REFRESH MATERIALIZED VIEW delay_map;`, (err, result) => {
+      if (err) { reject(err) }
+      resolve(result)
+    })
+  })
+}
+
+/**
+ * Update the delay_per_vehicle view
+ */
+const updateView_delay_per_vehicle = () => {
+  return new Promise((resolve, reject) => {
+    pool.query(`REFRESH MATERIALIZED VIEW delay_per_vehicle;`, (err, result) => {
+      if (err) { reject(err) }
+      resolve(result)
+    })
+  })
+}
+
+/**
+ * Update the delay_per_line view
+ */
+const updateView_delay_per_line = () => {
+  return new Promise((resolve, reject) => {
+    pool.query(`REFRESH MATERIALIZED VIEW delay_per_line;`, (err, result) => {
+      if (err) { reject(err) }
+      resolve(result)
+    })
+  })
+}
+
 /* --- --- --- HeatMap --- --- --- */
 
 /**
@@ -203,6 +269,51 @@ const getHeatMapTimeFrame = (start, end) => {
   return new Promise((resolve, reject
   ) => {
     pool.query(`SELECT * FROM delay_map WHERE Betriebstag BETWEEN $1 AND $2`, [start, end], (err, result) => {
+      if (err) { reject(err) }
+      resolve(result.rows)
+    })
+  })
+}
+
+/* --- --- --- TopLists --- ---- --- */
+
+/**
+ * Get TopList for delays by stops
+ * @param {String} day 
+ * @returns {Promise<Array>}
+ */
+const getTopListDelayByStops = (day) => {
+  return new Promise((resolve, reject
+  ) => {
+    pool.query(`SELECT * FROM delay_map WHERE Betriebstag = $1 ORDER BY avg_delay DESC`, [day], (err, result) => {
+      if (err) { reject(err) }
+      resolve(result.rows)
+    })
+  })
+}
+
+/**
+ * Get TopList for delays by vehicles
+ * @param {String} day
+ */
+const getTopListDelayByVehicles = (day) => {
+  return new Promise((resolve, reject
+  ) => {
+    pool.query(`SELECT * FROM delay_per_vehicle WHERE Betriebstag = $1 ORDER BY avg_delay DESC`, [day], (err, result) => {
+      if (err) { reject(err) }
+      resolve(result.rows)
+    })
+  })
+}
+
+/**
+ * Get TopList for delays by lines
+ * @param {String} day
+ */
+const getTopListDelayByLines = (day) => {
+  return new Promise((resolve, reject
+  ) => {
+    pool.query(`SELECT * FROM delay_per_line WHERE Betriebstag = $1 ORDER BY avg_delay DESC`, [day], (err, result) => {
       if (err) { reject(err) }
       resolve(result.rows)
     })
@@ -258,6 +369,17 @@ const WebtokensDelete = (token) => {
 
 /* --- --- --- Exports --- --- --- */
 
+const views = {
+  update_delay_map: updateView_delay_map,
+  update_delay_per_vehicle: updateView_delay_per_vehicle,
+  update_delay_per_line: updateView_delay_per_line,
+  topList: {
+    delayByStops: getTopListDelayByStops,
+    delayByVehicles: getTopListDelayByVehicles,
+    delayByLines: getTopListDelayByLines
+  }
+}
+
 const haltestellen = {
   insertOrUpdate: insertOrUpdateHaltestelle,
   getAllHaltestellen: getAllHaltestellen
@@ -277,7 +399,8 @@ const webtoken = {
 
 module.exports = {
   createTables,
+  views,
   heatmap,
-  haltestellen: haltestellen,
+  haltestellen,
   webtoken
 }
