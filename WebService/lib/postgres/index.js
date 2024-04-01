@@ -34,7 +34,7 @@ const createTables = async () => {
       Produkt          smallint,
       Linienname       text,
       Besetzungsgrad   smallint,
-      Fahrzeugnummer   smallint,
+      Fahrzeugnummer   integer,
       Richtung         smallint,
       PRIMARY KEY (Fahrtnummer, Betriebstag, Produkt)
   );`, "fahrten")
@@ -176,6 +176,39 @@ const getAllHaltestellen = () => {
   })
 }
 
+/* --- --- --- HeatMap --- --- --- */
+
+/**
+ * Get HeatMap Data for a specific day
+ * @param {String} day 
+ * @returns {Promise<Array>}
+ */
+const getHeatMapDataDay = (day) => {
+  return new Promise((resolve, reject
+  ) => {
+    pool.query(`SELECT * FROM delay_map WHERE Betriebstag = $1`, [day], (err, result) => {
+      if (err) { reject(err) }
+      resolve(result.rows)
+    })
+  })
+}
+
+/**
+ * Get HeatMap Data for a specific time frame
+ * @param {String} start 
+ * @param {String} end 
+ * @returns {Promise<Array>}
+ */
+const getHeatMapTimeFrame = (start, end) => {
+  return new Promise((resolve, reject
+  ) => {
+    pool.query(`SELECT * FROM delay_map WHERE Betriebstag BETWEEN $1 AND $2`, [start, end], (err, result) => {
+      if (err) { reject(err) }
+      resolve(result.rows)
+    })
+  })
+}
+
 /* --- --- --- Webtokens --- --- --- */
 
 /**
@@ -230,6 +263,11 @@ const haltestellen = {
   getAllHaltestellen: getAllHaltestellen
 }
 
+const heatmap = {
+  getDay: getHeatMapDataDay,
+  getTimeFrame: getHeatMapTimeFrame
+}
+
 const webtoken = {
   create: WebtokensCreate,
   get: WebtokensGet,
@@ -239,6 +277,7 @@ const webtoken = {
 
 module.exports = {
   createTables,
+  heatmap,
   haltestellen: haltestellen,
   webtoken
 }

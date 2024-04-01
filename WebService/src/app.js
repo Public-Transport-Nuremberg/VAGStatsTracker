@@ -44,6 +44,11 @@ app.get('/livemap', (req, res) => {
     res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'livemap.html')));
 });
 
+app.get('/heatmap', (req, res) => {
+    res.header('Content-Type', 'text/html');
+    res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'heatmap.html')));
+});
+
 // Legal Pages
 app.get('/legal/legal', (req, res) => {
     res.header('Content-Type', 'text/html');
