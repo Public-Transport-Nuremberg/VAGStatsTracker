@@ -35,7 +35,7 @@ let queryString = window.location.search;
 // If queryString is empty, fetch yesterday's data ?at=yyyy-mm-dd
 queryString === '' ? queryString = `?at=${getYesterdaysDate()}` : queryString;
 
-fetch(`http://localhost/api/v1/heatmap${queryString}`)
+fetch(`/api/v1/heatmap${queryString}`)
     .then(function(response) {
         return response.json();
     })
