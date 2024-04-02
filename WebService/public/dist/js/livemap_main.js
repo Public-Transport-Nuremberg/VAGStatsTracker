@@ -11,6 +11,21 @@ const formatSecondsToHTML = (seconds) => {
 	return `<span title="${seconds} Sek">${sign}${minutes} Min</span>`;
 }
 
+const formatBesezungsgrad = (besetzungsgrad) => {
+	switch (besetzungsgrad) {
+		case 'Unbekannt':
+			return 'Unbekannt';
+		case 'Schwachbesetzt':
+			return 'Schwach besetzt';
+		case 'Starkbesetzt':
+			return 'Stark besetzt';
+		case 'Ueberfuellt':
+			return 'Überfüllt';
+		default:
+			return 'Unbekannt';
+	}
+}
+
 const getVehicleInfo = (fahrzeugnummer, info) => {
 	console.log(fahrzeugnummer, info);
 	if (fahrzeugnummer === 'PVU') {
@@ -241,7 +256,7 @@ map.on("singleclick", function (event) {
 							<h2>${emojiMap[p.Produkt]} <span style="color: ${propertiesToColor(p)}"</span>(${p.Linienname}) ${p.Richtungstext}</span></h2>
 							<p><span>Letzter Halt</span>: ${p.Haltestellenname} @ ${abfahrtszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayLast / 1000)})</p>
 							<p><span>Nächster Halt</span>: ${p.nextHaltestellenname} @ ${nextAnkunftszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayNext / 1000)})</p>
-							<p><span>Besetzgrad</span>: ${p.Besetzgrad}</p>
+							<p><span>Besetzgrad</span>: ${formatBesezungsgrad(p.Besetzgrad)}</p>
 							<p><span>Fahrzeug</span>: ${getVehicleInfo(p.Fahrzeugnummer, p.FahrzeugInfo)}</p>
 						</div>
                     `;
@@ -317,7 +332,7 @@ map.on("singleclick", function (event) {
                 <h2>${emojiMap[p.Produkt]} <span style="color: ${propertiesToColor(p)}"</span>(${p.Linienname}) ${p.Richtungstext}</span></h2>
 				<p><span>Letzter Halt</span>: ${p.Haltestellenname} @ ${abfahrtszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayLast / 1000)})</p>
 				<p><span>Nächster Halt</span>: ${p.nextHaltestellenname} @ ${nextAnkunftszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayNext / 1000)})</p>
-                <p><span>Besetzgrad</span>: ${p.Besetzgrad}</p>
+                <p><span>Besetzgrad</span>: ${formatBesezungsgrad(p.Besetzgrad)}</p>
 				<p><span>Fahrzeug</span>: ${getVehicleInfo(p.Fahrzeugnummer, p.FahrzeugInfo)}</p>
             </div>`;
 			overlay.setPosition(p.geometry.flatCoordinates); // set position absolute to coords

@@ -41,9 +41,9 @@ const convertBesezungsgradToInt = (besetzungsgrad) => {
             return 1;
         case 'Schwachbesetzt':
             return 2;
-        case 'Mittelbesetzt':
-            return 3;
         case 'Starkbesetzt':
+            return 3;
+        case 'Ueberfuellt':
             return 4;
         default:
             process.log.warn('Unknown Besetzungsgrad:', besetzungsgrad);
