@@ -14,9 +14,9 @@ const formatSecondsToHTML = (seconds) => {
 const getVehicleInfo = (fahrzeugnummer, info) => {
 	console.log(fahrzeugnummer, info);
 	if (fahrzeugnummer === 'PVU') {
-		return '(Privat)';
+		return '(Privat) - Keine Fahrzeugdaten verfügbar';
 	} else if (typeof info === "string") {
-		return info;
+		return `(${info}) - Keine Fahrzeugdaten verfügbar`;
 	} else {
 		let message = '(VAG) ';
 		const emojis = {
