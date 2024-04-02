@@ -7,64 +7,64 @@ const emojiMap = {
 const formatSecondsToHTML = (seconds) => {
 	const minutes = Math.round(Math.abs(seconds) / 60);
 	const sign = seconds >= 0 ? "+" : "-";
-  
+
 	return `<span title="${seconds} Sek">${sign}${minutes} Min</span>`;
 }
 
 const getVehicleInfo = (fahrzeugnummer, info) => {
 	console.log(fahrzeugnummer, info);
 	if (fahrzeugnummer === 'PVU') {
-	  return '(Privat)';
-	} else if(typeof info === "string") {
+		return '(Privat)';
+	} else if (typeof info === "string") {
 		return info;
 	} else {
-	  let message = '(VAG) ';
-	  const emojis = {
-		Klimatisierung: '❄️',
-		Rollstuhlplätze: '♿',
-		Gas: '⛽',
-		Diesel: '⛽️',
-		CNG: '🍃',
-		Elektro: '🔋',
-		DoorAccessible: '♿', // Door accessible for wheelchair emoji
-		DoorNotAccessible: '🚪', // Door not accessible emoji
-		DoorNotAvailable: '🚫', // Door status not available emoji
-	  };
+		let message = '(VAG) ';
+		const emojis = {
+			Klimatisierung: '❄️',
+			Rollstuhlplätze: '♿',
+			Gas: '⛽',
+			Diesel: '⛽️',
+			CNG: '🍃',
+			Elektro: '🔋',
+			DoorAccessible: '♿', // Door accessible for wheelchair emoji
+			DoorNotAccessible: '🚪', // Door not accessible emoji
+			DoorNotAvailable: '🚫', // Door status not available emoji
+		};
 
-	  // Handling door accessibility
-	  let accessibleDoors = 0;
-	  let doorRepresentation = info.FahrzeugInfo ? 'Türen: ' : '';
-	  for (let i = 1; i <= 6; i++) {
-		const doorKey = `tuer_${i}_mit_aufstellflaeche`;
-		if (info[doorKey] === 'ja') {
-		  accessibleDoors++;
-		  doorRepresentation += `<span title="Tür ${i}: Rollstuhlgerecht">[${emojis.DoorAccessible}]</span> `;
-		} else if (info[doorKey] === 'nein') {
-		  doorRepresentation += `<span title="Tür ${i}: Nicht Rollstuhlgerecht">[${emojis.DoorNotAccessible}]</span> `;
-		} else if (info[doorKey] === 'nv') {
-		  doorRepresentation += `<span title="Tür ${i}: Nicht verfügbar">[${emojis.DoorNotAvailable}]</span> `;
+		// Handling door accessibility
+		let accessibleDoors = 0;
+		let doorRepresentation = info.FahrzeugInfo ? 'Türen: ' : '';
+		for (let i = 1; i <= 6; i++) {
+			const doorKey = `tuer_${i}_mit_aufstellflaeche`;
+			if (info[doorKey] === 'ja') {
+				accessibleDoors++;
+				doorRepresentation += `<span title="Tür ${i}: Rollstuhlgerecht">[${emojis.DoorAccessible}]</span> `;
+			} else if (info[doorKey] === 'nein') {
+				doorRepresentation += `<span title="Tür ${i}: Nicht Rollstuhlgerecht">[${emojis.DoorNotAccessible}]</span> `;
+			} else if (info[doorKey] === 'nv') {
+				doorRepresentation += `<span title="Tür ${i}: Nicht verfügbar">[${emojis.DoorNotAvailable}]</span> `;
+			}
 		}
-	  }
 
-	  message += doorRepresentation;
-  
-	  // Add air conditioning emoji
-	  if (info.Klimatisierung) { message += `<span title="${info.Klimatisierung}">${emojis.Klimatisierung}</span> `; }
-	  // Add wheelchair space emoji
-	  if (info.Rollstuhlplätze) { message += `<span title="${info.Rollstuhlplätze} Rollstuhlplätze">${emojis.Rollstuhlplätze}</span> `; }
-	  // Add fuel type emoji
-	  if (info.Kraftstoffart && emojis[info.Kraftstoffart]) { message += `<span title="${info.Kraftstoffart}">${emojis[info.Kraftstoffart]}</span>`; }
-	  return message;
+		message += doorRepresentation;
+
+		// Add air conditioning emoji
+		if (info.Klimatisierung) { message += `<span title="${info.Klimatisierung}">${emojis.Klimatisierung}</span> `; }
+		// Add wheelchair space emoji
+		if (info.Rollstuhlplätze) { message += `<span title="${info.Rollstuhlplätze} Rollstuhlplätze">${emojis.Rollstuhlplätze}</span> `; }
+		// Add fuel type emoji
+		if (info.Kraftstoffart && emojis[info.Kraftstoffart]) { message += `<span title="${info.Kraftstoffart}">${emojis[info.Kraftstoffart]}</span>`; }
+		return message;
 	}
-  }
-  
-  // Example usage
-  const resultHTML = formatSecondsToHTML(150); // For 150 seconds
-  console.log(resultHTML); // Outputs: <span title="150 seconds">+2 minutes</span>
-  
-  const resultHTMLNegative = formatSecondsToHTML(-150); // For -150 seconds
-  console.log(resultHTMLNegative); // Outputs: <span title="-150 seconds">-2 minutes</span>
-  
+}
+
+// Example usage
+const resultHTML = formatSecondsToHTML(150); // For 150 seconds
+console.log(resultHTML); // Outputs: <span title="150 seconds">+2 minutes</span>
+
+const resultHTMLNegative = formatSecondsToHTML(-150); // For -150 seconds
+console.log(resultHTMLNegative); // Outputs: <span title="-150 seconds">-2 minutes</span>
+
 
 const map = new ol.Map({
 	target: "map",
@@ -221,12 +221,29 @@ map.on("singleclick", function (event) {
 			popupContent.innerHTML = `<div class="lm-content">
                 <h2>Fahrzeuge</h2>
                 ${properties
-					.map(function (property) {
+					.map(function (p) {
+						const abfahrtszeitIst = new Date(p.AbfahrtszeitIst);
+						const abfahrtszeitSoll = new Date(p.AbfahrtszeitSoll);
+						const nextAnkunftszeitIst = new Date(p.nextAnkunftszeitIst);
+						const nextAnkunftszeitSoll = new Date(p.nextAnkunftszeitSoll);
+
+						// Calculate delay at departure
+						const delayLast = abfahrtszeitIst - abfahrtszeitSoll;
+
+						// Calculate expected arrival time at the next stop if the travel had no additional delays
+						const expectedTravelTime = nextAnkunftszeitSoll - abfahrtszeitSoll;
+						const expectedNextAnkunftszeit = new Date(abfahrtszeitIst.getTime() + expectedTravelTime);
+
+						// Calculate the actual delay at the next stop
+						const delayNext = nextAnkunftszeitIst - expectedNextAnkunftszeit;
 						return `
-                        <p><span>Linie</span>: <span style="color:${propertiesToColor(property)}">${property.Linienname}</span></p>
-                        <p><span>Richtung</span>: ${property.Richtungstext}</p>
-                        <p><span>Haltepunkt</span>: ${property.Haltepunkt}</p>
-                        <p><span>Haltestelle</span>: ${property.Haltestellenname}</p>
+                        <div class="lm-content">
+							<h2>${emojiMap[p.Produkt]} <span style="color: ${propertiesToColor(p)}"</span>(${p.Linienname}) ${p.Richtungstext}</span></h2>
+							<p><span>Letzter Halt</span>: ${p.Haltestellenname} @ ${abfahrtszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayLast / 1000)})</p>
+							<p><span>Nächster Halt</span>: ${p.nextHaltestellenname} @ ${nextAnkunftszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayNext / 1000)})</p>
+							<p><span>Besetzgrad</span>: ${p.Besetzgrad}</p>
+							<p><span>Fahrzeug</span>: ${getVehicleInfo(p.Fahrzeugnummer, p.FahrzeugInfo)}</p>
+						</div>
                     `;
 					})
 					.join("<div class='lm-split'></div>")}
@@ -295,12 +312,11 @@ map.on("singleclick", function (event) {
 
 			// Calculate the actual delay at the next stop
 			const delayNext = nextAnkunftszeitIst - expectedNextAnkunftszeit;
-			console.log(p)
 
 			popupContent.innerHTML = `<div class="lm-content">
                 <h2>${emojiMap[p.Produkt]} <span style="color: ${propertiesToColor(p)}"</span>(${p.Linienname}) ${p.Richtungstext}</span></h2>
-				<p><span>Letzter Halt</span>: ${p.Haltestellenname} @ ${abfahrtszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayLast/1000)})</p>
-				<p><span>Nächster Halt</span>: ${p.nextHaltestellenname} @ ${nextAnkunftszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayNext/1000)})</p>
+				<p><span>Letzter Halt</span>: ${p.Haltestellenname} @ ${abfahrtszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayLast / 1000)})</p>
+				<p><span>Nächster Halt</span>: ${p.nextHaltestellenname} @ ${nextAnkunftszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayNext / 1000)})</p>
                 <p><span>Besetzgrad</span>: ${p.Besetzgrad}</p>
 				<p><span>Fahrzeug</span>: ${getVehicleInfo(p.Fahrzeugnummer, p.FahrzeugInfo)}</p>
             </div>`;
