@@ -7,11 +7,14 @@ ToDo:
     - [X] Bus
     - [X] U-Bahn
     - [X] Tram
-- [X] Live Map of ALL services (Experimental)
-- [ ] Generate Heatmaps of delays
-- [ ] Easy way to report delays or other stuff (Not directly to the company)
+- [X] Live Map of ALL services
+- [X] Generate Heatmaps of delays
+- [X] Geoline API - Get exact WGS84 coordinates for lines with rails
+- [X] Stops API
+- [X] Toplist
 
 Things i´d like to do but got not enough time for:  
+- [ ] Easy way to report delays or other stuff (Not directly to the company)
 - [ ] Smart warnings of potential delays
 - [ ] Link common delay causes to the average delay they cause
 - [ ] Track Elevator malfunctions and duration
@@ -35,6 +38,41 @@ Tram: (Operator) and Door configuration (Wheelchair accessible or not)
 ### Delay Heat Map
 Displays all delays of a date or timespan on the map
 ![grafik](https://github.com/Public-Transport-Nuremberg/VAGStatsTracker/assets/35345288/a6953e61-28fb-4892-83ab-2da07ac3c001)
+
+## API
+### Stops
+`/search` Parameters:    
+- Haltestellenname: String  
+- VGNKennung: Int  
+- VAGKennung: String  
+- Latitude: Int -Min/Max=180 optional  
+- Longitude: Int -Min/Max=180 optional  
+- Produkte: String (Bus,Tram,Ubahn)  
+
+`/location` Parameters:    
+- Latitude: Int -Min/Max=180 optional  
+- Longitude: Int -Min/Max=180 optional  
+- Radius: Number -Max=40000KM  
+
+### Geolines
+`/:line` Possible: 4,5,6,7,8,10,11,U1,U2,U3  
+
+### Toplists
+`/delay/:list` Possible: by_stops, by_lines, by_vehicles Parameters:  
+- at: String (YYYY-MM-DD)  
+- from: String (YYYY-MM-DD) - Not fully added  
+- to: String (YYYY-MM-DD) - Not fully added  
+
+### Live
+`/all` Returns all current trips   
+`/map` Parameters:      
+- Linie: String   
+
+### Heatmap
+`/` Parameters:   
+- at: String (YYYY-MM-DD)   
+- from: String (YYYY-MM-DD) - Experimentell  
+- to: String (YYYY-MM-DD) - Experimentell  
 
 
 ## Install
