@@ -134,7 +134,7 @@ const ScheduleJob = async (Fahrtnummer, Betriebstag, Produkt, keyData, AlreadyTr
         AlreadyTrackedStops: AlreadyTrackedStops,
         Startzeit: Startzeit,
         Endzeit: Endzeit
-    }, { delay: Math.max(delay, 60000), attempts: 2 });
+    }, { delay: Math.max(delay, 30000), attempts: 2 });
 
     return delay
 }
