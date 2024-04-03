@@ -45,12 +45,25 @@ files.forEach(file => {
     }
 });
 
+
 renderEJSToPublic(path.join(__dirname, 'views'), path.join(__dirname, 'public'), ["error-xxx.ejs", "landingpage.ejs"]);
 
 (async () => {
     const { StopObjectStore } = require('@lib/haltestellen_cache');
     const { createTables, haltestellen, views } = require('@lib/postgres');
     const cron = require('node-cron');
+    // refresh Views
+    const refreshViews = async () => {
+        try {
+            await views.update_delay_map();
+            await views.update_delay_map();
+            await views.update_delay_map();
+            process.log.system('Delay Views refreshed');
+        } catch (error) {
+            process.log.error(`Failed to refresh views: ${error}`);
+            if (process.env.SENTRY_DSN) process.sentry.captureException(error);
+        }
+    }
     try {
         await createTables();
         await StopObjectStore.init()
@@ -65,19 +78,6 @@ renderEJSToPublic(path.join(__dirname, 'views'), path.join(__dirname, 'public'),
         process.log.error(`Failed to create tables: ${error}`);
         if (process.env.SENTRY_DSN) process.sentry.captureException(error);
         exit(1);
-    }
-
-    // refresh Views at 01:00
-    const refreshViews = async () => {
-        try {
-            await views.update_delay_map();
-            await views.update_delay_map();
-            await views.update_delay_map();
-            process.log.system('Delay Views refreshed');
-        } catch (error) {
-            process.log.error(`Failed to refresh views: ${error}`);
-            if (process.env.SENTRY_DSN) process.sentry.captureException(error);
-        }
     }
 
     cron.schedule('0 4 * * *', refreshViews);
