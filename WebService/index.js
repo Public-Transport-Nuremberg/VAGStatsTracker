@@ -60,6 +60,7 @@ renderEJSToPublic(path.join(__dirname, 'views'), path.join(__dirname, 'public'),
             await haltestellen.insertOrUpdate(VGNKennung, VAGKennung, Haltestellenname, Latitude, Longitude, Produkte);
         });
         StopObjectStore.update();
+        refreshViews();
     } catch (error) {
         process.log.error(`Failed to create tables: ${error}`);
         if (process.env.SENTRY_DSN) process.sentry.captureException(error);
