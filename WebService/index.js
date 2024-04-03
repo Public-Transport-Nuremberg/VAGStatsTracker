@@ -79,7 +79,7 @@ renderEJSToPublic(path.join(__dirname, 'views'), path.join(__dirname, 'public'),
         }
     }
 
-    cron.schedule('0 1 * * *', refreshViews);
+    cron.schedule('0 4 * * *', refreshViews);
 
     setTimeout(() => {
         const app = require('@src/app');
