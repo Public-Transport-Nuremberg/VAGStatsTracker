@@ -118,7 +118,7 @@ const logger = function (level, text) {
 
     if (levelnumber <= loglevel && levelnumber === 1) {
         if (process.env.LOG_TYPE === 'console') {
-            console.log(logFormater(levelnumber, text))
+            console.error(logFormater(levelnumber, text))
         } else {
             process.stdout.write(logFormater(levelnumber, text) + '\n');
         }
@@ -126,7 +126,7 @@ const logger = function (level, text) {
 
     if (levelnumber <= loglevel && levelnumber === 2) {
         if (process.env.LOG_TYPE === 'console') {
-            console.log(logFormater(levelnumber, text))
+            console.warn(logFormater(levelnumber, text))
         } else {
             process.stdout.write(logFormater(levelnumber, text) + '\n');
         }
@@ -142,7 +142,7 @@ const logger = function (level, text) {
 
     if (levelnumber <= loglevel && levelnumber === 4) {
         if (process.env.LOG_TYPE === 'console') {
-            console.log(logFormater(levelnumber, text))
+            console.debug(logFormater(levelnumber, text))
         } else {
             process.stdout.write(logFormater(levelnumber, text) + '\n');
         }
