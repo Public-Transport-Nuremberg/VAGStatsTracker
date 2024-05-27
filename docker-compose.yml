@@ -1,19 +1,19 @@
 version: '3.8'
 
 services:
-  dragonfly:
-    image: 'docker.dragonflydb.io/dragonflydb/dragonfly'
-    command: ["/usr/local/bin/dragonfly", "--default_lua_flags=allow-undeclared-keys"]
-    container_name: "VAGStatus-Dragonfly"
+  keydb:
+    image: 'eqalpha/keydb'
+    container_name: "VAGStatus-KeyDB"
+    command: ["--maxmemory-policy", "allkeys-lru"]
     ulimits:
       memlock: -1
     ports:
       - "6379:6379"
     volumes:
-      - dragonflydata:/data
+      - keydbdata:/data
     environment:
-      DRAGONFLY_USERNAME: "default"
-      DRAGONFLY_PASSWORD: "example"
+      KEYDB_USERNAME: "default"
+      KEYDB_PASSWORD: "example"
 
   postgres:
     image: 'postgres'
@@ -42,6 +42,6 @@ services:
     restart: always
 
 volumes:
-  dragonflydata:
+  keydbdata:
   postgresdata:
   prometheus_data:
