@@ -15,7 +15,7 @@ const queueData = {
     host: process.env.REDIS_HOST || "127.0.0.1",
     username: process.env.REDIS_USER || "default",
     password: process.env.REDIS_PASSWORD || "example",
-    db: process.env.REDIS_DB || 0,
+    db: process.env.REDIS_DB + 1 || 1,
 }
 
 new Worker('q:trips', async (job) => {
