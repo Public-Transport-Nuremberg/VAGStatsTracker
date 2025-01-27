@@ -11,11 +11,11 @@ const { writeNewDatapoint, ScheduleJob, delTripKey, errorExporter, addTripLocati
 const { insertOrUpdateFahrtEntry, insertOrUpdateHaltestelle } = require('@lib/postgres');
 
 const queueData = {
-    port: process.env.Redis_Port || 6379,
-    host: process.env.Redis_Host || "127.0.0.1",
-    username: process.env.Redis_User || "default",
-    password: process.env.Redis_Password || "default",
-    db: process.env.Redis_DB + 1 || 1,
+    port: process.env.REDIS_PORT || 6379,
+    host: process.env.REDIS_HOST || "127.0.0.1",
+    username: process.env.REDIS_USER || "default",
+    password: process.env.REDIS_PASSWORD || "example",
+    db: process.env.REDIS_DB || 0,
 }
 
 new Worker('q:trips', async (job) => {
