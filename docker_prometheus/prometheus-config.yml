@@ -33,9 +33,3 @@ scrape_configs:
     metrics_path: /api/v1/metrics
     static_configs:
       - targets: ["host.docker.internal"]
-  - job_name: "vagstats"
-    scrape_interval: 5s
-    scrape_timeout: 5s
-    metrics_path: /api/v1/metrics
-    static_configs:
-      - targets: ["localhost:4123"]
