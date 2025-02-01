@@ -14,6 +14,7 @@ const redis = new Redis(redisData);
 // Function to parse Redis info output and extract relevant values
 const monitorRedis = async () => {
     const info = await redis.info();
+    console.log(info);
     const lines = info.split('\n').filter(line => line.trim() !== '');
 
     const relevantKeys = [

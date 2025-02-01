@@ -2,7 +2,6 @@ const { openvgn } = require('oepnv-nuremberg');
 
 const vgn = new openvgn();
 
-const Redis = require('ioredis');
 const { Worker } = require('bullmq');
 
 const { getLastStopAndProgress, removeDuplicatesAndKeepOrder } = require('@lib/util');
