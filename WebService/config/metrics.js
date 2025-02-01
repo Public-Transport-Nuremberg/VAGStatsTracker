@@ -170,78 +170,78 @@ module.exports = {
     "RedisInfo": {
         "Clients": {
             "connected_clients": {
-                "Metric": "ConnectedClients",
+                "Metric": "Redis_ConnectedClients",
                 "Type": "gauge",
                 "Help": "The amount of connected clients",
             },
             "blocked_clients": {
-                "Metric": "BlockedClients",
+                "Metric": "Redis_BlockedClients",
                 "Type": "gauge",
                 "Help": "The amount of blocked clients",
             }
         },
         "Memory": {
             "used_memory": {
-                "Metric": "UsedMemory",
+                "Metric": "Redis_UsedMemory",
                 "Type": "gauge",
                 "Help": "The amount of used memory",
             },
             "used_memory_peak": {
-                "Metric": "UsedMemoryPeak",
+                "Metric": "Redis_UsedMemoryPeak",
                 "Type": "gauge",
                 "Help": "The peak amount of used memory",
             },
             "used_memory_rss": {
-                "Metric": "UsedMemoryRSS",
+                "Metric": "Redis_UsedMemoryRSS",
                 "Type": "gauge",
                 "Help": "The amount of used memory RSS",
             }
         },
         "Stats": {
             "instantaneous_ops_per_sec": {
-                "Metric": "InstantaneousOpsPerSec",
+                "Metric": "Redis_InstantaneousOpsPerSec",
                 "Type": "gauge",
                 "Help": "The amount of instantaneous ops per second",
             },
             "total_commands_processed": {
-                "Metric": "TotalCommandsProcessed",
+                "Metric": "Redis_TotalCommandsProcessed",
                 "Type": "gauge",
                 "Help": "The amount of total commands processed",
             },
             "keyspace_hits": {
-                "Metric": "KeyspaceHits",
+                "Metric": "Redis_KeyspaceHits",
                 "Type": "gauge",
                 "Help": "The amount of keyspace hits",
             },
             "keyspace_misses": {
-                "Metric": "KeyspaceMisses",
+                "Metric": "Redis_KeyspaceMisses",
                 "Type": "gauge",
                 "Help": "The amount of keyspace misses",
             },
             "rejected_connections": {
-                "Metric": "RejectedConnections",
+                "Metric": "Redis_RejectedConnections",
                 "Type": "gauge",
                 "Help": "The amount of rejected connections",
             },
             "expired_keys": {
-                "Metric": "ExpiredKeys",
+                "Metric": "Redis_ExpiredKeys",
                 "Type": "gauge",
                 "Help": "The amount of expired keys",
             },
             "evicted_keys": {
-                "Metric": "EvictedKeys",
+                "Metric": "Redis_EvictedKeys",
                 "Type": "gauge",
                 "Help": "The amount of evicted keys",
             },
         },
         "CPU": {
             "used_cpu_sys": {
-                "Metric": "UsedCpuSys",
+                "Metric": "Redis_UsedCpuSys",
                 "Type": "gauge",
                 "Help": "The amount of used CPU sys",
             },
             "used_cpu_user": {
-                "Metric": "UsedCpuUser",
+                "Metric": "Redis_UsedCpuUser",
                 "Type": "gauge",
                 "Help": "The amount of used CPU user",
             }
