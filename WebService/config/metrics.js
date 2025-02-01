@@ -234,7 +234,7 @@ module.exports = {
                 "Help": "The amount of evicted keys",
             },
         },
-        "Cpu": {
+        "CPU": {
             "used_cpu_sys": {
                 "Metric": "UsedCpuSys",
                 "Type": "gauge",
