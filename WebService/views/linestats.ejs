@@ -54,10 +54,14 @@
         <input type="text" id="lineInput" value="U1" />
       </label>
       <label>
-        Delay Type:
+        Durschnitt aus Tage(n):
+        <input type="number" id="dayInput" value="7" />
+      </label>
+      <label>
+        Verspätungstyp:
         <select id="delayType">
-          <option value="avg_departure_delay">Departure Delay</option>
-          <option value="avg_arrival_delay">Arrival Delay</option>
+          <option value="avg_departure_delay">Abfahrts Verspätung</option>
+          <option value="avg_arrival_delay">Ankunfts Verspätung</option>
         </select>
       </label>
       <button onclick="fetchData()">Load Data</button>
@@ -72,6 +76,7 @@
     <script>
       async function fetchData() {
         const line = document.getElementById("lineInput").value.trim();
+        const days = document.getElementById("dayInput").value;
         const delayType = document.getElementById("delayType").value;
 
         if (!line) {
@@ -80,7 +85,7 @@
         }
 
         try {
-          const response = await fetch(`/api/v1/statistics/delay/line?line=${line}`);
+          const response = await fetch(`/api/v1/statistics/delay/line?line=${line}&days=${days}`);
           const jsonData = await response.json();
           processData(jsonData, delayType);
         } catch (error) {
