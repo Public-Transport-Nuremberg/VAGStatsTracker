@@ -1,5 +1,6 @@
 const HyperExpress = require('hyper-express');
 const { limiter } = require('@middleware/limiter');
+const linesWithStops = require('@config/linesWithStops');
 const { plublicStaticCache } = require('@middleware/cacheRequest');
 const { statistics } = require('@lib/postgres');
 const Joi = require('joi');
@@ -25,7 +26,8 @@ router.get('/delay/line', limiter(), async (req, res) => {
     }
 
     const result = await statistics.getAvgDelayByLine(value.line, value.days);
-    res.json(result);
+
+    res.json({station_order: linesWithStops[value.line], result});
 });
 
 module.exports = {

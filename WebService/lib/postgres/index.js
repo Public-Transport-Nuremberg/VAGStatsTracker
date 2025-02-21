@@ -367,41 +367,50 @@ const WebtokensDelete = (token) => {
   })
 }
 
+const getDistinctLines = () => {
+  return new Promise((resolve, reject) => {
+    pool.query(`SELECT DISTINCT Linienname FROM fahrten`, (err, result) => {
+      if (err) { reject(err) }
+      resolve(result.rows)
+    })
+  })
+}
+
 const getavragedelayperline = (line, days) => {
   return new Promise((resolve, reject) => {
     pool.query(`WITH time_buckets AS (
     SELECT 
-        fh.VGNKennung,
-        h.Haltestellenname,
-        h.Latitude,
-        h.Longitude,
-        CASE 
-            WHEN (EXTRACT(HOUR FROM fh.AnkunftszeitSoll) + 1) = 24 THEN 0
-            ELSE (EXTRACT(HOUR FROM fh.AnkunftszeitSoll) + 1)
-        END AS time_bucket,
-        COUNT(*) AS trip_count,
-        AVG(fh.AnkunftszeitVerspätung) AS avg_arrival_delay,
-        AVG(fh.AbfahrtszeitVerspätung) AS avg_departure_delay
+      fh.VGNKennung,
+      h.Haltestellenname,
+      h.Latitude,
+      h.Longitude,
+      CASE 
+        WHEN (EXTRACT(HOUR FROM fh.AnkunftszeitSoll) + 1) = 24 THEN 0
+        ELSE (EXTRACT(HOUR FROM fh.AnkunftszeitSoll) + 1)
+      END AS time_bucket,
+      COUNT(*) AS trip_count,
+      AVG(fh.AnkunftszeitVerspätung) AS avg_arrival_delay,
+      AVG(fh.AbfahrtszeitVerspätung) AS avg_departure_delay
     FROM fahrten_halte fh
     JOIN fahrten f ON fh.Fahrtnummer = f.Fahrtnummer 
-                  AND fh.Betriebstag = f.Betriebstag 
-                  AND fh.Produkt = f.Produkt
+      AND fh.Betriebstag = f.Betriebstag 
+      AND fh.Produkt = f.Produkt
     JOIN haltestellen h ON fh.VGNKennung = h.VGNKennung
     WHERE f.Linienname = $1
       AND fh.Betriebstag >= CURRENT_DATE - ($2 || ' days')::INTERVAL  -- Convert integer to INTERVAL
     GROUP BY fh.VGNKennung, h.Haltestellenname, h.Latitude, h.Longitude, time_bucket
     ORDER BY fh.VGNKennung, time_bucket
-)
-SELECT 
-    VGNKennung,
-    Haltestellenname,
-    Latitude,
-    Longitude,
-    time_bucket,
-    trip_count,
-    COALESCE(avg_arrival_delay, 0) AS avg_arrival_delay,
-    COALESCE(avg_departure_delay, 0) AS avg_departure_delay
-FROM time_buckets;`, [line, days], (err, result) => {
+    )
+    SELECT 
+      VGNKennung,
+      Haltestellenname,
+      Latitude,
+      Longitude,
+      time_bucket,
+      trip_count,
+      COALESCE(avg_arrival_delay, 0) AS avg_arrival_delay,
+      COALESCE(avg_departure_delay, 0) AS avg_departure_delay
+    FROM time_buckets;`, [line, days], (err, result) => {
       if (err) { reject(err) }
       resolve(result.rows)
     })
@@ -432,6 +441,7 @@ const heatmap = {
 }
 
 const statistics = {
+  getDistinctLines: getDistinctLines,
   getAvgDelayByLine: getavragedelayperline
 }
 

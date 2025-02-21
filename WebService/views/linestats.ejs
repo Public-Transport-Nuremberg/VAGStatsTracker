@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Line Delay Heatmap</title>
+    <style>
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center; /* Centers horizontally */
+        justify-content: flex-start; /* Aligns content to the top */
+        height: 100vh;
+        margin: 0;
+      }
+      .controls {
+        margin: 10px;
+        display: flex;
+        gap: 10px;
+      }
+      table {
+        margin-top: 10px; /* Ensures it's at the top */
+        border-collapse: collapse;
+        width: auto;
+      }
+      th,
+      td {
+        border: 1px solid black;
+        padding: 5px;
+        text-align: center;
+      }
+      th:first-child,
+      td:first-child {
+        width: auto;
+        max-width: none;
+        white-space: nowrap;
+      }
+      th:not(:first-child),
+      td:not(:first-child) {
+        width: 50px;
+        overflow: hidden;
+        white-space: nowrap;
+      }
+      .heatmap-cell {
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Input Fields -->
+    <div class="controls">
+      <label>
+        Line:
+        <input type="text" id="lineInput" value="U1" />
+      </label>
+      <label>
+        Delay Type:
+        <select id="delayType">
+          <option value="avg_departure_delay">Departure Delay</option>
+          <option value="avg_arrival_delay">Arrival Delay</option>
+        </select>
+      </label>
+      <button onclick="fetchData()">Load Data</button>
+    </div>
+
+    <!-- Data Table -->
+    <table id="dataTable">
+      <thead></thead>
+      <tbody></tbody>
+    </table>
+
+    <script>
+      async function fetchData() {
+        const line = document.getElementById("lineInput").value.trim();
+        const delayType = document.getElementById("delayType").value;
+
+        if (!line) {
+          alert("Please enter a line.");
+          return;
+        }
+
+        try {
+          const response = await fetch(`http://localhost/api/v1/statistics/delay/line?line=${line}`);
+          const jsonData = await response.json();
+          processData(jsonData, delayType);
+        } catch (error) {
+          console.error("Error fetching data:", error);
+          alert("Failed to load data. Check console for details.");
+        }
+      }
+
+      function processData(response, delayType) {
+        if(!response.station_order) {
+          alert("Line does probably not exist or has no data available.");
+          return;
+        }
+        const stationOrder = response.station_order;
+        const data = response.result;
+
+        const table = document.getElementById("dataTable");
+        const thead = table.querySelector("thead");
+        const tbody = table.querySelector("tbody");
+        thead.innerHTML = "";
+        tbody.innerHTML = "";
+
+        const stations = {};
+        let minDelay = Infinity;
+        let maxDelay = -Infinity;
+        let timeBuckets = new Set([...Array(24).keys()]); // Ensure all 0-23 are included
+
+        data.forEach((entry) => {
+          const delay = parseFloat(entry[delayType]);
+          if (!stations[entry.vgnkennung]) {
+            stations[entry.vgnkennung] = { name: entry.haltestellenname, data: {} };
+          }
+          stations[entry.vgnkennung].data[entry.time_bucket] = delay;
+          if (delay < minDelay) minDelay = delay;
+          if (delay > maxDelay) maxDelay = delay;
+        });
+
+        const sortedBuckets = Array.from(timeBuckets).sort((a, b) => a - b);
+        const headerRow = document.createElement("tr");
+        headerRow.innerHTML = `<th>Station</th>` + sortedBuckets.map((tb) => `<th>${tb}</th>`).join("");
+        thead.appendChild(headerRow);
+
+        stationOrder.forEach((vgnkennung) => {
+          if (stations[vgnkennung]) {
+            const row = document.createElement("tr");
+            let rowHtml = `<td>${stations[vgnkennung].name}</td>`;
+            sortedBuckets.forEach((tb) => {
+              const delay = stations[vgnkennung].data[tb] !== undefined ? stations[vgnkennung].data[tb] : "";
+              rowHtml += `<td class='heatmap-cell' style='background-color: ${getColor(parseInt(delay), minDelay, maxDelay)}'>${parseInt(delay)}</td>`;
+            });
+            row.innerHTML = rowHtml;
+            tbody.appendChild(row);
+          }
+        });
+      }
+
+      function getColor(value, min, max) {
+        if (value === "") return "#ffffff"; // Empty cells stay white
+        value = parseFloat(value);
+
+        if (value === 0) return "#acacac"; // Zero delay = dark green
+
+        if (value < 0) {
+          // Negative values: Smaller negative numbers should be lighter green, larger negative numbers should be darker
+          const normalized = (value - min) / (0 - min); // Normalize within negative range
+          const greenIntensity = Math.floor(100 + normalized * 155); // Light green for small negatives, dark green for large
+          return `rgb(0, ${greenIntensity}, 0)`;
+        } else {
+          // Positive values: Small values should be light red, large values should be dark red
+          const normalized = (value - min) / (max - min); // Normalize positive values
+          const redIntensity = Math.floor(255 - normalized * 155); // Inverted to make small values light red and large values dark red
+          return `rgb(${redIntensity}, 50, 30)`;
+        }
+      }
+
+      // Fetch initial data on page load
+      fetchData();
+    </script>
+  </body>
+</html>
