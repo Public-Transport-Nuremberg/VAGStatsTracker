@@ -80,6 +80,7 @@ Will return a array of avrage delays, split into 1h time buckets, for a line.
 `/delay/line` Parameters:  
 - line: String (Alphanumeric)  
 - days: Int (1-365)  
+`/lines`
 
 ## Install
 ### Windows
