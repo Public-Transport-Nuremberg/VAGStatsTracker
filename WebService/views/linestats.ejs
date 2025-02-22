@@ -120,6 +120,8 @@
           <option value="avg_arrival_delay">Ankunfts Verspätung</option>
         </select>
       </label>
+      <label for="showInMin">In MM:SS anzeigen:</label>
+      <input type="checkbox" id="showInMin" onclick="toogleShowInMin()" />
       <button onclick="fetchData()">Load Data</button>
     </div>
 
@@ -139,6 +141,9 @@
 
     <script>
       let lines = [];
+      let showInMin = document.getElementById("showInMin").checked;
+      let lastDataResponse = null;
+
       const lineInput = document.getElementById("lineInput");
       const suggestionsContainer = document.getElementById("suggestions");
 
@@ -188,8 +193,13 @@
         }
       });
 
+      function toogleShowInMin() {
+        showInMin = !showInMin;
+        processData(lastDataResponse, document.getElementById("delayType").value);
+      }
+
       async function fetchData() {
-        if(lines.length === 0) await fetchLines();
+        if (lines.length === 0) await fetchLines();
         const line = document.getElementById("lineInput").value.trim();
         const days = document.getElementById("dayInput").value;
         const delayType = document.getElementById("delayType").value;
@@ -203,6 +213,7 @@
           // Fetch Data
           const response = await fetch(`/api/v1/statistics/delay/line?line=${line}&days=${days}`);
           const jsonData = await response.json();
+          lastDataResponse = jsonData;
           processData(jsonData, delayType);
         } catch (error) {
           console.error("Error fetching data:", error);
@@ -250,12 +261,21 @@
             let rowHtml = `<td>${stations[vgnkennung].name}</td>`;
             sortedBuckets.forEach((tb) => {
               const delay = stations[vgnkennung].data[tb] !== undefined ? stations[vgnkennung].data[tb] : "";
-              rowHtml += `<td class='heatmap-cell' style='background-color: ${getColor(parseInt(delay), minDelay, maxDelay)}'>${parseInt(delay)}</td>`;
+              rowHtml += `<td class='heatmap-cell' style='background-color: ${getColor(parseInt(delay), minDelay, maxDelay)}'>${convertSecondsToMinutesToTime(parseInt(delay))}</td>`;
             });
             row.innerHTML = rowHtml;
             tbody.appendChild(row);
           }
         });
+      }
+
+      function convertSecondsToMinutesToTime(seconds) {
+        if (!showInMin) return seconds;
+        const isNegative = seconds < 0;
+        const absSeconds = Math.abs(seconds);
+        const minutes = Math.floor(absSeconds / 60);
+        const secondsRemaining = absSeconds % 60;
+        return (isNegative ? "-" : "") + `${minutes}:${secondsRemaining.toString().padStart(2, "0")}`;
       }
 
       function getColor(value, min, max) {
