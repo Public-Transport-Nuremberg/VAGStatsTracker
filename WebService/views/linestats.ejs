@@ -189,6 +189,7 @@
       });
 
       async function fetchData() {
+        if(lines.length === 0) await fetchLines();
         const line = document.getElementById("lineInput").value.trim();
         const days = document.getElementById("dayInput").value;
         const delayType = document.getElementById("delayType").value;
@@ -277,7 +278,6 @@
       }
 
       // Fetch initial data on page load
-      fetchLines();
       fetchData();
     </script>
   </body>
