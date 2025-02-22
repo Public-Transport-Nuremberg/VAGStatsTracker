@@ -17,6 +17,7 @@
         margin: 10px;
         display: flex;
         gap: 10px;
+        align-items: center;
       }
       table {
         margin-top: 10px; /* Ensures it's at the top */
@@ -44,6 +45,45 @@
       .heatmap-cell {
         color: white;
       }
+      /* Dropdown styles */
+      .dropdown-container {
+        position: relative;
+      }
+      .dropdown-input {
+        width: 100%;
+        padding: 8px;
+        font-size: 16px;
+        box-sizing: border-box;
+      }
+      .suggestions {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        border: 1px solid #ccc;
+        border-top: none;
+        background: #fff;
+        max-height: 150px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none; /* Hidden by default */
+      }
+      .suggestion-item {
+        padding: 8px;
+        cursor: pointer;
+      }
+      .suggestion-item:hover {
+        background-color: #f0f0f0;
+      }
+      /* Uniform control heights */
+      .controls input,
+      .controls select,
+      .controls button {
+        height: 40px;
+        padding: 8px;
+        font-size: 16px;
+        box-sizing: border-box;
+      }
       footer {
         position: fixed;
         z-index: 1000;
@@ -64,10 +104,11 @@
   <body>
     <!-- Input Fields -->
     <div class="controls">
-      <label>
-        Line:
-        <input type="text" id="lineInput" value="U1" />
-      </label>
+      <label for="lineInput">Line:</label>
+      <div class="dropdown-container">
+        <input type="text" id="lineInput" class="dropdown-input" placeholder="Type to search..." />
+        <div id="suggestions" class="suggestions"></div>
+      </div>
       <label>
         Durschnitt aus Tage(n):
         <input type="number" id="dayInput" value="7" />
@@ -89,10 +130,64 @@
     </table>
 
     <footer>
-      <p><%= appName %>@<%= commitId %> <a href="https://github.com/Public-Transport-Nuremberg/VAGStatsTracker">Source</a> <a href="/legal/legal">Imprint</a></p>
+      <p>
+        <%= appName %>@<%= commitId %>
+        <a href="https://github.com/Public-Transport-Nuremberg/VAGStatsTracker">Source</a>
+        <a href="/legal/legal">Imprint</a>
+      </p>
     </footer>
 
     <script>
+      let lines = [];
+      const lineInput = document.getElementById("lineInput");
+      const suggestionsContainer = document.getElementById("suggestions");
+
+      async function fetchLines() {
+        try {
+          const response = await fetch("/api/v1/statistics/lines");
+          if (!response.ok) {
+            throw new Error("Network response was not ok");
+          }
+          lines = await response.json();
+          lineInput.value = "U1"; // Set default so the heatmap can load data on page load
+        } catch (error) {
+          console.error("Error fetching lines:", error);
+        }
+      }
+
+      function showSuggestions(filteredLines) {
+        suggestionsContainer.innerHTML = "";
+        if (filteredLines.length === 0) {
+          suggestionsContainer.style.display = "none";
+          return;
+        }
+        filteredLines.forEach((line) => {
+          const div = document.createElement("div");
+          div.textContent = line;
+          div.classList.add("suggestion-item");
+          div.addEventListener("click", () => {
+            lineInput.value = line;
+            suggestionsContainer.style.display = "none";
+          });
+          suggestionsContainer.appendChild(div);
+        });
+        suggestionsContainer.style.display = "block";
+      }
+
+      function filterLines() {
+        const searchTerm = lineInput.value.toLowerCase();
+        const filtered = lines.filter((line) => line.toLowerCase().includes(searchTerm));
+        showSuggestions(filtered);
+      }
+
+      lineInput.addEventListener("input", filterLines);
+
+      document.addEventListener("click", (event) => {
+        if (!event.target.closest(".dropdown-container")) {
+          suggestionsContainer.style.display = "none";
+        }
+      });
+
       async function fetchData() {
         const line = document.getElementById("lineInput").value.trim();
         const days = document.getElementById("dayInput").value;
@@ -104,6 +199,7 @@
         }
 
         try {
+          // Fetch Data
           const response = await fetch(`/api/v1/statistics/delay/line?line=${line}&days=${days}`);
           const jsonData = await response.json();
           processData(jsonData, delayType);
@@ -181,6 +277,7 @@
       }
 
       // Fetch initial data on page load
+      fetchLines();
       fetchData();
     </script>
   </body>
