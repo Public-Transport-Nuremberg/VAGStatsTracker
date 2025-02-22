@@ -19,7 +19,7 @@ router.get('/lines', limiter(), async (req, res) => {
     res.json(Object.keys(linesWithStops));
 });
 
-router.get('/delay/line', limiter(), async (req, res) => {
+router.get('/delay/avrage/line', limiter(), async (req, res) => {
     const value = await delayLineSchema.validateAsync(req.query);
     if (value.error) {
         throw new Error(value.error);

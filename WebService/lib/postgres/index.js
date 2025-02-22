@@ -419,6 +419,33 @@ const getavragedelayperline = (line, days) => {
   })
 }
 
+const getVehicleHistory = (vehicle, days) => {
+  return new Promise((resolve, reject) => {
+    pool.query(`SELECT
+      h.Haltestellenname,
+      h.Latitude,
+      h.Longitude,
+      COALESCE(fh.AbfahrtszeitSoll, fh.AnkunftszeitSoll) AS Zeitpunkt
+    FROM
+      fahrten AS f
+    JOIN
+      fahrten_halte AS fh
+      ON f.Fahrtnummer = fh.Fahrtnummer
+      AND f.Betriebstag = fh.Betriebstag
+      AND f.Produkt = fh.Produkt
+    JOIN
+      haltestellen AS h
+      ON fh.VGNKennung = h.VGNKennung
+    WHERE
+      f.Fahrzeugnummer = $1 AND f.Betriebstag = $2
+    ORDER BY
+      COALESCE(fh.AbfahrtszeitSoll, fh.AnkunftszeitSoll);`, [vehicle, days], (err, result) => {
+      if (err) { reject(err) }
+      resolve(result.rows)
+    })
+  });
+}
+
 /* --- --- --- Exports --- --- --- */
 
 const views = {
@@ -447,12 +474,15 @@ const statistics = {
   getAvgDelayByLine: getavragedelayperline
 }
 
+const vehicle = {
+  getHistory: getVehicleHistory
+}
+
 const webtoken = {
   create: WebtokensCreate,
   get: WebtokensGet,
   delete: WebtokensDelete
 }
-
 
 module.exports = {
   createTables,
@@ -460,5 +490,6 @@ module.exports = {
   heatmap,
   haltestellen,
   statistics,
+  vehicle,
   webtoken
 }

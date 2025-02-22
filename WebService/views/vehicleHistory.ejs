@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>History Map</title>
+    <link rel="stylesheet" href="/dist/css/ol.css" type="text/css" />
+    <script src="/dist/js/ol.js"></script>
+    <script src="/dist/js/lib/geolib.js"></script>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      #map {
+        width: 100%;
+        height: 100%;
+      }
+      .slider-container {
+        position: absolute;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 90%;
+        background: rgba(0, 0, 0, 0.5);
+        padding: 10px;
+        border-radius: 10px;
+      }
+      #timeSlider {
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div class="slider-container">
+      <input type="range" id="timeSlider" min="0" step="1" />
+    </div>
+
+    <script>
+      const pathname = new URL(window.location.href).pathname;
+      const parts = pathname.split("/");
+      const betriebstag = parts[parts.length - 2];
+      const vehicleId = parts[parts.length - 1];
+      const apiUrl = `/api/v1/vehicle/history/${betriebstag}/${vehicleId}`;
+      let busStops = [];
+      let routeCount = new Map();
+      let currentBusFeature = null;
+
+      const map = new ol.Map({
+        target: "map",
+        layers: [new ol.layer.Tile({ source: new ol.source.OSM() })],
+        view: new ol.View({ center: ol.proj.fromLonLat([11.0863, 49.4293]), zoom: 14 }),
+      });
+
+      const stationSource = new ol.source.Vector();
+      const stationLayer = new ol.layer.Vector({
+        source: stationSource,
+      });
+
+      const routeSource = new ol.source.Vector();
+      const routeLayer = new ol.layer.Vector({
+        source: routeSource,
+        style: (feature) => {
+          const count = feature.get("count") || 1;
+          const color = `rgb(255, ${255 - count * 20}, ${255 - count * 20})`;
+          return new ol.style.Style({ stroke: new ol.style.Stroke({ color, width: 4 }) });
+        },
+      });
+
+      const busSource = new ol.source.Vector();
+      const busLayer = new ol.layer.Vector({ source: busSource });
+
+      map.addLayer(routeLayer);
+      map.addLayer(stationLayer);
+      map.addLayer(busLayer);
+
+      function updateMap(value) {
+        stationSource.clear();
+        routeSource.clear();
+        busSource.clear();
+        routeCount.clear();
+
+        const addedStations = new Set(); // To track added stations
+
+        for (let i = 0; i <= value; i++) {
+          const stop = busStops[i];
+          if (!stop) break;
+
+          // Prevent duplicate stations from being added
+          const stationKey = `${stop.longitude},${stop.latitude}`;
+          if (!addedStations.has(stationKey)) {
+            addedStations.add(stationKey); // Mark the station as added
+
+            const feature = new ol.Feature({
+              geometry: new ol.geom.Point(ol.proj.fromLonLat([stop.longitude, stop.latitude])),
+              name: stop.haltestellenname,
+            });
+
+            feature.setStyle(
+              new ol.style.Style({
+                image: new ol.style.Circle({
+                  radius: 6,
+                  fill: new ol.style.Fill({ color: "blue" }),
+                  stroke: new ol.style.Stroke({ color: "white", width: 2 }),
+                }),
+                text: new ol.style.Text({
+                  text: stop.haltestellenname,
+                  offsetY: -12,
+                  font: "12px Arial",
+                  fill: new ol.style.Fill({ color: "black" }),
+                  stroke: new ol.style.Stroke({ color: "white", width: 2 }),
+                }),
+              })
+            );
+
+            stationSource.addFeature(feature);
+          }
+
+          // Always process route lines (even if the station is a duplicate)
+          if (i > 0) {
+            const prevStop = busStops[i - 1];
+            const routeKey = `${prevStop.haltestellenname}-${stop.haltestellenname}`;
+            const count = (routeCount.get(routeKey) || 0) + 1;
+            routeCount.set(routeKey, count);
+
+            const lineFeature = new ol.Feature({
+              geometry: new ol.geom.LineString([ol.proj.fromLonLat([prevStop.longitude, prevStop.latitude]), ol.proj.fromLonLat([stop.longitude, stop.latitude])]),
+              count,
+            });
+
+            // Adjust color based on route frequency
+            const colorIntensity = Math.max(0, 255 - count * 20); // Prevent negative values
+            lineFeature.setStyle(
+              new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                  color: `rgb(255, ${colorIntensity}, ${colorIntensity})`,
+                  width: 4,
+                }),
+              })
+            );
+
+            routeSource.addFeature(lineFeature);
+          }
+        }
+
+        // Add current bus position
+        if (busStops[value]) {
+          const lastStop = busStops[value];
+          currentBusFeature = new ol.Feature({
+            geometry: new ol.geom.Point(ol.proj.fromLonLat([lastStop.longitude, lastStop.latitude])),
+            name: "Current Bus Position",
+          });
+
+          currentBusFeature.setStyle(
+            new ol.style.Style({
+              image: new ol.style.Icon({
+                src: "https://upload.wikimedia.org/wikipedia/commons/8/88/Map_marker_black.png",
+                scale: 0.05,
+              }),
+            })
+          );
+
+          busSource.addFeature(currentBusFeature);
+        }
+      }
+
+      function initializeSlider() {
+        const slider = document.getElementById("timeSlider");
+        slider.max = busStops.length - 1;
+        slider.value = busStops.length - 1;
+        slider.addEventListener("input", () => updateMap(parseInt(slider.value)));
+        updateMap(parseInt(slider.value));
+      }
+
+      async function fetchBusData() {
+        try {
+          const response = await fetch(apiUrl);
+          if (!response.ok) throw new Error("Failed to fetch data");
+          busStops = await response.json();
+          if (busStops.length > 0) initializeSlider();
+        } catch (error) {
+          console.error("Error fetching bus data:", error);
+        }
+      }
+
+      fetchBusData();
+    </script>
+  </body>
+</html>

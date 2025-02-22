@@ -258,6 +258,7 @@ map.on("singleclick", function (event) {
 							<p><span>Nächster Halt</span>: ${p.nextHaltestellenname} @ ${nextAnkunftszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayNext / 1000)})</p>
 							<p><span>Besetzgrad</span>: ${formatBesezungsgrad(p.Besetzgrad)}</p>
 							<p><span>Fahrzeug</span>: ${getVehicleInfo(p.Fahrzeugnummer, p.FahrzeugInfo)}</p>
+							<p><a href="/vehicleHistory/${p.Betriebstag}/${p.Fahrzeugnummer}">Fahrzeughistorie</a></p>
 						</div>
                     `;
 					})
@@ -334,6 +335,7 @@ map.on("singleclick", function (event) {
 				<p><span>Nächster Halt</span>: ${p.nextHaltestellenname} @ ${nextAnkunftszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayNext / 1000)})</p>
                 <p><span>Besetzgrad</span>: ${formatBesezungsgrad(p.Besetzgrad)}</p>
 				<p><span>Fahrzeug</span>: ${getVehicleInfo(p.Fahrzeugnummer, p.FahrzeugInfo)}</p>
+				<p><a href="/vehicleHistory/${p.Betriebstag}/${p.Fahrzeugnummer}" target="_blank" rel="noopener noreferrer">Fahrzeughistorie</a></p>
             </div>`;
 			overlay.setPosition(p.geometry.flatCoordinates); // set position absolute to coords
 			popup.style.display = "block";

@@ -234,7 +234,7 @@
           // Fetch data with direction filter
           fetchDataButton.disabled = true;
           fetchDataButton.textContent = "Loading...";
-          const response = await fetch(`/api/v1/statistics/delay/line?line=${line}&days=${days}`);
+          const response = await fetch(`/api/v1/statistics/delay/avrage/line?line=${line}&days=${days}`);
           const jsonData = await response.json();
           lastDataResponse = jsonData;
           fetchDataButton.disabled = false;

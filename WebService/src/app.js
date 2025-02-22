@@ -54,6 +54,11 @@ app.get('/linestats', (req, res) => {
     res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'linestats.html')));
 });
 
+app.get('/vehicleHistory/*', (req, res) => {
+    res.header('Content-Type', 'text/html');
+    res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'vehicleHistory.html')));
+});
+
 // Legal Pages
 app.get('/legal/legal', (req, res) => {
     res.header('Content-Type', 'text/html');
