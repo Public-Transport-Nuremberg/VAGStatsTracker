@@ -44,6 +44,21 @@
       .heatmap-cell {
         color: white;
       }
+      footer {
+        position: fixed;
+        z-index: 1000;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: #333;
+        color: #fff;
+        text-align: center;
+        height: 30px;
+        font-size: 0.8em;
+      }
+      footer a {
+        color: #fff;
+      }
     </style>
   </head>
   <body>
@@ -73,6 +88,10 @@
       <tbody></tbody>
     </table>
 
+    <footer>
+      <p><%= appName %>@<%= commitId %> <a href="https://github.com/Public-Transport-Nuremberg/VAGStatsTracker">Source</a> <a href="/legal/legal">Imprint</a></p>
+    </footer>
+
     <script>
       async function fetchData() {
         const line = document.getElementById("lineInput").value.trim();
@@ -95,7 +114,7 @@
       }
 
       function processData(response, delayType) {
-        if(!response.station_order) {
+        if (!response.station_order) {
           alert("Line does probably not exist or has no data available.");
           return;
         }

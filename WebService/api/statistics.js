@@ -1,13 +1,9 @@
 const HyperExpress = require('hyper-express');
 const { limiter } = require('@middleware/limiter');
 const linesWithStops = require('@config/linesWithStops');
-const { plublicStaticCache } = require('@middleware/cacheRequest');
 const { statistics } = require('@lib/postgres');
 const Joi = require('joi');
 const router = new HyperExpress.Router();
-const { StopObjectStore } = require('@lib/haltestellen_cache');
-const { openvgn } = require('oepnv-nuremberg');
-const vgn = new openvgn();
 
 const delayLineSchema = Joi.object({
     line: Joi.string().regex(/^[a-zA-Z0-9]+$/).required(),

@@ -10,7 +10,7 @@ ToDo:
 - [X] Live Map of ALL services
 - [X] Generate Heatmaps of delays
 - [X] Geoline API - Get exact WGS84 coordinates for lines with rails
-- [X] Stops API
+- [X] Mutch faster Stops API
 - [X] Toplist
 
 Things i´d like to do but got not enough time for:  
@@ -40,6 +40,7 @@ Displays all delays of a date or timespan on the map
 ![grafik](https://github.com/Public-Transport-Nuremberg/VAGStatsTracker/assets/35345288/a6953e61-28fb-4892-83ab-2da07ac3c001)
 
 ## API
+Avaible at: `/api/v1`
 ### Stops
 `/search` Parameters:    
 - Haltestellenname: String  
@@ -74,6 +75,11 @@ Displays all delays of a date or timespan on the map
 - from: String (YYYY-MM-DD) - Experimentell  
 - to: String (YYYY-MM-DD) - Experimentell  
 
+### Statistics
+Will return a array of avrage delays, split into 1h time buckets, for a line.  
+`/delay/line` Parameters:  
+- line: String (Alphanumeric)  
+- days: Int (1-365)  
 
 ## Install
 ### Windows

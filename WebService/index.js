@@ -56,9 +56,7 @@ renderEJSToPublic(path.join(__dirname, 'views'), path.join(__dirname, 'public'),
     const refreshViews = async () => {
         try {
             await views.update_delay_map();
-            await views.update_delay_map();
-            await views.update_delay_map();
-            process.log.system('Delay Views refreshed');
+            process.log.system('PG MATERIALIZED VIEW: Delay Views refreshed');
         } catch (error) {
             process.log.error(`Failed to refresh views: ${error}`);
             if (process.env.SENTRY_DSN) process.sentry.captureException(error);

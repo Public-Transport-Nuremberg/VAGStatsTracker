@@ -1,6 +1,20 @@
 const fs = require('fs');
 const path = require('path');
 const ejs = require('ejs');
+const package_json = require('../../package.json');
+const { execSync } = require('child_process');
+const app = require('@src/app');
+
+let commitId = null;
+
+// Get the commit ID of the current build
+try {
+    const commitId_long = execSync('git rev-parse HEAD').toString().trim();
+    commitId = commitId_long.slice(0, 7);
+} catch (error) {
+    console.error('Error fetching commit ID:', error);
+}
+
 
 /**
  * Render all EJS files in a directory to HTML files in another directory
@@ -40,6 +54,9 @@ const renderEJSToPublic = (sourceDir, destDir, exclude = []) => {
 const getContextObject = () => {
     const context = {
         domain: process.env.DOMAIN,
+        commitId: commitId,
+        appName: process.env.APPLICATION,
+        version: package_json.version,
     };
 
     return context;

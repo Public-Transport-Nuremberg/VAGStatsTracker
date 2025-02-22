@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>VAG Stats</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: #f9f9f9;
+      }
+      .grid-container {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+      }
+      .grid-item {
+        background: #fff;
+        border: 1px solid #ddd;
+        padding: 10px;
+        text-align: center;
+        box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+      }
+      .grid-item img {
+        max-width: 100%;
+        height: auto;
+        display: block;
+        margin: 0 auto 10px;
+      }
+      .grid-item p {
+        margin: 0 0 10px;
+      }
+      .grid-item a {
+        color: #007acc;
+        text-decoration: none;
+      }
+      footer {
+        position: fixed;
+        z-index: 1000;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: #333;
+        color: #fff;
+        text-align: center;
+        height: 30px;
+        font-size: 0.8em;
+      }
+      footer a {
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="grid-container" id="gridContainer">
+      <!-- Grid items will be inserted here -->
+    </div>
+    <footer>
+      <p><%= appName %>@<%= commitId %> <a href="https://github.com/Public-Transport-Nuremberg/VAGStatsTracker">Source</a> <a href="/legal/legal">Imprint</a></p>
+    </footer>
+
+    <script>
+      // Define an array of objects for each grid item
+      const gridItems = [
+        {
+          image: "/dist/img/318438398-1b42237a-1d7c-4da9-9092-963dad3c6972.png",
+          description: "Livemap with the current location of the vehicles operated by VAG Nürnberg. The vehicles can be clicked to get more information.",
+          url: "/livemap",
+        },
+        {
+          image: "/dist/img/318444039-a6953e61-28fb-4892-83ab-2da07ac3c001.png",
+          description: "Heatmap of the delays of the vehicles operated by VAG Nürnberg. The heatmap shows the average delay of the vehicles at stations of a given day (Default yesterday).",
+          url: "/heatmap",
+        },
+        {
+          image: "/dist/img/linestats.png",
+          description: "Table with the average arrival/departure delay in seconds per station per hour. Lines are extracted from the data any may not reflect temporary changes.",
+          url: "/linestats",
+        },
+      ];
+
+      // Get the grid container element
+      const gridContainer = document.getElementById("gridContainer");
+
+      // Loop through each item in the array and create the grid elements
+      gridItems.forEach((item) => {
+        // Create a container div for the grid item
+        const gridItem = document.createElement("div");
+        gridItem.className = "grid-item";
+
+        // Create and set the image element
+        const img = document.createElement("img");
+        img.src = item.image;
+        img.alt = item.description;
+
+        // Create a paragraph for the description
+        const desc = document.createElement("p");
+        desc.textContent = item.description;
+
+        // Create a link element
+        const link = document.createElement("a");
+        link.href = item.url;
+        link.textContent = "Take a look";
+
+        // Append the image, description, and link to the grid item
+        gridItem.appendChild(img);
+        gridItem.appendChild(desc);
+        gridItem.appendChild(link);
+
+        // Append the grid item to the container
+        gridContainer.appendChild(gridItem);
+      });
+    </script>
+  </body>
+</html>

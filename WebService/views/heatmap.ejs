@@ -1,33 +1,51 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <meta charset="UTF-8">
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta charset="UTF-8" />
     <title>VGN Heatmap</title>
     <script src="/dist/js/ol.js"></script>
     <script src="/dist/js/lib/geolib.js" type="text/javascript"></script>
-    <link rel="stylesheet" href="/dist/css/ol.css">
+    <link rel="stylesheet" href="/dist/css/ol.css" />
     <style>
-        .map {
-            height: 100vh; /* 100% of the viewport height */
-            width: 100vw; /* 100% of the viewport width */
-            position: fixed; /* This will position the map relative to the viewport */
-            top: 0;
-            left: 0;
-            z-index: 1; /* Make sure this is behind any other positioned elements */
-        }
+      .map {
+        height: 100vh; /* 100% of the viewport height */
+        width: 100vw; /* 100% of the viewport width */
+        position: fixed; /* This will position the map relative to the viewport */
+        top: 0;
+        left: 0;
+        z-index: 1; /* Make sure this is behind any other positioned elements */
+      }
+      footer {
+        position: fixed;
+        z-index: 1000;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: #333;
+        color: #fff;
+        text-align: center;
+        height: 30px;
+        font-size: 0.8em;
+      }
+      footer a {
+        color: #fff;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div id="map" class="map"></div>
-    <div id="heatmap-legend" style="position: absolute ; z-index: 2; bottom: 20px; left: 20px; background: white; padding: 10px; border-radius: 5px;">
-    <h4>Heatmap Legende</h4>
-    <div id="legend-bar" style="width: 200px;z-index: 2; height: 20px; border: 1px solid #000;"></div>
-    <div style="display: flex;z-index: 2; justify-content: space-between;">
-      <span id="legend-min">Min</span>
-      <span id="legend-max">Max</span>
+    <div id="heatmap-legend" style="position: absolute; z-index: 2; bottom: 30px; left: 20px; background: white; padding: 10px; border-radius: 5px">
+      <h4>Heatmap Legende</h4>
+      <div id="legend-bar" style="width: 200px; z-index: 2; height: 20px; border: 1px solid #000"></div>
+      <div style="display: flex; z-index: 2; justify-content: space-between">
+        <span id="legend-min">Min</span>
+        <span id="legend-max">Max</span>
+      </div>
     </div>
-  </div>
-</body>
-<script src="/dist/js/heatmap.js"></script>
+    <footer>
+      <p><%= appName %>@<%= commitId %> <a href="https://github.com/Public-Transport-Nuremberg/VAGStatsTracker">Source</a> <a href="/legal/legal">Imprint</a></p>
+    </footer>
+  </body>
+  <script src="/dist/js/heatmap.js"></script>
 </html>
