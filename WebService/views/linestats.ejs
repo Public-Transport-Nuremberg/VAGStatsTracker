@@ -20,14 +20,14 @@
         align-items: center;
       }
       table {
-        margin-top: 10px; /* Ensures it's at the top */
+        margin-top: 10px;
         border-collapse: collapse;
         width: auto;
       }
       th,
       td {
         border: 1px solid black;
-        padding: 5px;
+        padding: 3px;
         text-align: center;
       }
       th:first-child,
@@ -110,19 +110,30 @@
         <div id="suggestions" class="suggestions"></div>
       </div>
       <label>
+        Richtung:
+        <select id="line_direction" onchange="refreshTable()">
+          <option value="1">1</option>
+          <option value="2">2</option>
+        </select>
+      </label>
+      <label>
         Durschnitt aus Tage(n):
-        <input type="number" id="dayInput" value="7" />
+        <input type="number" id="dayInput" value="7" style="width: 80px" />
       </label>
       <label>
         Verspätungstyp:
-        <select id="delayType">
+        <select id="delayType" onchange="refreshTable()">
           <option value="avg_departure_delay">Abfahrts Verspätung</option>
           <option value="avg_arrival_delay">Ankunfts Verspätung</option>
         </select>
       </label>
-      <label for="showInMin">In MM:SS anzeigen:</label>
-      <input type="checkbox" id="showInMin" onclick="toogleShowInMin()" />
-      <button onclick="fetchData()">Load Data</button>
+      <label for="showInMin">Anzeigeart:</label>
+      <select id="displayMode" onchange="setDisplayMode()">
+        <option value="SS">Sekunden</option>
+        <option value="MM:SS">MM:SS</option>
+        <option value="VAGLeitstelle">VAG Leitstelle</option>
+      </select>
+      <button id="fetchDataButton" onclick="fetchData()">Lade Daten</button>
     </div>
 
     <!-- Data Table -->
@@ -140,21 +151,25 @@
     </footer>
 
     <script>
+      // Load display mode from local storage
+      if (localStorage.getItem("displayMode")) {
+        document.getElementById("displayMode").value = localStorage.getItem("displayMode");
+      }
       let lines = [];
-      let showInMin = document.getElementById("showInMin").checked;
+      let displayMode = document.getElementById("displayMode").value;
       let lastDataResponse = null;
 
       const lineInput = document.getElementById("lineInput");
+      const directionInput = document.getElementById("line_direction");
       const suggestionsContainer = document.getElementById("suggestions");
+      const fetchDataButton = document.getElementById("fetchDataButton");
 
       async function fetchLines() {
         try {
           const response = await fetch("/api/v1/statistics/lines");
-          if (!response.ok) {
-            throw new Error("Network response was not ok");
-          }
+          if (!response.ok) throw new Error("Network response was not ok");
           lines = await response.json();
-          lineInput.value = "U1"; // Set default so the heatmap can load data on page load
+          lineInput.value = "U1"; // Default to load heatmap on page load
         } catch (error) {
           console.error("Error fetching lines:", error);
         }
@@ -193,16 +208,22 @@
         }
       });
 
-      function toogleShowInMin() {
-        showInMin = !showInMin;
-        processData(lastDataResponse, document.getElementById("delayType").value);
+      function setDisplayMode() {
+        const dM = document.getElementById("displayMode").value;
+        localStorage.setItem("displayMode", dM);
+        displayMode = dM;
+        processData(lastDataResponse);
+      }
+
+      function refreshTable() {
+        processData(lastDataResponse);
       }
 
       async function fetchData() {
         if (lines.length === 0) await fetchLines();
-        const line = document.getElementById("lineInput").value.trim();
+        const line = lineInput.value.trim();
         const days = document.getElementById("dayInput").value;
-        const delayType = document.getElementById("delayType").value;
+        const direction = directionInput.value; // Get selected direction
 
         if (!line) {
           alert("Please enter a line.");
@@ -210,24 +231,32 @@
         }
 
         try {
-          // Fetch Data
+          // Fetch data with direction filter
+          fetchDataButton.disabled = true;
+          fetchDataButton.textContent = "Loading...";
           const response = await fetch(`/api/v1/statistics/delay/line?line=${line}&days=${days}`);
           const jsonData = await response.json();
           lastDataResponse = jsonData;
-          processData(jsonData, delayType);
+          fetchDataButton.disabled = false;
+          fetchDataButton.textContent = "Lade Daten";
+          processData(jsonData);
         } catch (error) {
+          fetchDataButton.disabled = false;
+          fetchDataButton.textContent = "Lade Daten";
           console.error("Error fetching data:", error);
           alert("Failed to load data. Check console for details.");
         }
       }
 
-      function processData(response, delayType) {
+      function processData(response) {
         if (!response.station_order) {
           alert("Line does probably not exist or has no data available.");
           return;
         }
-        const stationOrder = response.station_order;
-        const data = response.result;
+        const delayType = document.getElementById("delayType").value;
+        const direction = directionInput.value; // Get selected direction
+        const stationOrder = response.station_order[direction]; // Get station order for the direction
+        const data = response.result.filter((entry) => entry.richtung == direction); // Filter data for the selected direction
 
         const table = document.getElementById("dataTable");
         const thead = table.querySelector("thead");
@@ -261,7 +290,7 @@
             let rowHtml = `<td>${stations[vgnkennung].name}</td>`;
             sortedBuckets.forEach((tb) => {
               const delay = stations[vgnkennung].data[tb] !== undefined ? stations[vgnkennung].data[tb] : "";
-              rowHtml += `<td class='heatmap-cell' style='background-color: ${getColor(parseInt(delay), minDelay, maxDelay)}'>${convertSecondsToMinutesToTime(parseInt(delay))}</td>`;
+              rowHtml += `<td class='heatmap-cell' style='${getColor(parseInt(delay), minDelay, maxDelay)}'>${convertSecondsToDisplayMode(parseInt(delay))}</td>`;
             });
             row.innerHTML = rowHtml;
             tbody.appendChild(row);
@@ -269,32 +298,121 @@
         });
       }
 
-      function convertSecondsToMinutesToTime(seconds) {
-        if (!showInMin) return seconds;
+      function convertSecondsToDisplayMode(seconds) {
+        if (displayMode === "SS") return seconds;
+
         const isNegative = seconds < 0;
         const absSeconds = Math.abs(seconds);
         const minutes = Math.floor(absSeconds / 60);
         const secondsRemaining = absSeconds % 60;
-        return (isNegative ? "-" : "") + `${minutes}:${secondsRemaining.toString().padStart(2, "0")}`;
+
+        if (displayMode === "MM:SS") {
+          return (isNegative ? "-" : "") + `${minutes}:${secondsRemaining.toString().padStart(2, "0")}`;
+        }
+
+        if (displayMode === "VAGLeitstelle") {
+          if (isNaN(seconds)) return ""; // Empty cells stay empty
+          if (absSeconds < 60) return isNegative ? "-0" : "0";
+          if (absSeconds < 120) return isNegative ? "-1" : "1";
+          if (absSeconds < 180) return isNegative ? "-2" : "2";
+          return isNegative ? ">-3" : ">3";
+        }
+
+        return seconds; // Default fallback
       }
 
       function getColor(value, min, max) {
-        if (value === "") return "#ffffff"; // Empty cells stay white
+        let bgColor = "#ffffff"; // Default background color
+        let color = "#000000"; // Default text color
+
+        if (value === "") return "background-color: #ffffff; color: #000000;"; // Empty cells
+
         value = parseFloat(value);
 
-        if (value === 0) return "#acacac"; // Zero delay = dark green
+        const colors = {
+          default: { bg: "#ffffff", text: "#000000" },
+          zero: "#acacac", // Gray for zero value
+          negative: (normalized) => {
+            // Green to Blue for negative values
+            const hue = 120 + normalized * 120;
+            return `hsl(${hue}, 100%, 40%)`; // Green to Blue in HSL
+          },
+          positive: (normalized) => {
+            // Green to Red for positive values
+            const hue = 120 - normalized * 120;
+            return `hsl(${hue}, 100%, 40%)`; // Green to Red in HSL
+          },
+          VAGLeitstelle: [
+            { threshold: 60, bg: "#008000" }, // Green
+            { threshold: 120, bg: "#ffff00" }, // Yellow
+            { threshold: 180, bg: "#ffa500" }, // Orange
+            { threshold: 240, bg: "#0000ff" }, // Blue
+          ],
+        };
 
-        if (value < 0) {
-          // Negative values: Smaller negative numbers should be lighter green, larger negative numbers should be darker
-          const normalized = (value - min) / (0 - min); // Normalize within negative range
-          const greenIntensity = Math.floor(100 + normalized * 155); // Light green for small negatives, dark green for large
-          return `rgb(0, ${greenIntensity}, 0)`;
+        if (displayMode === "VAGLeitstelle") {
+          if (isNaN(value)) bgColor = colors.zero; // Gray for invalid numbers
+          else if (value < 0) {
+            bgColor = "#ff0000"; // Red for any negative seconds
+          } else {
+            for (let { threshold, bg } of colors.VAGLeitstelle) {
+              if (value < threshold) {
+                bgColor = bg;
+                break;
+              }
+            }
+          }
         } else {
-          // Positive values: Small values should be light red, large values should be dark red
-          const normalized = (value - min) / (max - min); // Normalize positive values
-          const redIntensity = Math.floor(255 - normalized * 155); // Inverted to make small values light red and large values dark red
-          return `rgb(${redIntensity}, 50, 30)`;
+          if (value === 0) bgColor = colors.zero;
+          else if (value < 0) {
+            const normalized = (0 - value) / (0 - min);
+            bgColor = colors.negative(normalized);
+          } else {
+            const normalized = (value - min) / (max - min); // Normalize positive range
+            bgColor = colors.positive(normalized);
+          }
         }
+
+        color = getTextColor(bgColor);
+
+        return `background-color: ${bgColor}; color: ${color};`;
+      }
+
+      function getTextColor(bgColor) {
+        let r, g, b;
+
+        if (bgColor.startsWith("#")) {
+          const bigint = parseInt(bgColor.slice(1), 16);
+          r = (bigint >> 16) & 255;
+          g = (bigint >> 8) & 255;
+          b = bigint & 255;
+        } else if (bgColor.startsWith("rgb")) {
+          [r, g, b] = bgColor.match(/\d+/g).map(Number);
+        } else if (bgColor.startsWith("hsl")) {
+          // If HSL, convert to RGB for brightness calculation
+          const hsl = bgColor.match(/\d+/g).map(Number);
+          const h = hsl[0] / 360;
+          const s = hsl[1] / 100;
+          const l = hsl[2] / 100;
+          const c = (1 - Math.abs(2 * l - 1)) * s;
+          const x = c * (1 - Math.abs(((h * 6) % 2) - 1));
+          const m = l - c / 2;
+          let r1, g1, b1;
+          if (0 <= h && h < 1 / 6) [r1, g1, b1] = [c, x, 0];
+          else if (1 / 6 <= h && h < 2 / 6) [r1, g1, b1] = [x, c, 0];
+          else if (2 / 6 <= h && h < 3 / 6) [r1, g1, b1] = [0, c, x];
+          else if (3 / 6 <= h && h < 4 / 6) [r1, g1, b1] = [0, x, c];
+          else if (4 / 6 <= h && h < 5 / 6) [r1, g1, b1] = [x, 0, c];
+          else [r1, g1, b1] = [c, 0, x];
+          r = Math.round((r1 + m) * 255);
+          g = Math.round((g1 + m) * 255);
+          b = Math.round((b1 + m) * 255);
+        } else {
+          return "#000000"; // Default if unknown color name
+        }
+
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        return brightness > 128 ? "#000000" : "#ffffff";
       }
 
       // Fetch initial data on page load

@@ -384,6 +384,7 @@ const getavragedelayperline = (line, days) => {
       h.Haltestellenname,
       h.Latitude,
       h.Longitude,
+      f.Richtung,
       CASE 
         WHEN (EXTRACT(HOUR FROM fh.AnkunftszeitSoll) + 1) = 24 THEN 0
         ELSE (EXTRACT(HOUR FROM fh.AnkunftszeitSoll) + 1)
@@ -397,15 +398,16 @@ const getavragedelayperline = (line, days) => {
       AND fh.Produkt = f.Produkt
     JOIN haltestellen h ON fh.VGNKennung = h.VGNKennung
     WHERE f.Linienname = $1
-      AND fh.Betriebstag >= CURRENT_DATE - ($2 || ' days')::INTERVAL  -- Convert integer to INTERVAL
-    GROUP BY fh.VGNKennung, h.Haltestellenname, h.Latitude, h.Longitude, time_bucket
-    ORDER BY fh.VGNKennung, time_bucket
+      AND fh.Betriebstag >= CURRENT_DATE - ($2 || ' days')::INTERVAL
+    GROUP BY fh.VGNKennung, h.Haltestellenname, h.Latitude, h.Longitude, f.Richtung, time_bucket
+    ORDER BY fh.VGNKennung, f.Richtung, time_bucket
     )
     SELECT 
       VGNKennung,
       Haltestellenname,
       Latitude,
       Longitude,
+      Richtung,
       time_bucket,
       trip_count,
       COALESCE(avg_arrival_delay, 0) AS avg_arrival_delay,
