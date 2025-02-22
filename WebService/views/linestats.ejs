@@ -390,7 +390,7 @@
           [r, g, b] = bgColor.match(/\d+/g).map(Number);
         } else if (bgColor.startsWith("hsl")) {
           // If HSL, convert to RGB for brightness calculation
-          const hsl = bgColor.match(/\d+/g).map(Number);
+          const hsl = bgColor.match(/\d+(\.\d+)?/g).map(Number); // regex to handle floats as well
           const h = hsl[0] / 360;
           const s = hsl[1] / 100;
           const l = hsl[2] / 100;
@@ -412,7 +412,7 @@
         }
 
         const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-        return brightness > 128 ? "#000000" : "#ffffff";
+        return brightness > 80 ? "#000000" : "#ffffff";
       }
 
       // Fetch initial data on page load
