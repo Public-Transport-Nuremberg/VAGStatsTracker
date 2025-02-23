@@ -171,10 +171,34 @@
 
       function initializeSlider() {
         const slider = document.getElementById("timeSlider");
+        const sliderContainer = document.querySelector(".slider-container");
+
         slider.max = busStops.length - 1;
         slider.value = busStops.length - 1;
         slider.addEventListener("input", () => updateMap(parseInt(slider.value)));
         updateMap(parseInt(slider.value));
+
+        // Create labels for linienname and timestamps
+        let lastLine = null;
+        const labelsContainer = document.createElement("div");
+        labelsContainer.style.display = "flex";
+        labelsContainer.style.justifyContent = "space-between";
+        labelsContainer.style.color = "white";
+        labelsContainer.style.padding = "5px 10px";
+        labelsContainer.style.fontSize = "14px";
+
+        busStops.forEach((stop, index) => {
+          if (index % Math.ceil(busStops.length / 4) === 0 || stop.linienname !== lastLine) {
+            lastLine = stop.linienname;
+            const label = document.createElement("span");
+            label.textContent = `Linie: ${stop.linienname}\n${new Date(stop.zeitpunkt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+            label.style.flex = "1";
+            label.style.textAlign = "center";
+            labelsContainer.appendChild(label);
+          }
+        });
+
+        sliderContainer.appendChild(labelsContainer);
       }
 
       async function fetchBusData() {

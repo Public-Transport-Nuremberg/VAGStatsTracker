@@ -425,7 +425,8 @@ const getVehicleHistory = (vehicle, days) => {
       h.Haltestellenname,
       h.Latitude,
       h.Longitude,
-      COALESCE(fh.AbfahrtszeitSoll, fh.AnkunftszeitSoll) AS Zeitpunkt
+      COALESCE(fh.AbfahrtszeitSoll, fh.AnkunftszeitSoll) AS Zeitpunkt,
+      f.Linienname
     FROM
       fahrten AS f
     JOIN
@@ -437,7 +438,8 @@ const getVehicleHistory = (vehicle, days) => {
       haltestellen AS h
       ON fh.VGNKennung = h.VGNKennung
     WHERE
-      f.Fahrzeugnummer = $1 AND f.Betriebstag = $2
+      f.Fahrzeugnummer = $1 
+      AND f.Betriebstag = $2
     ORDER BY
       COALESCE(fh.AbfahrtszeitSoll, fh.AnkunftszeitSoll);`, [vehicle, days], (err, result) => {
       if (err) { reject(err) }
