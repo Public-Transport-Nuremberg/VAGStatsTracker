@@ -12,7 +12,7 @@ const vgn = new openvgn();
 const datePattern = /^(\d{4})\-(\d{2})\-(\d{2})$/;
 
 const vehicleID = Joi.object({
-    id: Joi.string().required(),
+    id: Joi.number().required(),
     at: Joi.string().pattern(datePattern).message('Date must be in yyyy-mm-dd format')
 });
 
