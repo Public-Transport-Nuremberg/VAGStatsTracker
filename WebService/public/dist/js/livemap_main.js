@@ -259,7 +259,7 @@ map.on("singleclick", function (event) {
 							<p><span>Nächster Halt</span>: ${p.nextHaltestellenname} @ ${nextAnkunftszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayNext / 1000)})</p>
 							<p><span>Besetzgrad</span>: ${formatBesezungsgrad(p.Besetzgrad)}</p>
 							<p><span>Fahrzeug</span>: ${getVehicleInfo(p.Fahrzeugnummer, p.FahrzeugInfo)}</p>
-							${p.Fahrzeugnummer === 'PVU' ? '' : vehicleHistory}
+							${p.Fahrzeugnummer === 'PVU' ? 'Fahrzeughistorie nicht Möglich' : vehicleHistory}
 						</div>
                     `;
 					})
@@ -338,7 +338,7 @@ map.on("singleclick", function (event) {
 				<p><span>Nächster Halt</span>: ${p.nextHaltestellenname} @ ${nextAnkunftszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayNext / 1000)})</p>
                 <p><span>Besetzgrad</span>: ${formatBesezungsgrad(p.Besetzgrad)}</p>
 				<p><span>Fahrzeug</span>: ${getVehicleInfo(p.Fahrzeugnummer, p.FahrzeugInfo)}</p>
-				${p.Fahrzeugnummer === 'PVU' ? '' : vehicleHistory}
+				${p.Fahrzeugnummer === 'PVU' ? 'Fahrzeughistorie nicht Möglich' : vehicleHistory}
             </div>`;
 			overlay.setPosition(p.geometry.flatCoordinates); // set position absolute to coords
 			popup.style.display = "block";
