@@ -29,6 +29,22 @@ router.get('/history/:at/:id', limiter(), async (req, res) => {
     res.json(result);
 });
 
+router.get('/servedStops/:at/:id', limiter(), async (req, res) => {
+    const params = await vehicleID.validateAsync(req.params);
+
+    const result = await vehicle.servedStopsByVehicleIDandDay(params.id, params.at);
+
+    res.json(result);
+});
+
+router.get('/servedLines/:at/:id', limiter(), async (req, res) => {
+    const params = await vehicleID.validateAsync(req.params);
+
+    const result = await vehicle.servedLinesByVehicleIDandDay(params.id, params.at);
+
+    res.json(result);
+});
+
 module.exports = {
     router: router,
     PluginName: PluginName,

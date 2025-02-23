@@ -485,6 +485,50 @@ const getAllVehicleHistorysGPS = (day) => {
   });
 }
 
+const servedLinesByVehicleIDandDay = (vehicle, day) => {
+  return new Promise((resolve, reject) => {
+    pool.query(`SELECT DISTINCT
+    ARRAY_AGG(DISTINCT f.Linienname) AS linien
+  FROM
+    fahrten AS f
+  WHERE
+    f.Fahrzeugnummer = $1
+    AND f.Betriebstag = $2;`, [vehicle, day], (err, result) => {
+      if (err) { reject(err) }
+      resolve(result.rows)
+    })
+  });
+}
+
+const servedStopsByVehicleIDandDay = (vehicle, day) => {
+  return new Promise((resolve, reject) => {
+    pool.query(`SELECT 
+    JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+        'haltestellenname', h.Haltestellenname,
+        'latitude', h.Latitude,
+        'longitude', h.Longitude,
+        'VGNKennung', h.VGNKennung,
+        'VAGKennung', h.VAGKennung
+    )) AS haltestellen
+FROM 
+    fahrten AS f
+JOIN 
+    fahrten_halte AS fh
+    ON f.Fahrtnummer = fh.Fahrtnummer
+    AND f.Betriebstag = fh.Betriebstag
+    AND f.Produkt = fh.Produkt
+JOIN 
+    haltestellen AS h
+    ON fh.VGNKennung = h.VGNKennung
+WHERE 
+    f.Fahrzeugnummer = $1
+    AND f.Betriebstag = $2;`, [vehicle, day], (err, result) => {
+      if (err) { reject(err) }
+      resolve(result.rows)
+    })
+  });
+}
+
 /* --- --- --- Exports --- --- --- */
 
 const views = {
@@ -515,7 +559,9 @@ const statistics = {
 
 const vehicle = {
   getHistory: getVehicleHistory,
-  allGPS: getAllVehicleHistorysGPS
+  allGPS: getAllVehicleHistorysGPS,
+  servedLinesByVehicleIDandDay: servedLinesByVehicleIDandDay,
+  servedStopsByVehicleIDandDay: servedStopsByVehicleIDandDay
 }
 
 const webtoken = {
