@@ -60,6 +60,14 @@
       <input type="range" id="timeSlider" min="0" step="1" />
     </div>
 
+    <footer>
+        <p>
+          <%= appName %>@<%= commitId %>
+          <a href="https://github.com/Public-Transport-Nuremberg/VAGStatsTracker">Source</a>
+          <a href="/legal/legal">Imprint</a>
+        </p>
+      </footer>
+
     <script>
       const pathname = new URL(window.location.href).pathname;
       const parts = pathname.split("/");

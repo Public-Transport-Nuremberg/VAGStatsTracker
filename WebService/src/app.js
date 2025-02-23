@@ -59,6 +59,11 @@ app.get('/vehicleHistory/*', (req, res) => {
     res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'vehicleHistory.html')));
 });
 
+app.get('/ontimelinechart', (req, res) => {
+    res.header('Content-Type', 'text/html');
+    res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'ontimelinechart.html')));
+});
+
 // Legal Pages
 app.get('/legal/legal', (req, res) => {
     res.header('Content-Type', 'text/html');
@@ -106,7 +111,7 @@ app.get('/*', (req, res) => {
         if (process.env.SENTRY_DSN) process.sentry.captureException(error, "404");
         ejs.renderFile(path.join(__dirname, '..', 'views', 'error', 'error-xxx.ejs'), { statusCode: 404, message: "Page not found", info: "Request can not be served", reason: "The requested page was not found", back_url: process.env.DOMAIN, domain: process.env.DOMAIN }, (err, str) => {
             res.header('Content-Type', 'text/html');
-            if (err){
+            if (err) {
                 process.log.error(err);
                 if (process.env.SENTRY_DSN) process.sentry.captureException(err, "renderFile");
             }

@@ -529,6 +529,68 @@ WHERE
   });
 }
 
+const percentageDelayByProductMonth = (outer_neg_bound, outer_pos_bound, lower_inner_bound, upper_inner_bound, years) => {
+  return new Promise((resolve, reject) => {
+    pool.query(`SELECT 
+      DATE_TRUNC('month', fh.Betriebstag) AS month,
+      f.Produkt,
+      COUNT(*) AS total_departures,
+      COUNT(*) FILTER (WHERE fh.AbfahrtszeitVerspätung BETWEEN $1 AND $3) * 100.0 / COUNT(*) AS percentage_early,
+      COUNT(*) FILTER (WHERE fh.AbfahrtszeitVerspätung BETWEEN $3 AND $4) * 100.0 / COUNT(*) AS percentage_on_time,
+      COUNT(*) FILTER (WHERE fh.AbfahrtszeitVerspätung BETWEEN $4 AND $2) * 100.0 / COUNT(*) AS percentage_late
+    FROM 
+      fahrten_halte AS fh
+    JOIN 
+      fahrten AS f
+      ON f.Fahrtnummer = fh.Fahrtnummer
+      AND f.Betriebstag = fh.Betriebstag
+      AND f.Produkt = fh.Produkt
+    WHERE 
+      fh.AbfahrtszeitVerspätung IS NOT NULL
+      AND fh.Betriebstag >= CURRENT_DATE - INTERVAL '${years} years'
+    GROUP BY 
+      month, f.Produkt
+    ORDER BY 
+      month DESC, f.Produkt;`,
+      [outer_neg_bound, outer_pos_bound, lower_inner_bound, upper_inner_bound], // Only pass 4 parameters now
+      (err, result) => {
+        if (err) { reject(err); }
+        resolve(result.rows);
+      });
+  });
+};
+
+
+const percentageDelayByProductWeek = (outer_neg_bound, outer_pos_bound, lower_inner_bound, upper_inner_bound, years) => {
+  return new Promise((resolve, reject) => {
+    pool.query(`SELECT 
+    EXTRACT(YEAR FROM fh.Betriebstag) AS year,
+    EXTRACT(WEEK FROM fh.Betriebstag) AS calendar_week,
+    f.Produkt,
+    COUNT(*) AS total_departures,
+    COUNT(*) FILTER (WHERE fh.AbfahrtszeitVerspätung BETWEEN $1 AND $3) * 100.0 / COUNT(*) AS percentage_early,
+    COUNT(*) FILTER (WHERE fh.AbfahrtszeitVerspätung BETWEEN $3 AND $4) * 100.0 / COUNT(*) AS percentage_on_time,
+    COUNT(*) FILTER (WHERE fh.AbfahrtszeitVerspätung BETWEEN $4 AND $2) * 100.0 / COUNT(*) AS percentage_late
+  FROM 
+    fahrten_halte AS fh
+  JOIN 
+    fahrten AS f
+    ON f.Fahrtnummer = fh.Fahrtnummer
+    AND f.Betriebstag = fh.Betriebstag
+    AND f.Produkt = fh.Produkt
+  WHERE 
+    fh.AbfahrtszeitVerspätung IS NOT NULL
+    AND fh.Betriebstag >= CURRENT_DATE - INTERVAL '${years} years'
+  GROUP BY 
+    year, calendar_week, f.Produkt
+  ORDER BY 
+    year DESC, calendar_week DESC, f.Produkt;`, [outer_neg_bound, outer_pos_bound, lower_inner_bound, upper_inner_bound], (err, result) => {
+      if (err) { reject(err) }
+      resolve(result.rows)
+    })
+  });
+}
+
 /* --- --- --- Exports --- --- --- */
 
 const views = {
@@ -554,7 +616,9 @@ const heatmap = {
 
 const statistics = {
   getDistinctLines: getDistinctLines,
-  getAvgDelayByLine: getavragedelayperline
+  getAvgDelayByLine: getavragedelayperline,
+  percentageDelayByProductMonth: percentageDelayByProductMonth,
+  percentageDelayByProductWeek: percentageDelayByProductWeek
 }
 
 const vehicle = {

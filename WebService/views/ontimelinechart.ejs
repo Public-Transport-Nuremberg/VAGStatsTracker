@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChartJS with API Data</title>
+    <style>
+      footer {
+        position: fixed;
+        z-index: 1000;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: #333;
+        color: #fff;
+        text-align: center;
+        height: 30px;
+        font-size: 0.8em;
+      }
+      footer a {
+        color: #fff;
+      }
+    </style>
+    <script src="/dist/js/lib/chart.js"></script>
+  </head>
+  <body>
+    <div>
+      <label for="timeRangeSelect">Time Range:</label>
+      <select id="timeRangeSelect">
+        <option value="month">Month</option>
+        <option value="week">Week</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="percentageSelect">Select Percentage:</label>
+      <select id="percentageSelect">
+        <option value="percentage_early">Early</option>
+        <option value="percentage_on_time">On Time</option>
+        <option value="percentage_late">Late</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="outerNegBound">Outer Negative Bound (minutes):</label>
+      <input id="outerNegBound" type="number" value="-15" /><br />
+      <label for="outerPosBound">Outer Positive Bound (minutes):</label>
+      <input id="outerPosBound" type="number" value="15" /><br />
+      <label for="lowerInnerBound">Lower Inner Bound (minutes):</label>
+      <input id="lowerInnerBound" type="number" value="-1" /><br />
+      <label for="upperInnerBound">Upper Inner Bound (minutes):</label>
+      <input id="upperInnerBound" type="number" value="3" /><br />
+      <label for="years">Years:</label>
+      <input id="years" type="number" value="1" min="1" max="10" /><br />
+      <button onclick="fetchAndRenderData()">Fetch & Render Chart</button>
+    </div>
+
+    <canvas id="myChart" width="400" height="200"></canvas>
+
+    <script>
+      const ctx = document.getElementById("myChart").getContext("2d");
+      let chart;
+      let cachedData = []; // Stores the last API response
+
+      document.getElementById("percentageSelect").addEventListener("change", () => {
+        if (cachedData.length > 0) {
+          updateChart();
+        }
+      });
+
+      async function fetchAndRenderData() {
+        const timeRange = document.getElementById("timeRangeSelect").value;
+        const apiUrl = `/api/v1/statistics/delay/percentage/${timeRange}/product`;
+
+        try {
+          const response = await fetch(apiUrl);
+          if (!response.ok) throw new Error("Failed to fetch data");
+
+          cachedData = await response.json();
+          updateChart();
+        } catch (error) {
+          console.error("Error fetching data:", error);
+          alert("Failed to fetch data. Check console for details.");
+        }
+      }
+
+      function updateChart() {
+        const selectedPercentage = document.getElementById("percentageSelect").value;
+        const timeRange = document.getElementById("timeRangeSelect").value;
+
+        const datasets = [1, 2, 3].map((produkt) => {
+          const filteredData = cachedData.filter((item) => item.produkt === produkt);
+          return {
+            label: `Product ${produkt}`,
+            data: filteredData.map((item) => parseFloat(item[selectedPercentage])),
+            borderColor: getRandomColor(),
+            fill: false,
+          };
+        });
+
+        if (chart) chart.destroy();
+
+        const maxPercentage = Math.max(...datasets.flatMap((dataset) => dataset.data));
+        // Calculate y-axis max value based on the max percentage, make it 2x most (So if 0.02% make it most 0.04%)
+        const yAxisMax = Math.ceil(maxPercentage * 2 * 100) / 100;
+
+        chart = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: cachedData
+              .map((item) => {
+                return timeRange === "month" ? new Date(item.month).toLocaleDateString() : `Week ${item.calendar_week}, ${item.year}`;
+              })
+              .reverse(), // Reverse the order
+            datasets: datasets,
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: {
+                beginAtZero: true,
+                max: yAxisMax,
+              },
+            },
+          },
+        });
+      }
+
+      function getRandomColor() {
+        return `#${Math.floor(Math.random() * 16777215).toString(16)}`;
+      }
+    </script>
+  </body>
+</html>
