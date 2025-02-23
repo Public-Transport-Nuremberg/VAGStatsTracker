@@ -47,9 +47,9 @@
       const betriebstag = parts[parts.length - 2];
       const vehicleId = parts[parts.length - 1];
       const apiUrl = `/api/v1/vehicle/history/${betriebstag}/${vehicleId}`;
-      let VehicleStops = [];
+      let busStops = [];
       let routeCount = new Map();
-      let currentVehicleFeature = null;
+      let currentBusFeature = null;
 
       const map = new ol.Map({
         target: "map",
@@ -72,23 +72,23 @@
         },
       });
 
-      const VehicleSource = new ol.source.Vector();
-      const VehicleLayer = new ol.layer.Vector({ source: VehicleSource });
+      const busSource = new ol.source.Vector();
+      const busLayer = new ol.layer.Vector({ source: busSource });
 
       map.addLayer(routeLayer);
       map.addLayer(stationLayer);
-      map.addLayer(VehicleLayer);
+      map.addLayer(busLayer);
 
       function updateMap(value) {
         stationSource.clear();
         routeSource.clear();
-        VehicleSource.clear();
+        busSource.clear();
         routeCount.clear();
 
         const addedStations = new Set(); // To track added stations
 
         for (let i = 0; i <= value; i++) {
-          const stop = VehicleStops[i];
+          const stop = busStops[i];
           if (!stop) break;
 
           // Prevent duplicate stations from being added
@@ -123,7 +123,7 @@
 
           // Always process route lines (even if the station is a duplicate)
           if (i > 0) {
-            const prevStop = VehicleStops[i - 1];
+            const prevStop = busStops[i - 1];
             const routeKey = `${prevStop.haltestellenname}-${stop.haltestellenname}`;
             const count = (routeCount.get(routeKey) || 0) + 1;
             routeCount.set(routeKey, count);
@@ -148,15 +148,15 @@
           }
         }
 
-        // Add current Vehicle position
-        if (VehicleStops[value]) {
-          const lastStop = VehicleStops[value];
-          currentVehicleFeature = new ol.Feature({
+        // Add current bus position
+        if (busStops[value]) {
+          const lastStop = busStops[value];
+          currentBusFeature = new ol.Feature({
             geometry: new ol.geom.Point(ol.proj.fromLonLat([lastStop.longitude, lastStop.latitude])),
-            name: "Current Vehicle Position",
+            name: "Current Bus Position",
           });
 
-          currentVehicleFeature.setStyle(
+          currentBusFeature.setStyle(
             new ol.style.Style({
               image: new ol.style.Icon({
                 src: "https://upload.wikimedia.org/wikipedia/commons/8/88/Map_marker_black.png",
@@ -165,26 +165,26 @@
             })
           );
 
-          VehicleSource.addFeature(currentVehicleFeature);
+          busSource.addFeature(currentBusFeature);
         }
       }
 
-      let VehicleMarkerSource = new ol.source.Vector();
-      let VehicleMarkerLayer = new ol.layer.Vector({ source: VehicleMarkerSource });
-      map.addLayer(VehicleMarkerLayer);
+      let busMarkerSource = new ol.source.Vector();
+      let busMarkerLayer = new ol.layer.Vector({ source: busMarkerSource });
+      map.addLayer(busMarkerLayer);
 
       function initializeSlider() {
         const slider = document.getElementById("timeSlider");
         const sliderContainer = document.querySelector(".slider-container");
 
-        slider.max = VehicleStops.length - 1;
-        slider.value = VehicleStops.length - 1;
+        slider.max = busStops.length - 1;
+        slider.value = busStops.length - 1;
         slider.addEventListener("input", () => {
           updateMap(parseInt(slider.value));
-          updateVehicleMarker(parseInt(slider.value));
+          updateBusMarker(parseInt(slider.value));
         });
         updateMap(parseInt(slider.value));
-        updateVehicleMarker(parseInt(slider.value));
+        updateBusMarker(parseInt(slider.value));
 
         // Create labels for linienname and timestamps
         let lastLine = null;
@@ -195,11 +195,11 @@
         labelsContainer.style.padding = "5px 10px";
         labelsContainer.style.fontSize = "14px";
 
-        VehicleStops.forEach((stop, index) => {
-          if (index % Math.ceil(VehicleStops.length / 5) === 0 || stop.linienname !== lastLine) {
+        busStops.forEach((stop, index) => {
+          if (index % Math.ceil(busStops.length / 5) === 0 || stop.linienname !== lastLine) {
             lastLine = stop.linienname;
             const label = document.createElement("span");
-            label.textContent = `Linie: ${stop.linienname}\n${new Date(stop.zeitpunkt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+            label.textContent = `Linie: ${stop.linienname} Uhrzeit: ${new Date(stop.zeitpunkt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
             label.style.flex = "1";
             label.style.textAlign = "center";
             labelsContainer.appendChild(label);
@@ -209,16 +209,16 @@
         sliderContainer.appendChild(labelsContainer);
       }
 
-      function updateVehicleMarker(index) {
-        if (!VehicleStops[index]) return;
+      function updateBusMarker(index) {
+        if (!busStops[index]) return;
 
-        VehicleMarkerSource.clear();
+        busMarkerSource.clear();
 
-        const currentVehicleFeature = new ol.Feature({
-          geometry: new ol.geom.Point(ol.proj.fromLonLat([VehicleStops[index].longitude, VehicleStops[index].latitude])),
+        const currentBusFeature = new ol.Feature({
+          geometry: new ol.geom.Point(ol.proj.fromLonLat([busStops[index].longitude, busStops[index].latitude])),
         });
 
-        currentVehicleFeature.setStyle(
+        currentBusFeature.setStyle(
           new ol.style.Style({
             image: new ol.style.Circle({
               radius: 10,
@@ -228,17 +228,17 @@
           })
         );
 
-        VehicleMarkerSource.addFeature(currentVehicleFeature);
+        busMarkerSource.addFeature(currentBusFeature);
       }
 
       async function fetchVehicleData() {
         try {
           const response = await fetch(apiUrl);
           if (!response.ok) throw new Error("Failed to fetch data");
-          VehicleStops = await response.json();
-          if (VehicleStops.length > 0) initializeSlider();
+          busStops = await response.json();
+          if (busStops.length > 0) initializeSlider();
         } catch (error) {
-          console.error("Error fetching Vehicle data:", error);
+          console.error("Error fetching bus data:", error);
         }
       }
 
