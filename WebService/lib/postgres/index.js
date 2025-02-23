@@ -367,6 +367,8 @@ const WebtokensDelete = (token) => {
   })
 }
 
+/** --- --- Statistic and MISC --- --- */
+
 const getDistinctLines = () => {
   return new Promise((resolve, reject) => {
     pool.query(`SELECT DISTINCT Linienname FROM fahrten`, (err, result) => {
@@ -454,6 +456,35 @@ const getVehicleHistory = (vehicle, days) => {
   });
 }
 
+const getAllVehicleHistorysGPS = (day) => {
+  return new Promise((resolve, reject) => {
+    pool.query(`SELECT
+    f.Fahrzeugnummer,
+    h.Latitude,
+    h.Longitude,
+    COALESCE(fh.AbfahrtszeitSoll, fh.AnkunftszeitSoll) AS Zeitpunkt
+  FROM
+    fahrten AS f
+  JOIN
+    fahrten_halte AS fh
+    ON f.Fahrtnummer = fh.Fahrtnummer
+    AND f.Betriebstag = fh.Betriebstag
+    AND f.Produkt = fh.Produkt
+  JOIN
+    haltestellen AS h
+    ON fh.VGNKennung = h.VGNKennung
+  WHERE
+    f.Betriebstag = $1
+    AND f.Fahrzeugnummer NOT IN (0, -1)
+  ORDER BY
+    f.Fahrzeugnummer,
+    Zeitpunkt;`, [day], (err, result) => {
+      if (err) { reject(err) }
+      resolve(result.rows)
+    })
+  });
+}
+
 /* --- --- --- Exports --- --- --- */
 
 const views = {
@@ -483,7 +514,8 @@ const statistics = {
 }
 
 const vehicle = {
-  getHistory: getVehicleHistory
+  getHistory: getVehicleHistory,
+  allGPS: getAllVehicleHistorysGPS
 }
 
 const webtoken = {

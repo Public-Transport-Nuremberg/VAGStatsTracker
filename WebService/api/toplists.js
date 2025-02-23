@@ -1,7 +1,9 @@
 const HyperExpress = require('hyper-express');
 const { limiter } = require('@middleware/limiter');
 const { plublicStaticCache } = require('@middleware/cacheRequest');
-const { views } = require('@lib/postgres');
+const performance = require('perf_hooks').performance;
+const geolib = require('geolib');
+const { views, vehicle } = require('@lib/postgres');
 const Joi = require('joi');
 const router = new HyperExpress.Router();
 const { StopObjectStore } = require('@lib/haltestellen_cache');
@@ -32,6 +34,10 @@ const schema = Joi.object({
     to: Joi.string().pattern(datePattern).message('Date must be in yyyy-mm-dd format'),
 }).xor('at', 'from').with('from', 'to').without('at', ['from', 'to']);
 
+const atSchema = Joi.object({
+    at: Joi.string().pattern(datePattern).message('Date must be in yyyy-mm-dd format'),
+});
+
 const routeSchema = Joi.object({
     list: Joi.string().valid('by_stops', 'by_lines', 'by_vehicles').required(),
 });
@@ -48,14 +54,14 @@ router.get('/delay/:list', limiter(), async (req, res) => {
         throw new Error(value.error);
     }
 
-    if(value?.from || value?.to) {
+    if (value?.from || value?.to) {
         throw new Error('Not yet supported');
     }
 
     switch (list) {
         case 'by_stops':
             const result = await views.topList.delayByStops(value.at);
-            for(let entry of result) {
+            for (let entry of result) {
                 entry.haltestelleInfo = StopObjectStore.get(entry.vgnkennung);
             }
             res.json(result);
@@ -66,7 +72,7 @@ router.get('/delay/:list', limiter(), async (req, res) => {
             break;
         case 'by_vehicles':
             const result3 = await views.topList.delayByVehicles(value.at);
-            for(let entry of result3) {
+            for (let entry of result3) {
                 entry.fahrzeugInfo = vgn.getVehicleDataById(entry.fahrzeugnummer);
             }
             res.json(result3);
@@ -74,6 +80,65 @@ router.get('/delay/:list', limiter(), async (req, res) => {
         default:
             throw new Error('Invalid query');
     }
+});
+
+router.get('/vehicle/distance/:at', limiter(), async (req, res) => {
+    const value = await atSchema.validateAsync(req.params);
+    if (value.error) {
+        throw new Error(value.error);
+    }
+
+    const queryStart = performance.now();
+    const result = await vehicle.allGPS(value.at);
+    const queryEnd = performance.now();
+
+    const groupStart = performance.now();
+    const vehicleRoutes = {};
+    result.forEach(row => {
+        if (!vehicleRoutes[row.fahrzeugnummer]) {
+            vehicleRoutes[row.fahrzeugnummer] = [];
+        }
+        vehicleRoutes[row.fahrzeugnummer].push({
+            latitude: row.latitude,
+            longitude: row.longitude,
+        });
+    });
+    const groupEnd = performance.now();
+
+    // Calculate total distance per Fahrzeugnummer
+    const calcStart = performance.now();
+    const distances = {};
+    for (const fahrzeugnummer in vehicleRoutes) {
+        let totalDistance = 0;
+        const route = vehicleRoutes[fahrzeugnummer];
+
+        for (let i = 1; i < route.length; i++) {
+            totalDistance += geolib.getDistance(
+                route[i - 1],
+                route[i]
+            );
+        }
+
+        distances[fahrzeugnummer] = totalDistance;
+    }
+    const calcEnd = performance.now();
+
+    const sortStart = performance.now();
+    // Sort by distance
+    const sortedData = Object.keys(distances).map(fahrzeugnummer => {
+        return {
+            fahrzeugnummer,
+            distance_m: distances[fahrzeugnummer],
+        };
+    }).sort((a, b) => b.distance - a.distance);
+    const sortEnd = performance.now();
+
+    res.json({meta: {
+        queryTime: Math.floor(queryEnd - queryStart),
+        groupTime: Math.floor(groupEnd - groupStart),
+        calcTime: Math.floor(calcEnd - calcStart),
+        sortTime: Math.floor(sortEnd - sortStart),
+    }, sortedData});
 });
 
 module.exports = {
