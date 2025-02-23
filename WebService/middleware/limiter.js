@@ -7,7 +7,7 @@ const { TooManyRequests } = require('@lib/errors')
  * @returns 
  */
 const limiter = (cost = 1) => {
-    return async (req, res) => {
+    return async (req, res, next) => {
         try {
             let key;
             if (!req.authorization) {
@@ -32,7 +32,7 @@ const limiter = (cost = 1) => {
             if (rateLimit.result) throw new TooManyRequests('Too Many Requests', rateLimit.retryIn)
 
         } catch (error) {
-            return error; // This will trigger global error handler as we are returning an Error
+            next(error); // Pass the error to the next middleware
         }
     };
 };

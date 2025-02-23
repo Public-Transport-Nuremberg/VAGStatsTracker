@@ -11,7 +11,7 @@ const useragent = require('express-useragent');
  * @returns 
  */
 const verifyRequest = (permission) => {
-    return async (req, res) => {
+    return async (req, res, next) => {
         try {
             let IP;
             let UserToken;
@@ -68,7 +68,7 @@ const verifyRequest = (permission) => {
             req.authorization = UserToken;
 
         } catch (error) {
-            return error; // This will trigger global error handler as we are returning an Error
+            next(error);
         }
     };
 };

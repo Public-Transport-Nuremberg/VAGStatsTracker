@@ -47,7 +47,7 @@ const plublicStaticCache = (duration) => {
  * @returns 
  */
 const privateStaticCache = (duration) => {
-    return async (req, res) => {
+    return async (req, res, next) => {
         try {
             const oldSend = res.send;
             const oldJson = res.json;
@@ -77,7 +77,7 @@ const privateStaticCache = (duration) => {
                 addPrivateStaticResponse(req.route.id, req.authorization, res.bodyType, res.body, res.statusCode, duration)
             });
         } catch (error) {
-            return (error);
+            next(error);
         }
     }
 }
