@@ -1,4 +1,5 @@
 const HyperExpress = require('hyper-express');
+const { hardlimiter } = require('@middleware/hardlimiter');
 const { limiter } = require('@middleware/limiter');
 const linesWithStops = require('@config/linesWithStops');
 const { statistics } = require('@lib/postgres');
@@ -19,7 +20,7 @@ router.get('/lines', limiter(), async (req, res) => {
     res.json(Object.keys(linesWithStops));
 });
 
-router.get('/delay/avrage/line', limiter(), async (req, res) => {
+router.get('/delay/avrage/line', hardlimiter(1, 1), async (req, res) => {
     const value = await delayLineSchema.validateAsync(req.query);
     if (value.error) {
         throw new Error(value.error);
@@ -27,7 +28,7 @@ router.get('/delay/avrage/line', limiter(), async (req, res) => {
 
     const result = await statistics.getAvgDelayByLine(value.line, value.days);
 
-    res.json({station_order: linesWithStops[value.line], result});
+    res.json({ station_order: linesWithStops[value.line], result });
 });
 
 module.exports = {
