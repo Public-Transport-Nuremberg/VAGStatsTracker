@@ -38,6 +38,7 @@ class DB_Store {
                 this.set(station.VGNKennung, station);
             }
 
+            await this.update()
             return true;
         } catch (error) {
             if (process.env.SENTRY_DSN) process.sentry.captureException(error);

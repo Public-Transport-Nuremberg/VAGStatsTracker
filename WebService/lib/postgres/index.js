@@ -426,7 +426,13 @@ const getVehicleHistory = (vehicle, days) => {
       h.Latitude,
       h.Longitude,
       COALESCE(fh.AbfahrtszeitSoll, fh.AnkunftszeitSoll) AS Zeitpunkt,
-      f.Linienname
+      f.Linienname,
+      f.Produkt,
+      f.Besetzungsgrad,
+      fh.AnkunftszeitSoll,
+      fh.AnkunftszeitVerspätung,
+      fh.AbfahrtszeitSoll,
+      fh.AbfahrtszeitVerspätung
     FROM
       fahrten AS f
     JOIN

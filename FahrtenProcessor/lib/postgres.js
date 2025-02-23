@@ -64,7 +64,7 @@ const convertProducttoBool = (product) => {
 }
 
 /**
- * Converts a besetzungsgrad string to a gleis integer
+ * Converts a line string to a gleis integer
  * @param {String} haltepunkt 
  * @returns {Number}
  */

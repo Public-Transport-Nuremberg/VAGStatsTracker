@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>History Map</title>
     <link rel="stylesheet" href="/dist/css/ol.css" type="text/css" />
+    <script src="/dist/js/convertions.js"></script>
     <script src="/dist/js/ol.js"></script>
     <script src="/dist/js/lib/geolib.js"></script>
     <style>
@@ -30,6 +31,21 @@
         padding: 10px;
         border-radius: 10px;
       }
+      #vehicle_info p {
+        margin: 2px 0;
+        font-size: 14px;
+      }
+      #vehicle_info h4 {
+        margin: 2px 0;
+        font-weight: bold;
+        font-size: 18px;
+      }
+      #vehicle_info {
+        width: 300px;
+        white-space: nowrap; 
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
       #timeSlider {
         width: 100%;
       }
@@ -37,6 +53,9 @@
   </head>
   <body>
     <div id="map"></div>
+    <div style="position: absolute; z-index: 2; bottom: 10%; left: 20px; background: white; padding: 10px; border-radius: 5px">
+      <div id="vehicle_info"></div>
+    </div>
     <div class="slider-container">
       <input type="range" id="timeSlider" min="0" step="1" />
     </div>
@@ -147,26 +166,6 @@
             routeSource.addFeature(lineFeature);
           }
         }
-
-        // Add current bus position
-        if (busStops[value]) {
-          const lastStop = busStops[value];
-          currentBusFeature = new ol.Feature({
-            geometry: new ol.geom.Point(ol.proj.fromLonLat([lastStop.longitude, lastStop.latitude])),
-            name: "Current Bus Position",
-          });
-
-          currentBusFeature.setStyle(
-            new ol.style.Style({
-              image: new ol.style.Icon({
-                src: "https://upload.wikimedia.org/wikipedia/commons/8/88/Map_marker_black.png",
-                scale: 0.05,
-              }),
-            })
-          );
-
-          busSource.addFeature(currentBusFeature);
-        }
       }
 
       let busMarkerSource = new ol.source.Vector();
@@ -196,10 +195,10 @@
         labelsContainer.style.fontSize = "14px";
 
         busStops.forEach((stop, index) => {
-          if (index % Math.ceil(busStops.length / 5) === 0 || stop.linienname !== lastLine) {
+          if (index % Math.ceil(busStops.length / 5) === 0) {
             lastLine = stop.linienname;
             const label = document.createElement("span");
-            label.textContent = `Linie: ${stop.linienname} Uhrzeit: ${new Date(stop.zeitpunkt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+            label.textContent = `Uhrzeit: ${new Date(stop.zeitpunkt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
             label.style.flex = "1";
             label.style.textAlign = "center";
             labelsContainer.appendChild(label);
@@ -211,17 +210,31 @@
 
       function updateBusMarker(index) {
         if (!busStops[index]) return;
+        const currentStop = busStops[index];
+        const vehicleInfo = document.getElementById("vehicle_info");
+
+        let timeString = "";
+        if(currentStop.ankunftszeitsoll) timeString += `<p>Ankunft: ${new Date(currentStop.ankunftszeitsoll).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} (${currentStop.ankunftszeitverspätung > 0 ? "+" : ""}${currentStop.ankunftszeitverspätung})</p>`
+        if(currentStop.abfahrtszeitsoll) timeString += `<p>Abfahrt: ${new Date(currentStop.abfahrtszeitsoll).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} (${currentStop.abfahrtszeitverspätung > 0 ? "+" : ""}${currentStop.abfahrtszeitverspätung})</p>`
+
+        vehicleInfo.innerHTML = `
+        <h4>Fahrzeug</h4>
+        <p>Haltestelle: ${currentStop.haltestellenname}</p>
+        <p>Linie: ${currentStop.linienname} (${convertIntToProduct(currentStop.produkt)})</p>
+        ${timeString}
+        <p>Besetzungsgrad: ${convertIntToBesetzungsgrad(currentStop.besetzungsgrad)}</p>
+        `;
 
         busMarkerSource.clear();
 
         const currentBusFeature = new ol.Feature({
-          geometry: new ol.geom.Point(ol.proj.fromLonLat([busStops[index].longitude, busStops[index].latitude])),
+          geometry: new ol.geom.Point(ol.proj.fromLonLat([currentStop.longitude, currentStop.latitude])),
         });
 
         currentBusFeature.setStyle(
           new ol.style.Style({
             image: new ol.style.Circle({
-              radius: 10,
+              radius: 8,
               fill: new ol.style.Fill({ color: "black" }),
               stroke: new ol.style.Stroke({ color: "white", width: 2 }),
             }),
