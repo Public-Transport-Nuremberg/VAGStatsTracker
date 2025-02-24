@@ -1,5 +1,6 @@
 # VAG Stats Tracker
-[Install](#Install)
+[Try it out now](https://vagstats.ebg.pw/)  
+[Install](#Install)  
 ## Goal
 ### Features
 ToDo:
