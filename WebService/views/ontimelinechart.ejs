@@ -152,14 +152,12 @@
         // Calculate y-axis max value based on the max percentage, make it 2x most (So if 0.02% make it most 0.04%)
         const yAxisMax = Math.min(Math.ceil(maxPercentage * 2 * 100) / 100, 100);
 
+        const uniqueLabels = Array.from(new Set(cachedData.map((item) => (timeRange === "month" ? new Date(item.month).toLocaleDateString() : `Week ${item.calendar_week}, ${item.year}`)))).reverse();
+        console.log(uniqueLabels);
         chart = new Chart(ctx, {
           type: "line",
           data: {
-            labels: cachedData
-              .map((item) => {
-                return timeRange === "month" ? new Date(item.month).toLocaleDateString() : `Week ${item.calendar_week}, ${item.year}`;
-              })
-              .reverse(), // Reverse the order
+            labels: uniqueLabels,
             datasets: datasets,
           },
           options: {
