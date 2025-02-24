@@ -11,10 +11,10 @@ const delayLineSchema = Joi.object({
 });
 
 const percentageSchema = Joi.object({
-    outer_neg_bound: Joi.number().integer().min(-3600).max(3600).default(-900).optional(),
-    outer_pos_bound: Joi.number().integer().min(-3600).max(3600).default(900).optional(),
-    lower_inner_bound: Joi.number().integer().min(-3600).max(3600).default(-60).optional(),
-    upper_inner_bound: Joi.number().integer().min(-3600).max(3600).default(180).optional(),
+    outerNegBound: Joi.number().integer().min(-3600).max(3600).default(-900).optional(),
+    outerPosBound: Joi.number().integer().min(-3600).max(3600).default(900).optional(),
+    lowerInnerBound: Joi.number().integer().min(-3600).max(3600).default(-60).optional(),
+    upperInnerBound: Joi.number().integer().min(-3600).max(3600).default(180).optional(),
     years: Joi.number().integer().min(1).max(10).default(1).optional(),
 });
 
@@ -44,7 +44,7 @@ router.get('/delay/percentage/week/product', limiter(), async (req, res) => {
         throw new Error(value.error);
     }
 
-    const result = await statistics.percentageDelayByProductWeek(value.outer_neg_bound, value.outer_pos_bound, value.lower_inner_bound, value.upper_inner_bound, value.years);
+    const result = await statistics.percentageDelayByProductWeek(value.outerNegBound, value.outerPosBound, value.lowerInnerBound, value.upperInnerBound, value.years);
 
     res.json(result);
 });
@@ -55,7 +55,7 @@ router.get('/delay/percentage/month/product', limiter(), async (req, res) => {
         throw new Error(value.error);
     }
 
-    const result = await statistics.percentageDelayByProductMonth(value.outer_neg_bound, value.outer_pos_bound, value.lower_inner_bound, value.upper_inner_bound, value.years);
+    const result = await statistics.percentageDelayByProductMonth(value.outerNegBound, value.outerPosBound, value.lowerInnerBound, value.upperInnerBound, value.years);
 
     res.json(result);
 });

@@ -3,8 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ChartJS with API Data</title>
+    <title>Pünktlichkeitsstatistik</title>
+    <script src="/dist/js/convertions.js"></script>
     <style>
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        height: 100vh;
+        margin: 0;
+        overflow: hidden; /* Prevents unwanted scrollbars */
+      }
+
+      .controls {
+        margin: 10px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .controls input,
+      .controls select,
+      .controls button {
+        height: 40px;
+        padding: 8px;
+        font-size: 16px;
+        box-sizing: border-box;
+      }
       footer {
         position: fixed;
         z-index: 1000;
@@ -24,41 +49,60 @@
     <script src="/dist/js/lib/chart.js"></script>
   </head>
   <body>
-    <div>
-      <label for="timeRangeSelect">Time Range:</label>
-      <select id="timeRangeSelect">
-        <option value="month">Month</option>
-        <option value="week">Week</option>
-      </select>
+    <div class="controls">
+      <div>
+        <label for="timeRangeSelect">Time Range:</label>
+        <select id="timeRangeSelect">
+          <option value="month">Month</option>
+          <option value="week">Week</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="percentageSelect">Select Percentage:</label>
+        <select id="percentageSelect">
+          <option value="percentage_early">Early</option>
+          <option value="percentage_on_time">On Time</option>
+          <option value="percentage_late">Late</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="outerNegBound">Outer Negative Bound (minutes):</label>
+        <input style="width: 80px" id="outerNegBound" type="number" value="-15" />
+      </div>
+
+      <div>
+        <label for="lowerInnerBound">Lower Inner Bound (minutes):</label>
+        <input style="width: 80px" id="lowerInnerBound" type="number" value="-1" />
+      </div>
+
+      <div>
+        <label for="upperInnerBound">Upper Inner Bound (minutes):</label>
+        <input style="width: 80px" id="upperInnerBound" type="number" value="3" />
+      </div>
+
+      <div>
+        <label for="outerPosBound">Outer Positive Bound (minutes):</label>
+        <input style="width: 80px" id="outerPosBound" type="number" value="15" />
+      </div>
+
+      <div>
+        <label for="years">Years:</label>
+        <input style="width: 80px" id="years" type="number" value="1" min="1" max="10" />
+      </div>
+
+      <div>
+        <button onclick="fetchAndRenderData()">Fetch & Render Chart</button>
+      </div>
     </div>
 
-    <div>
-      <label for="percentageSelect">Select Percentage:</label>
-      <select id="percentageSelect">
-        <option value="percentage_early">Early</option>
-        <option value="percentage_on_time">On Time</option>
-        <option value="percentage_late">Late</option>
-      </select>
+    <div style="width: 95vw; height: 85vh">
+      <canvas id="linechart"></canvas>
     </div>
-
-    <div>
-      <label for="outerNegBound">Outer Negative Bound (minutes):</label>
-      <input id="outerNegBound" type="number" value="-15" /><br />
-      <label for="outerPosBound">Outer Positive Bound (minutes):</label>
-      <input id="outerPosBound" type="number" value="15" /><br />
-      <label for="lowerInnerBound">Lower Inner Bound (minutes):</label>
-      <input id="lowerInnerBound" type="number" value="-1" /><br />
-      <label for="upperInnerBound">Upper Inner Bound (minutes):</label>
-      <input id="upperInnerBound" type="number" value="3" /><br />
-      <label for="years">Years:</label>
-      <input id="years" type="number" value="1" min="1" max="10" /><br />
-      <button onclick="fetchAndRenderData()">Fetch & Render Chart</button>
-    </div>
-
-    <canvas id="myChart" width="400" height="200"></canvas>
 
     <script>
-      const ctx = document.getElementById("myChart").getContext("2d");
+      const ctx = document.getElementById("linechart").getContext("2d");
       let chart;
       let cachedData = []; // Stores the last API response
 
@@ -70,7 +114,7 @@
 
       async function fetchAndRenderData() {
         const timeRange = document.getElementById("timeRangeSelect").value;
-        const apiUrl = `/api/v1/statistics/delay/percentage/${timeRange}/product`;
+        const apiUrl = `/api/v1/statistics/delay/percentage/${timeRange}/product?outerNegBound=${document.getElementById("outerNegBound").value*60}&lowerInnerBound=${document.getElementById("lowerInnerBound").value*60}&upperInnerBound=${document.getElementById("upperInnerBound").value*60}&outerPosBound=${document.getElementById("outerPosBound").value*60}&years=${document.getElementById("years").value}`;
 
         try {
           const response = await fetch(apiUrl);
@@ -91,9 +135,9 @@
         const datasets = [1, 2, 3].map((produkt) => {
           const filteredData = cachedData.filter((item) => item.produkt === produkt);
           return {
-            label: `Product ${produkt}`,
+            label: `${convertIntToProduct(produkt)}`,
             data: filteredData.map((item) => parseFloat(item[selectedPercentage])),
-            borderColor: getRandomColor(),
+            borderColor: getProductColor(convertIntToProduct(produkt)),
             fill: false,
           };
         });
@@ -102,7 +146,7 @@
 
         const maxPercentage = Math.max(...datasets.flatMap((dataset) => dataset.data));
         // Calculate y-axis max value based on the max percentage, make it 2x most (So if 0.02% make it most 0.04%)
-        const yAxisMax = Math.ceil(maxPercentage * 2 * 100) / 100;
+        const yAxisMax = Math.min(Math.ceil(maxPercentage * 2 * 100) / 100, 100);
 
         chart = new Chart(ctx, {
           type: "line",
@@ -120,14 +164,28 @@
               y: {
                 beginAtZero: true,
                 max: yAxisMax,
+                ticks: {
+                  callback: function (value) {
+                    return value + "%"; // Append '%' to each tick label
+                  },
+                },
               },
             },
           },
         });
       }
 
-      function getRandomColor() {
-        return `#${Math.floor(Math.random() * 16777215).toString(16)}`;
+      function getProductColor(produkt) {
+        switch (produkt) {
+          case "Bus":
+            return "rgb(255, 99, 132)";
+          case "Tram":
+            return "rgb(54, 162, 235)";
+          case "UBahn":
+            return "rgb(75, 192, 192)";
+          default:
+            return "rgb(255, 205, 86)";
+        }
       }
     </script>
   </body>
