@@ -42,7 +42,8 @@ Displays all delays of a date or timespan on the map
 ## API
 Avaible at: `/api/v1`
 ### Stops
-`/search` Parameters:    
+`/search`: Look up a stop, even the once VAG dosn´t know because the data is broken  
+Parameters:    
 - Haltestellenname: String  
 - VGNKennung: Int  
 - VAGKennung: String  
@@ -50,7 +51,8 @@ Avaible at: `/api/v1`
 - Longitude: Int -Min/Max=180 optional  
 - Produkte: String (Bus,Tram,Ubahn)  
 
-`/location` Parameters:    
+`/location`:  
+Parameters:    
 - Latitude: Int -Min/Max=180 optional  
 - Longitude: Int -Min/Max=180 optional  
 - Radius: Number -Max=40000KM  
@@ -59,10 +61,13 @@ Avaible at: `/api/v1`
 `/:line` Possible: 4,5,6,7,8,10,11,U1,U2,U3  
 
 ### Toplists
-`/delay/:list` Possible: by_stops, by_lines, by_vehicles Parameters:  
+`/delay/:list` Possible: by_stops, by_lines, by_vehicles  
+Parameters:  
 - at: String (YYYY-MM-DD)  
 - from: String (YYYY-MM-DD) - Not fully added  
 - to: String (YYYY-MM-DD) - Not fully added  
+`/vehicle/distance/:at`: Returns all traveld (air distance) by Fahrzeugnummer (So no UBahn since that refers to KursID in this case, PVU, or connections that return -1 in the PULS API Response)  
+- at: String (YYYY-MM-DD)  (Betriebstag)  
 
 ### Live
 `/all` Returns all current trips   
@@ -70,17 +75,41 @@ Avaible at: `/api/v1`
 - Linie: String   
 
 ### Heatmap
-`/` Parameters:   
+`/`:  
+Parameters:   
 - at: String (YYYY-MM-DD)   
 - from: String (YYYY-MM-DD) - Experimentell  
 - to: String (YYYY-MM-DD) - Experimentell  
 
 ### Statistics
-Will return a array of avrage delays, split into 1h time buckets, for a line.  
-`/delay/line` Parameters:  
-- line: String (Alphanumeric)  
+`/lines`: Returns all autodetected lines  
+`/delay/line`: Array of avrage delays, split into 1h time buckets, for a line.   
+Parameters:  
+- line: String (Alphanumeric)   
 - days: Int (1-365)  
-`/lines`
+`/delay/percentage/week/product`: Avrage delay per week per product  
+Parameters:  
+- outerNegBound: Int (-3600 - +3600)  
+- outerPosBound: Int (-3600 - +3600)  
+- lowerInnerBound: Int (-3600 - +3600)  
+- upperInnerBound: Int (-3600 - +3600)  
+- years: Int (1-10)  
+`/delay/percentage/month/product`: Avrage delay per month per product  
+Parameters:  
+- outerNegBound: Int (-3600 - +3600)  
+- outerPosBound: Int (-3600 - +3600)  
+- lowerInnerBound: Int (-3600 - +3600)  
+- upperInnerBound: Int (-3600 - +3600)  
+- years: Int (1-10)  
+
+### Vehicle
+`/history/:at/:id`    
+`/servedStops/:at/:id`    
+`/servedLines/:at/:id`    
+Parameters:   
+- id: Int (Fahrzeugnummer)  
+- at: String (YYYY-MM-DD) (Betriebstag)  
+
 
 ## Install
 ### Windows
