@@ -56,6 +56,8 @@ renderEJSToPublic(path.join(__dirname, 'views'), path.join(__dirname, 'public'),
     const refreshViews = async () => {
         try {
             await views.update_delay_map();
+            await views.update_delay_per_vehicle();
+            await views.update_delay_per_line();
             process.log.system('PG MATERIALIZED VIEW: Delay Views refreshed');
         } catch (error) {
             process.log.error(`Failed to refresh views: ${error}`);
