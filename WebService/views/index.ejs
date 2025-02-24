@@ -65,24 +65,29 @@
       const gridItems = [
         {
           image: "/dist/img/318438398-1b42237a-1d7c-4da9-9092-963dad3c6972.webp",
-          description: "Livemap with the current location of the vehicles operated by VAG Nürnberg. The vehicles can be clicked to get more information.",
+          description: "Livekarte mit dem aktuellen Standort der Fahrzeuge der VAG Nürnberg. Die Fahrzeuge können angeklickt werden, um weitere Informationen zu erhalten.",
           url: "/livemap",
         },
         {
           image: "/dist/img/318444039-a6953e61-28fb-4892-83ab-2da07ac3c001.webp",
-          description: "Heatmap of the delays of the vehicles operated by VAG Nürnberg. The heatmap shows the average delay of the vehicles at stations of a given day (Default yesterday).",
+          description: "Heatmap von Verspätungen der Fahrzeuge der VAG Nürnberg. Die Heatmap zeigt die durchschnittliche Verspätungen der Fahrzeuge an Stationen eines bestimmten Tages (Standard gestern).",
           url: "/heatmap",
         },
         {
           image: "/dist/img/linestats.webp",
-          description: "Table with the average arrival/departure delay in seconds per station per hour. Lines are extracted from the data any may not reflect temporary changes.",
+          description: "Tabelle mit der durchschnittlichen Ankunfts-/Abfahrtsverzögerung in Sekunden pro Station und Stunde. Die Linien werden aus den Daten extrahiert und spiegeln möglicherweise keine vorübergehenden Änderungen wider.",
           url: "/linestats",
         },
         {
           image: "/dist/img/vehicleHistory.webp",
-          description: "View the history of a vehicle, its like timetravle. You can select most of them by clicking on one of the markers and then 'Fahrzeughistorie'.",
+          description: "Schau dir die Geschichte eines Fahrzeugs an. Klicke herzu auf eine den Marker eines Fahrzeugs und dann auf „Fahrzeughistorie“.",
           url: "/livemap",
         },
+        {
+          image: "/dist/img/ProductLineChart.webp",
+          description: "Verspätungstatistik pro Woche oder Monat. Die Daten werden in einem Liniendiagramm dargestellt.",
+          url: "/ontimelinechart",
+        }
       ];
 
       // Get the grid container element
@@ -106,7 +111,7 @@
         // Create a link element
         const link = document.createElement("a");
         link.href = item.url;
-        link.textContent = "Take a look";
+        link.textContent = "Probiere es aus";
 
         // Append the image, description, and link to the grid item
         gridItem.appendChild(img);
