@@ -38,7 +38,7 @@ router.get('/delay/avrage/line', limiter(), async (req, res) => {
     res.json({station_order: linesWithStops[value.line], result});
 });
 
-router.get('/delay/percentage/week/product', limiter(), async (req, res) => {
+router.get('/delay/percentage/week/product', limiter(60), async (req, res) => {
     const value = await percentageSchema.validateAsync(req.query);
     if (value.error) {
         throw new Error(value.error);
@@ -49,7 +49,7 @@ router.get('/delay/percentage/week/product', limiter(), async (req, res) => {
     res.json(result);
 });
 
-router.get('/delay/percentage/month/product', limiter(), async (req, res) => {
+router.get('/delay/percentage/month/product', limiter(60), async (req, res) => {
     const value = await percentageSchema.validateAsync(req.query);
     if (value.error) {
         throw new Error(value.error);

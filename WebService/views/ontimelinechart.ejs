@@ -93,7 +93,7 @@
       </div>
 
       <div>
-        <button onclick="fetchAndRenderData()">Fetch & Render Chart</button>
+        <button id="fetchDataButton" onclick="fetchAndRenderData()">Lade Daten</button>
       </div>
     </div>
 
@@ -106,6 +106,7 @@
     </footer>
 
     <script>
+      const fetchDataButton = document.getElementById("fetchDataButton");
       const ctx = document.getElementById("linechart").getContext("2d");
       let chart;
       let cachedData = []; // Stores the last API response
@@ -117,16 +118,22 @@
       });
 
       async function fetchAndRenderData() {
+        fetchDataButton.disabled = true;
+        fetchDataButton.textContent = "Loading...";
         const timeRange = document.getElementById("timeRangeSelect").value;
         const apiUrl = `/api/v1/statistics/delay/percentage/${timeRange}/product?outerNegBound=${document.getElementById("outerNegBound").value * 60}&lowerInnerBound=${document.getElementById("lowerInnerBound").value * 60}&upperInnerBound=${document.getElementById("upperInnerBound").value * 60}&outerPosBound=${document.getElementById("outerPosBound").value * 60}&years=${document.getElementById("years").value}`;
 
         try {
           const response = await fetch(apiUrl);
+          fetchDataButton.disabled = false;
+          fetchDataButton.textContent = "Lade Daten";
           if (!response.ok) throw new Error("Failed to fetch data");
 
           cachedData = await response.json();
           updateChart();
         } catch (error) {
+          fetchDataButton.disabled = false;
+          fetchDataButton.textContent = "Lade Daten";
           console.error("Error fetching data:", error);
           alert("Failed to fetch data. Check console for details.");
         }
@@ -153,7 +160,7 @@
         const yAxisMax = Math.min(Math.ceil(maxPercentage * 2 * 100) / 100, 100);
 
         const uniqueLabels = Array.from(new Set(cachedData.map((item) => (timeRange === "month" ? new Date(item.month).toLocaleDateString() : `Week ${item.calendar_week}, ${item.year}`)))).reverse();
-        console.log(uniqueLabels);
+
         chart = new Chart(ctx, {
           type: "line",
           data: {
