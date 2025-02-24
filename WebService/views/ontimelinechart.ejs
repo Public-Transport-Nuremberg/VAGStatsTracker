@@ -101,6 +101,10 @@
       <canvas id="linechart"></canvas>
     </div>
 
+    <footer>
+      <p><%= appName %>@<%= commitId %> <a href="https://github.com/Public-Transport-Nuremberg/VAGStatsTracker">Source</a> <a href="/legal/legal">Imprint</a></p>
+    </footer>
+
     <script>
       const ctx = document.getElementById("linechart").getContext("2d");
       let chart;
@@ -114,7 +118,7 @@
 
       async function fetchAndRenderData() {
         const timeRange = document.getElementById("timeRangeSelect").value;
-        const apiUrl = `/api/v1/statistics/delay/percentage/${timeRange}/product?outerNegBound=${document.getElementById("outerNegBound").value*60}&lowerInnerBound=${document.getElementById("lowerInnerBound").value*60}&upperInnerBound=${document.getElementById("upperInnerBound").value*60}&outerPosBound=${document.getElementById("outerPosBound").value*60}&years=${document.getElementById("years").value}`;
+        const apiUrl = `/api/v1/statistics/delay/percentage/${timeRange}/product?outerNegBound=${document.getElementById("outerNegBound").value * 60}&lowerInnerBound=${document.getElementById("lowerInnerBound").value * 60}&upperInnerBound=${document.getElementById("upperInnerBound").value * 60}&outerPosBound=${document.getElementById("outerPosBound").value * 60}&years=${document.getElementById("years").value}`;
 
         try {
           const response = await fetch(apiUrl);
