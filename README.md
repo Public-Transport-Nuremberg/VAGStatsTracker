@@ -1,7 +1,7 @@
 # VAG Stats Tracker
 
 Custom PGSql Export format.  
-Download latest database export: [Download]([https://drive.google.com/file/d/1xIETqImCLORZ28-iWBaMhuKN1pEvS9Ij/view?usp=drive_link](https://drive.google.com/file/d/12ScJztC6z3Vov2dJzVnWbyXgHgLfVp6h/view?usp=sharing)) - 27 January 2025 until 17 July 2025
+Download latest database export: [Download](https://drive.google.com/file/d/19S12OzfUuCQW1LyZNWSvIXF-11IB50hc/view?usp=sharing) - 27 January 2025 until 19 July 2025
 
 [Try it out now](https://vagstats.ebg.pw/)  
 [Install](#Install)  
