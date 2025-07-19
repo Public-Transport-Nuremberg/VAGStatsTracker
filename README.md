@@ -230,7 +230,7 @@ SCAN_INTERVAL=5 # Scan every x seconds
 ERROR_EXPIRE=600 # Expire errors after X seconds
 ```
 
-### Project (The kickstarted still didn´t deliver :/)
+### Project (Deliverd Nov 2024) - Just no longer got time to play with it :/
 Unlike my other projects this project will be built around my learning curve to cloud like software architecture.  
 Target Hardware:
 - 4 Nodes each with:
