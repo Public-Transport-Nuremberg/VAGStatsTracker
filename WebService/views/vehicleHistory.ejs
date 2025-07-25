@@ -225,12 +225,49 @@
         if(currentStop.ankunftszeitsoll) timeString += `<p>Ankunft: ${new Date(currentStop.ankunftszeitsoll).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} (${currentStop.ankunftszeitverspätung > 0 ? "+" : ""}${currentStop.ankunftszeitverspätung})</p>`
         if(currentStop.abfahrtszeitsoll) timeString += `<p>Abfahrt: ${new Date(currentStop.abfahrtszeitsoll).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} (${currentStop.abfahrtszeitverspätung > 0 ? "+" : ""}${currentStop.abfahrtszeitverspätung})</p>`
 
+        // Calculate today's distance by summing the distances of all stops calculated from latitude and longitude
+        const todayDistance = busStops.slice(0, index + 1).reduce((total, stop, i) => {
+          if (i === 0) return total; // Skip the first stop
+          const prevStop = busStops[i - 1];
+          return total + geolib.getDistance(
+            { latitude: prevStop.latitude, longitude: prevStop.longitude },
+            { latitude: stop.latitude, longitude: stop.longitude }
+          ) / 1000;
+        }, 0).toFixed(2);
+
+        // Object to store distances by line. Split all entries into line buckets and calculate the distance for each line at the current index
+        // Line changes are ignored for the first stop after a line change
+        const todayDistanceByLine = {};
+        for (let i = 0; i <= index; i++) {
+          const stop = busStops[i];
+          if (!todayDistanceByLine[stop.linienname]) {
+            todayDistanceByLine[stop.linienname] = 0;
+          }
+          if (i > 0) { // Skip the first stop
+            const prevStop = busStops[i - 1];
+            if (prevStop.linienname === stop.linienname) {
+              todayDistanceByLine[stop.linienname] += geolib.getDistance(
+                { latitude: prevStop.latitude, longitude: prevStop.longitude },
+                { latitude: stop.latitude, longitude: stop.longitude }
+              ) / 1000;
+            }
+          }
+        }
+
+        // Generate paragraphs for each line's distance
+        let distanceParagraphs = "";
+        for (const [line, distance] of Object.entries(todayDistanceByLine)) {
+          distanceParagraphs += `<p>Teilstrecke Linie ${line}: ${distance.toFixed(2)} km</p>`;
+        }
+
         vehicleInfo.innerHTML = `
         <h4>Fahrzeug</h4>
         <p>Haltestelle: ${currentStop.haltestellenname}</p>
         <p>Linie: ${currentStop.linienname} (${convertIntToProduct(currentStop.produkt)})</p>
         ${timeString}
         <p>Besetzungsgrad: ${convertIntToBesetzungsgrad(currentStop.besetzungsgrad)}</p>
+        <p>Heutige Strecke: ${todayDistance} km</p>
+        ${distanceParagraphs}
         `;
 
         busMarkerSource.clear();
