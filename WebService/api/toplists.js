@@ -50,6 +50,7 @@ const validateWithDefault = async (input) => {
 router.get('/delay/:list', limiter(), async (req, res) => {
     const { list } = await routeSchema.validateAsync(req.params);
     const value = await validateWithDefault(req.query);
+
     if (value.error) {
         throw new Error(value.error);
     }
@@ -58,24 +59,57 @@ router.get('/delay/:list', limiter(), async (req, res) => {
         throw new Error('Not yet supported');
     }
 
+    const queryStart = performance.now();
+    let queryEnd = 0;
+    let calcStart = 0;
+    let calcEnd = 0;
+
     switch (list) {
         case 'by_stops':
             const result = await views.topList.delayByStops(value.at);
             for (let entry of result) {
                 entry.haltestelleInfo = StopObjectStore.get(entry.vgnkennung);
             }
-            res.json(result);
+            queryEnd = performance.now();
+            res.json({
+                meta: {
+                    queryTime: Math.floor(queryEnd - queryStart),
+                    groupTime: 0,
+                    calcTime: Math.floor(calcEnd - calcStart),
+                    sortTime: 0,
+                }, data: result
+            });
             break;
         case 'by_lines':
             const result2 = await views.topList.delayByLines(value.at);
-            res.json(result2);
+            queryEnd = performance.now();
+            res.json({
+                meta: {
+                    queryTime: Math.floor(queryEnd - queryStart),
+                    groupTime: 0,
+                    calcTime: Math.floor(calcEnd - calcStart),
+                    sortTime: 0,
+                }, data: result2
+            });
             break;
         case 'by_vehicles':
             const result3 = await views.topList.delayByVehicles(value.at);
+            queryEnd = performance.now();
+
+            calcStart = performance.now();
             for (let entry of result3) {
                 entry.fahrzeugInfo = vgn.getVehicleDataById(entry.fahrzeugnummer);
             }
-            res.json(result3);
+            calcEnd = performance.now();
+
+            res.json({
+                meta: {
+                    queryTime: Math.floor(queryEnd - queryStart),
+                    groupTime: 0,
+                    calcTime: Math.floor(calcEnd - calcStart),
+                    sortTime: 0,
+                }, data: result3
+            });
             break;
         default:
             throw new Error('Invalid query');
@@ -130,15 +164,17 @@ router.get('/vehicle/distance/:at', limiter(), async (req, res) => {
             fahrzeugnummer,
             distance_m: distances[fahrzeugnummer],
         };
-    }).sort((a, b) => b.distance - a.distance);
+    }).sort((a, b) => b.distance_m - a.distance_m);
     const sortEnd = performance.now();
 
-    res.json({meta: {
-        queryTime: Math.floor(queryEnd - queryStart),
-        groupTime: Math.floor(groupEnd - groupStart),
-        calcTime: Math.floor(calcEnd - calcStart),
-        sortTime: Math.floor(sortEnd - sortStart),
-    }, sortedData});
+    res.json({
+        meta: {
+            queryTime: Math.floor(queryEnd - queryStart),
+            groupTime: Math.floor(groupEnd - groupStart),
+            calcTime: Math.floor(calcEnd - calcStart),
+            sortTime: Math.floor(sortEnd - sortStart),
+        }, data: sortedData
+    });
 });
 
 module.exports = {
