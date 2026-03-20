@@ -132,3 +132,4 @@ global.json
 RabbitMQ/rabbitmq
 Redis/data
 *.html
+/.claude
