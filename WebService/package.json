@@ -20,6 +20,7 @@
         "@e2etest": "./e2e-test/*"
     },
     "dependencies": {
+        "@clickhouse/client": "^1.18.2",
         "@sentry/node": "^10.19.0",
         "bcrypt": "^6.0.0",
         "bullmq": "^5.61.0",
