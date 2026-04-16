@@ -9,11 +9,9 @@ services:
       - clickhouse_data:/var/lib/clickhouse
       - clickhouse_logs:/var/log/clickhouse-server
       - ./backups:/var/lib/clickhouse/backup   # BACKUP/RESTORE target, accessible from host
+      - ./users.d/default-user.xml:/etc/clickhouse-server/users.d/users.xml
     environment:
       CLICKHOUSE_DB: vagstats
-      CLICKHOUSE_USER: default
-      CLICKHOUSE_PASSWORD: ""
-      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     ulimits:
       nofile:
         soft: 262144
