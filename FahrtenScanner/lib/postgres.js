@@ -1,91 +1,135 @@
-const db = require('pg');
+const { createClient } = require('@clickhouse/client');
 
-const pool = new db.Pool({
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    database: process.env.DB_NAME,
+// Write services use async_insert so ClickHouse buffers small inserts server-side
+const client = createClient({
+    url: `http://${process.env.DB_HOST}:${process.env.DB_PORT || 8123}`,
+    username: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT,
-})
+    database: process.env.DB_NAME,
+    clickhouse_settings: {
+        async_insert: 1,
+        wait_for_async_insert: 0,
+    },
+});
 
 /**
- * Converts a product string to a integer
- * @param {String} product 
+ * Converts a product string to an integer
+ * @param {String} product
  * @returns {Number}
  */
 const convertProductToInt = (product) => {
     switch (product) {
-        case 'Bus':
-            return 1;
-        case 'UBahn':
-            return 2;
-        case 'Tram':
-            return 3;
-        case 'SBahn':
-            return 4;
-        case 'RBahn':
-            return 5;
-        default:
-            return 0;
+        case 'Bus':    return 1;
+        case 'UBahn':  return 2;
+        case 'Tram':   return 3;
+        case 'SBahn':  return 4;
+        case 'RBahn':  return 5;
+        default:       return 0;
     }
 }
 
+const convertProducttoBool = (product) => {
+    const productBooleans = {
+        Produkt_Bus: 0,
+        Produkt_UBahn: 0,
+        Produkt_Tram: 0,
+        Produkt_SBahn: 0,
+        Produkt_RBahn: 0,
+    };
+    if (!product) return productBooleans;
+
+    switch (product.trim()) {
+        case 'Bus':   productBooleans.Produkt_Bus = 1;   break;
+        case 'UBahn': productBooleans.Produkt_UBahn = 1; break;
+        case 'Tram':  productBooleans.Produkt_Tram = 1;  break;
+        case 'SBahn': productBooleans.Produkt_SBahn = 1; break;
+        case 'RBahn': productBooleans.Produkt_RBahn = 1; break;
+    }
+
+    return productBooleans;
+}
+
 /**
- * Converts a besetzungsgrad string to a integer
- * @param {String} besetzungsgrad 
+ * Extracts the gleis integer from a haltepunkt string
+ * @param {String} haltepunkt
  * @returns {Number}
  */
-const convertBesezungsgradToInt = (besetzungsgrad) => {
-    switch (besetzungsgrad) {
-        case 'Unbekannt':
-            return 1;
-        case 'Schwachbesetzt':
-            return 2;
-        case 'Starkbesetzt':
-            return 3;
-        case 'Ueberfuellt':
-            return 4;
-        default:
-            process.log.warn('Unknown Besetzungsgrad:', besetzungsgrad);
-            return 0;
-    }
+const convertHaltepunktToInt = (haltepunkt) => {
+    return parseInt(haltepunkt.split(':')[1], 10) || 0;
 }
 
 /**
- * Seperate the richtung from the string and convert it to a integer
- * @param {String} Richtung 
- * @returns 
+ * @param {Number} Fahrtnummer
+ * @param {String} Betriebstag
+ * @param {String} Produkt
+ * @param {Number} VGNKennung
+ * @param {String} Haltepunkt
+ * @param {String} Richtungstext
+ * @param {Date}   AnkunftszeitSoll
+ * @param {Number} AnkunftszeitVerspätung
+ * @param {Date}   AbfahrtszeitSoll
+ * @param {Number} AbfahrtszeitVerspätung
  */
-const convertRichtungToInt = (Richtung) => {
-    if (typeof Richtung === 'string') {
-        const matches = Richtung.match(/\d+/);
-        return matches ? parseInt(matches[0], 10) : 0;
-    }
-    process.log.warn('Unknown Richtung:', Richtung);
-    return 0;
-}
-
-/**
- * 
- * @param {Number} Fahrtnummer 
- * @param {String} Betriebstag 
- * @param {String} Produkt 
- * @param {String} Linienname 
- * @param {String} Besetzungsgrad 
- * @param {String} Fahrzeugnummer
- * @param {String} Richtung 
- */
-const insertOrUpdateFahrt = async (Fahrtnummer, Betriebstag, Produkt, Linienname, Besetzungsgrad, Fahrzeugnummer, Richtung) => {
-    if(Fahrzeugnummer === "PVU") Fahrzeugnummer = 0;
-    const query = `INSERT INTO fahrten (Fahrtnummer, Betriebstag, Produkt, Linienname, Besetzungsgrad, Fahrzeugnummer, Richtung) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (Fahrtnummer, Betriebstag, Produkt) DO UPDATE SET Linienname = $4, Besetzungsgrad = $5, Fahrzeugnummer = $6, Richtung = $7`;
-    const values = [Fahrtnummer, Betriebstag, convertProductToInt(Produkt), Linienname, convertBesezungsgradToInt(Besetzungsgrad), Fahrzeugnummer, convertRichtungToInt(Richtung)];
+const insertOrUpdateFahrtEntry = async (
+    Fahrtnummer, Betriebstag, Produkt, VGNKennung, Haltepunkt,
+    Richtungstext, AnkunftszeitSoll, AnkunftszeitVerspätung,
+    AbfahrtszeitSoll, AbfahrtszeitVerspätung
+) => {
     try {
-        await pool.query(query, values);
+        await client.insert({
+            table: 'fahrten_halte',
+            values: [{
+                Fahrtnummer:                  parseInt(Fahrtnummer),
+                Betriebstag:                  Betriebstag,
+                Produkt:                      convertProductToInt(Produkt),
+                VGNKennung:                   parseInt(VGNKennung),
+                Haltepunkt:                   convertHaltepunktToInt(Haltepunkt),
+                Richtungstext:                Richtungstext ?? '',
+                AnkunftszeitSoll:             AnkunftszeitSoll  ?? null,
+                'AnkunftszeitVerspätung':     AnkunftszeitVerspätung  ?? null,
+                AbfahrtszeitSoll:             AbfahrtszeitSoll  ?? null,
+                'AbfahrtszeitVerspätung':     AbfahrtszeitVerspätung  ?? null,
+            }],
+            format: 'JSONEachRow',
+        });
     } catch (error) {
-        throw error
+        throw error;
     }
-};
+}
+
+/**
+ * @param {Number}        VGNKennung
+ * @param {String}        VAGKennung
+ * @param {String}        Haltestellenname
+ * @param {Number}        Latitude
+ * @param {Number}        Longitude
+ * @param {String}        Produkt
+ */
+const insertOrUpdateHaltestelle = async (VGNKennung, VAGKennung, Haltestellenname, Latitude, Longitude, Produkt) => {
+    const { Produkt_Bus, Produkt_UBahn, Produkt_Tram, Produkt_SBahn, Produkt_RBahn } = convertProducttoBool(Produkt);
+    try {
+        await client.insert({
+            table: 'haltestellen',
+            values: [{
+                VGNKennung:      parseInt(VGNKennung),
+                VAGKennung:      VAGKennung.split(',').map(s => s.trim()),
+                Haltestellenname: Haltestellenname,
+                Latitude:        parseFloat(Latitude),
+                Longitude:       parseFloat(Longitude),
+                Produkt_Bus:     Produkt_Bus,
+                Produkt_UBahn:   Produkt_UBahn,
+                Produkt_Tram:    Produkt_Tram,
+                Produkt_SBahn:   Produkt_SBahn,
+                Produkt_RBahn:   Produkt_RBahn,
+            }],
+            format: 'JSONEachRow',
+        });
+    } catch (error) {
+        throw error;
+    }
+}
 
 module.exports = {
-    insertOrUpdateFahrt
+    insertOrUpdateHaltestelle,
+    insertOrUpdateFahrtEntry,
 }

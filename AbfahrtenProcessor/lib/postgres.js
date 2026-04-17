@@ -1,10 +1,10 @@
-const pg = require('pg');
+const { createClient } = require('@clickhouse/client');
 
-const pool = new db.Pool({
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    database: process.env.DB_NAME,
+const client = createClient({
+    url: `http://${process.env.DB_HOST}:${process.env.DB_PORT || 8123}`,
+    username: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT,
-})
+    database: process.env.DB_NAME,
+});
 
+module.exports = { client };

@@ -1,0 +1,23 @@
+services:
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.2.1-alpine
+    ports:
+      - "8123:8123"   # HTTP interface (used by @clickhouse/client)
+      - "9000:9000"   # Native TCP interface
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+      - ./backups:/var/lib/clickhouse/backup   # BACKUP/RESTORE target, accessible from host
+      - ./users.d/default-user.xml:/etc/clickhouse-server/users.d/users.xml
+    environment:
+      CLICKHOUSE_DB: vagstats
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    restart: always
+
+volumes:
+  clickhouse_data:
+  clickhouse_logs:
