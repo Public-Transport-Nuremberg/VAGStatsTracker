@@ -125,18 +125,29 @@ async function createTables() {
 // ── Table migrations ──────────────────────────────────────────────────────────
 
 async function getMaxBetriebstag(tableName) {
-    const rs = await ch.query({
-        query: `SELECT toString(max(betriebstag)) as m FROM ${tableName}`,
-        format: 'JSONEachRow',
-    });
-    const result = await rs.json();
-    const maxDate = result[0]?.m;
+    try {
+        const rs = await ch.query({
+            query: `SELECT MAX(betriebstag) as m FROM ${tableName}`,
+            format: 'JSONEachRow',
+        });
 
-    if (!maxDate || maxDate === '0000-00-00') return '1970-01-01';
+        const result = await rs.json();
+        const maxDate = result[0]?.m;
 
-    const d = new Date(maxDate);
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().slice(0, 10);
+        if (!maxDate || maxDate === '0000-00-00' || maxDate === '1970-01-01') {
+            return '1970-01-01';
+        }
+
+        const d = new Date(maxDate);
+        d.setDate(d.getDate() - 1);
+
+        const finalDate = d.toISOString().slice(0, 10);
+        console.log(`  [Debug] ClickHouse reported max date ${maxDate}, setting start to ${finalDate}`);
+        return finalDate;
+    } catch (err) {
+        console.error(`  [Debug] Error fetching max date from ${tableName}:`, err.message);
+        return '1970-01-01';
+    }
 }
 
 async function migrateHaltestellen() {
@@ -173,14 +184,14 @@ async function migrateFahrten() {
     console.log(`  → Looking for new data since: ${startDateStr}`);
 
     const { rows: [cnt] } = await pg.query(
-        'SELECT COUNT(*) AS n FROM fahrten WHERE betriebstag >= $1', 
+        'SELECT COUNT(*) AS n FROM fahrten WHERE betriebstag >= $1',
         [startDateStr]
     );
-    
+
     const total = parseInt(cnt.n);
-    if (!total) { 
-        console.log('  → Everything up to date.'); 
-        return; 
+    if (!total) {
+        console.log('  → Everything up to date.');
+        return;
     }
 
     console.log(`  → Found ${total.toLocaleString()} new/updated rows to migrate.`);
@@ -194,21 +205,21 @@ async function migrateFahrten() {
              LIMIT $2 OFFSET $3`,
             [startDateStr, BATCH_SIZE, offset]
         );
-        
+
         if (!rows.length) break;
 
         await ch.insert({
-            table:  'fahrten',
+            table: 'fahrten',
             format: 'JSONEachRow',
             values: rows.map(r => ({
-                Fahrtnummer:    r.fahrtnummer,
-                Betriebstag:    fmtDate(r.betriebstag),
-                Produkt:        r.produkt,
-                Linienname:     r.linienname,
+                Fahrtnummer: r.fahrtnummer,
+                Betriebstag: fmtDate(r.betriebstag),
+                Produkt: r.produkt,
+                Linienname: r.linienname,
                 Besetzungsgrad: r.besetzungsgrad,
                 Fahrzeugnummer: r.fahrzeugnummer,
-                Richtung:       r.richtung,
-                _updated_at:    fmtDateTime(new Date()) 
+                Richtung: r.richtung,
+                _updated_at: fmtDateTime(new Date())
             })),
         });
 
