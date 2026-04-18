@@ -5,7 +5,7 @@ Custom PGSql Export format.
 Data from the API is published under the Creative Commons Attribution 4.0 Int. license  
 URL: https://opendata.vag.de/  
 
-Download latest database export: [Download](https://drive.google.com/file/d/19S12OzfUuCQW1LyZNWSvIXF-11IB50hc/view?usp=sharing) - 27 January 2025 until 19 July 2025
+Download latest database export: [Download](https://drive.google.com/file/d/1WsdxNYbiaegu13yUydA3m48MArfmWu3V/view?usp=drive_link) - 27 January 2025 until 18 April 2026
 
 [Try it out now](https://vagstats.ebg.pw/)  
 [Install](#Install)  
