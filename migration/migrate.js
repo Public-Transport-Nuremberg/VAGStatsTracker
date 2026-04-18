@@ -62,56 +62,56 @@ async function createTables() {
             name: 'haltestellen',
             sql: `
                 CREATE TABLE IF NOT EXISTS haltestellen (
-                    vgnkennung       Int16,
-                    vagkennung       Array(String),
-                    haltestellenname String,
-                    latitude         Float64,
-                    longitude        Float64,
-                    produkt_bus      UInt8,
-                    produkt_ubahn    UInt8,
-                    produkt_tram     UInt8,
-                    produkt_sbahn    UInt8,
-                    produkt_rbahn    UInt8,
+                    VGNKennung       Int16,
+                    VAGKennung       Array(String),
+                    Haltestellenname String,
+                    Latitude         Float64,
+                    Longitude        Float64,
+                    Produkt_Bus      UInt8,
+                    Produkt_UBahn    UInt8,
+                    Produkt_Tram     UInt8,
+                    Produkt_SBahn    UInt8,
+                    Produkt_RBahn    UInt8,
                     _updated_at      DateTime DEFAULT now()
                 ) ENGINE = ReplacingMergeTree(_updated_at)
-                ORDER BY vgnkennung
+                ORDER BY VGNKennung;
             `,
         },
         {
             name: 'fahrten',
             sql: `
                 CREATE TABLE IF NOT EXISTS fahrten (
-                    fahrtnummer    Int32,
-                    betriebstag    Date,
-                    produkt        Int8,
-                    linienname     String,
-                    besetzungsgrad Int8,
-                    fahrzeugnummer Int32,
-                    richtung       Int8,
+                    Fahrtnummer    Int32,
+                    Betriebstag    Date,
+                    Produkt        Int8,
+                    Linienname     String,
+                    Besetzungsgrad Int8,
+                    Fahrzeugnummer Int32,
+                    Richtung       Int8,
                     _updated_at    DateTime DEFAULT now()
                 ) ENGINE = ReplacingMergeTree(_updated_at)
-                PARTITION BY toYYYYMM(betriebstag)
-                ORDER BY (betriebstag, fahrtnummer, produkt)
+                PARTITION BY toYYYYMM(Betriebstag)
+                ORDER BY (Betriebstag, Fahrtnummer, Produkt);
             `,
         },
         {
             name: 'fahrten_halte',
             sql: `
                 CREATE TABLE IF NOT EXISTS fahrten_halte (
-                    fahrtnummer                Int32,
-                    betriebstag                Date,
-                    produkt                    Int8,
-                    vgnkennung                 Int16,
-                    haltepunkt                 Int16,
-                    richtungstext              String,
-                    ankunftszeitsoll           Nullable(DateTime),
-                    \`ankunftszeitverspätung\` Nullable(Int16),
-                    abfahrtszeitsoll           Nullable(DateTime),
-                    \`abfahrtszeitverspätung\` Nullable(Int16),
-                    _updated_at                DateTime DEFAULT now()
+                    Fahrtnummer             Int32,
+                    Betriebstag             Date,
+                    Produkt                 Int8,
+                    VGNKennung              Int16,
+                    Haltepunkt              Int16,
+                    Richtungstext           String,
+                    AnkunftszeitSoll        Nullable(DateTime),
+                    \`AnkunftszeitVerspätung\`  Nullable(Int16),
+                    AbfahrtszeitSoll        Nullable(DateTime),
+                    \`AbfahrtszeitVerspätung\`  Nullable(Int16),
+                    _updated_at             DateTime DEFAULT now()
                 ) ENGINE = ReplacingMergeTree(_updated_at)
-                PARTITION BY toYYYYMM(betriebstag)
-                ORDER BY (betriebstag, vgnkennung, fahrtnummer, produkt)
+                PARTITION BY toYYYYMM(Betriebstag)
+                ORDER BY (Betriebstag, VGNKennung, Fahrtnummer, Produkt)
             `,
         },
     ];
@@ -127,11 +127,12 @@ async function createTables() {
 async function getMaxBetriebstag(tableName) {
     try {
         const rs = await ch.query({
-            query: `SELECT MAX(betriebstag) as m FROM ${tableName}`,
+            query: `SELECT MAX(Betriebstag) as m FROM ${tableName}`,
             format: 'JSONEachRow',
         });
 
         const result = await rs.json();
+        console.log(result)
         const maxDate = result[0]?.m;
 
         if (!maxDate || maxDate === '0000-00-00' || maxDate === '1970-01-01') {
