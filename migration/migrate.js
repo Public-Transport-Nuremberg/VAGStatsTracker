@@ -10,22 +10,22 @@
  */
 
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
-const { Pool }          = require('pg');
-const { createClient }  = require('@clickhouse/client');
+const { Pool } = require('pg');
+const { createClient } = require('@clickhouse/client');
 
 // ── Connections ───────────────────────────────────────────────────────────────
 
 const pg = new Pool({
-    host:     process.env.PG_HOST,
-    port:     parseInt(process.env.PG_PORT || 5432),
+    host: process.env.PG_HOST,
+    port: parseInt(process.env.PG_PORT || 5432),
     database: process.env.PG_DATABASE,
-    user:     process.env.PG_USER,
+    user: process.env.PG_USER,
     password: process.env.PG_PASSWORD,
 });
 
 const ch = createClient({
-    url:      `http://${process.env.CH_HOST}:${process.env.CH_PORT || 8123}`,
-    username: process.env.CH_USER     || 'default',
+    url: `http://${process.env.CH_HOST}:${process.env.CH_PORT || 8123}`,
+    username: process.env.CH_USER || 'default',
     password: process.env.CH_PASSWORD || '',
     database: process.env.CH_DATABASE || 'default',
     // Larger insert timeout for bulk migration
@@ -124,6 +124,21 @@ async function createTables() {
 
 // ── Table migrations ──────────────────────────────────────────────────────────
 
+async function getMaxBetriebstag(tableName) {
+    const rs = await ch.query({
+        query: `SELECT toString(max(betriebstag)) as m FROM ${tableName}`,
+        format: 'JSONEachRow',
+    });
+    const result = await rs.json();
+    const maxDate = result[0]?.m;
+
+    if (!maxDate || maxDate === '0000-00-00') return '1970-01-01';
+
+    const d = new Date(maxDate);
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
+}
+
 async function migrateHaltestellen() {
     console.log('\n[1/3] haltestellen');
 
@@ -132,19 +147,19 @@ async function migrateHaltestellen() {
     if (!rows.length) { console.log('  → empty, skipping'); return; }
 
     await ch.insert({
-        table:  'haltestellen',
+        table: 'haltestellen',
         format: 'JSONEachRow',
         values: rows.map(r => ({
-            VGNKennung:      r.vgnkennung,
-            VAGKennung:      r.vagkennung || [],     // pg driver returns text[] as JS array
+            VGNKennung: r.vgnkennung,
+            VAGKennung: r.vagkennung || [],     // pg driver returns text[] as JS array
             Haltestellenname: r.haltestellenname,
-            Latitude:         r.latitude,
-            Longitude:        r.longitude,
-            Produkt_Bus:      r.produkt_bus   ? 1 : 0,
-            Produkt_UBahn:    r.produkt_ubahn ? 1 : 0,
-            Produkt_Tram:     r.produkt_tram  ? 1 : 0,
-            Produkt_SBahn:    r.produkt_sbahn ? 1 : 0,
-            Produkt_RBahn:    r.produkt_rbahn ? 1 : 0,
+            Latitude: r.latitude,
+            Longitude: r.longitude,
+            Produkt_Bus: r.produkt_bus ? 1 : 0,
+            Produkt_UBahn: r.produkt_ubahn ? 1 : 0,
+            Produkt_Tram: r.produkt_tram ? 1 : 0,
+            Produkt_SBahn: r.produkt_sbahn ? 1 : 0,
+            Produkt_RBahn: r.produkt_rbahn ? 1 : 0,
         })),
     });
 
@@ -152,70 +167,86 @@ async function migrateHaltestellen() {
 }
 
 async function migrateFahrten() {
-    console.log('\n[2/3] fahrten');
+    console.log('\n[2/3] fahrten (Incremental)');
 
-    const { rows: [cnt] } = await pg.query('SELECT COUNT(*) AS n FROM fahrten');
+    const startDate = await getMaxBetriebstag('fahrten');
+    console.log(`  → Fetching data starting from: ${startDate}`);
+
+    const { rows: [cnt] } = await pg.query(
+        'SELECT COUNT(*) AS n FROM fahrten WHERE betriebstag >= $1',
+        [startDate]
+    );
     const total = parseInt(cnt.n);
-    if (!total) { console.log('  → empty, skipping'); return; }
+    if (!total) { console.log('  → Already up to date.'); return; }
 
-    let offset = 0, migrated = 0;
-
+    let offset = 0;
     while (offset < total) {
         const { rows } = await pg.query(
             `SELECT * FROM fahrten
+             WHERE betriebstag >= $1
              ORDER BY betriebstag, fahrtnummer, produkt
-             LIMIT $1 OFFSET $2`,
-            [BATCH_SIZE, offset]
+             LIMIT $2 OFFSET $3`,
+            [startDate, BATCH_SIZE, offset]
         );
+
         if (!rows.length) break;
 
         await ch.insert({
-            table:  'fahrten',
+            table: 'fahrten',
             format: 'JSONEachRow',
             values: rows.map(r => ({
-                Fahrtnummer:    r.fahrtnummer,
-                Betriebstag:    fmtDate(r.betriebstag),
-                Produkt:        r.produkt,
-                Linienname:     r.linienname,
+                Fahrtnummer: r.fahrtnummer,
+                Betriebstag: fmtDate(r.betriebstag),
+                Produkt: r.produkt,
+                Linienname: r.linienname,
                 Besetzungsgrad: r.besetzungsgrad,
                 Fahrzeugnummer: r.fahrzeugnummer,
-                Richtung:       r.richtung,
+                Richtung: r.richtung,
+                _updated_at: fmtDateTime(new Date()) // Current timestamp helps ReplacingMergeTree
             })),
         });
 
-        migrated += rows.length;
-        offset   += rows.length;
-        progress('fahrten', migrated, total);
+        offset += rows.length;
+        progress('fahrten', offset, total);
     }
-
-    console.log(`\n  → migrated ${migrated.toLocaleString()} rows`);
 }
 
 async function migrateFahrtenHalte() {
-    console.log('\n[3/3] fahrten_halte  (large table — migrating month by month)');
+    console.log('\n[3/3] fahrten_halte (Incremental — month by month)');
 
-    // Get the full date range so we can iterate month-by-month.
-    // This aligns with ClickHouse PARTITION BY toYYYYMM(Betriebstag).
+    // 1. Get the starting point (ClickHouse Max Date minus 1 day safety)
+    const startDateStr = await getMaxBetriebstag('fahrten_halte');
+    const startDate = new Date(startDateStr);
+    console.log(`  → Starting from: ${startDateStr}`);
+
+    // 2. Get the end point from Postgres
     const { rows: [range] } = await pg.query(
-        "SELECT MIN(betriebstag) AS min, MAX(betriebstag) AS max FROM fahrten_halte"
+        "SELECT MAX(betriebstag) AS max FROM fahrten_halte"
     );
-    if (!range.min) { console.log('  → empty, skipping'); return; }
+    if (!range.max) { console.log('  → Postgres table empty, skipping'); return; }
+    const lastDay = new Date(range.max);
 
-    const firstDay = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
+    // Helpers for month boundaries
+    const firstDayOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
     const nextMonthFirst = (d) => new Date(d.getFullYear(), d.getMonth() + 1, 1);
 
-    let current   = firstDay(new Date(range.min));
-    const lastDay = new Date(range.max);
+    // We start at the beginning of the month of our startDate 
+    // to ensure we align with ClickHouse partitions correctly.
+    let current = firstDayOfMonth(startDate);
     let totalMigrated = 0;
 
     while (current <= lastDay) {
         const monthStart = fmtDate(current);
-        const monthEnd   = fmtDate(new Date(nextMonthFirst(current) - 86400_000)); // last day of month
+        const monthEnd = fmtDate(new Date(nextMonthFirst(current) - 86400_000));
 
-        // Count rows in this month for display
+        // Only query rows that are AFTER our specific startDate within this month
+        // This prevents re-migrating the entire history if you're just catching up.
+        const effectiveStart = fmtDate(current > startDate ? current : startDate);
+
+        // Count rows in this month window for display
         const { rows: [mc] } = await pg.query(
             "SELECT COUNT(*) AS n FROM fahrten_halte WHERE betriebstag BETWEEN $1 AND $2",
-            [monthStart, monthEnd]
+            [effectiveStart, monthEnd]
         );
         const monthCount = parseInt(mc.n);
 
@@ -227,38 +258,39 @@ async function migrateFahrtenHalte() {
                      WHERE betriebstag BETWEEN $1 AND $2
                      ORDER BY betriebstag, vgnkennung, fahrtnummer, produkt
                      LIMIT $3 OFFSET $4`,
-                    [monthStart, monthEnd, BATCH_SIZE, offset]
+                    [effectiveStart, monthEnd, BATCH_SIZE, offset]
                 );
                 if (!rows.length) break;
 
                 await ch.insert({
-                    table:  'fahrten_halte',
+                    table: 'fahrten_halte',
                     format: 'JSONEachRow',
                     values: rows.map(r => ({
-                        Fahrtnummer:               r.fahrtnummer,
-                        Betriebstag:               fmtDate(r.betriebstag),
-                        Produkt:                   r.produkt,
-                        VGNKennung:                r.vgnkennung,
-                        Haltepunkt:                r.haltepunkt,
-                        Richtungstext:             r.richtungstext || '',
-                        AnkunftszeitSoll:            fmtDateTime(r.ankunftszeitsoll),
-                        'AnkunftszeitVerspätung':    r.ankunftszeitverspätung     ?? null,
-                        AbfahrtszeitSoll:            fmtDateTime(r.abfahrtszeitsoll),
-                        'AbfahrtszeitVerspätung':    r.abfahrtszeitverspätung     ?? null,
+                        Fahrtnummer: r.fahrtnummer,
+                        Betriebstag: fmtDate(r.betriebstag),
+                        Produkt: r.produkt,
+                        VGNKennung: r.vgnkennung,
+                        Haltepunkt: r.haltepunkt,
+                        Richtungstext: r.richtungstext || '',
+                        AnkunftszeitSoll: fmtDateTime(r.ankunftszeitsoll),
+                        'AnkunftszeitVerspätung': r.ankunftszeitverspätung ?? null,
+                        AbfahrtszeitSoll: fmtDateTime(r.abfahrtszeitsoll),
+                        'AbfahrtszeitVerspätung': r.abfahrtszeitverspätung ?? null,
+                        _updated_at: fmtDateTime(new Date())
                     })),
                 });
 
-                offset        += rows.length;
+                offset += rows.length;
                 totalMigrated += rows.length;
                 progress(`${monthStart}`, totalMigrated);
             }
         }
 
-        console.log(`  [${monthStart}] ${monthCount.toLocaleString()} rows  (total so far: ${totalMigrated.toLocaleString()})`);
+        console.log(`  [${monthStart}] ${monthCount.toLocaleString()} new rows (total synced: ${totalMigrated.toLocaleString()})`);
         current = nextMonthFirst(current);
     }
 
-    console.log(`\n  → migrated ${totalMigrated.toLocaleString()} rows total`);
+    console.log(`\n  → Incremental migration complete. Total new rows: ${totalMigrated.toLocaleString()}`);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
