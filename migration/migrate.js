@@ -212,38 +212,33 @@ async function migrateFahrten() {
 }
 
 async function migrateFahrtenHalte() {
-    console.log('\n[3/3] fahrten_halte (Incremental — month by month)');
+    console.log('\n[3/3] fahrten_halte (Incremental)');
 
-    // 1. Get the starting point (ClickHouse Max Date minus 1 day safety)
+    // 1. Get the last date in ClickHouse (e.g., Nov 2025)
     const startDateStr = await getMaxBetriebstag('fahrten_halte');
     const startDate = new Date(startDateStr);
-    console.log(`  → Starting from: ${startDateStr}`);
 
-    // 2. Get the end point from Postgres
-    const { rows: [range] } = await pg.query(
-        "SELECT MAX(betriebstag) AS max FROM fahrten_halte"
-    );
-    if (!range.max) { console.log('  → Postgres table empty, skipping'); return; }
+    // 2. Get the last date in Postgres (to know when to stop)
+    const { rows: [range] } = await pg.query("SELECT MAX(betriebstag) AS max FROM fahrten_halte");
+    if (!range.max) return;
     const lastDay = new Date(range.max);
 
-    // Helpers for month boundaries
     const firstDayOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
     const nextMonthFirst = (d) => new Date(d.getFullYear(), d.getMonth() + 1, 1);
 
-    // We start at the beginning of the month of our startDate 
-    // to ensure we align with ClickHouse partitions correctly.
+    // KEY CHANGE: Start the loop at the month of our last migration, not the PG MIN
     let current = firstDayOfMonth(startDate);
     let totalMigrated = 0;
+
+    console.log(`  → Resuming migration from ${fmtDate(current)}...`);
 
     while (current <= lastDay) {
         const monthStart = fmtDate(current);
         const monthEnd = fmtDate(new Date(nextMonthFirst(current) - 86400_000));
 
-        // Only query rows that are AFTER our specific startDate within this month
-        // This prevents re-migrating the entire history if you're just catching up.
+        // Only query rows from the safety point onwards
         const effectiveStart = fmtDate(current > startDate ? current : startDate);
 
-        // Count rows in this month window for display
         const { rows: [mc] } = await pg.query(
             "SELECT COUNT(*) AS n FROM fahrten_halte WHERE betriebstag BETWEEN $1 AND $2",
             [effectiveStart, monthEnd]
@@ -260,6 +255,7 @@ async function migrateFahrtenHalte() {
                      LIMIT $3 OFFSET $4`,
                     [effectiveStart, monthEnd, BATCH_SIZE, offset]
                 );
+
                 if (!rows.length) break;
 
                 await ch.insert({
@@ -284,13 +280,12 @@ async function migrateFahrtenHalte() {
                 totalMigrated += rows.length;
                 progress(`${monthStart}`, totalMigrated);
             }
+            console.log(`  [${monthStart}] ${monthCount.toLocaleString()} rows added.`);
         }
 
-        console.log(`  [${monthStart}] ${monthCount.toLocaleString()} new rows (total synced: ${totalMigrated.toLocaleString()})`);
         current = nextMonthFirst(current);
     }
-
-    console.log(`\n  → Incremental migration complete. Total new rows: ${totalMigrated.toLocaleString()}`);
+    console.log(`\n  → Done! Total new rows: ${totalMigrated.toLocaleString()}`);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
