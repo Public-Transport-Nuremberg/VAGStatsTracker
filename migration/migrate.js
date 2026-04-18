@@ -169,15 +169,21 @@ async function migrateHaltestellen() {
 async function migrateFahrten() {
     console.log('\n[2/3] fahrten (Incremental)');
 
-    const startDate = await getMaxBetriebstag('fahrten');
-    console.log(`  → Fetching data starting from: ${startDate}`);
+    const startDateStr = await getMaxBetriebstag('fahrten');
+    console.log(`  → Looking for new data since: ${startDateStr}`);
 
     const { rows: [cnt] } = await pg.query(
-        'SELECT COUNT(*) AS n FROM fahrten WHERE betriebstag >= $1',
-        [startDate]
+        'SELECT COUNT(*) AS n FROM fahrten WHERE betriebstag >= $1', 
+        [startDateStr]
     );
+    
     const total = parseInt(cnt.n);
-    if (!total) { console.log('  → Already up to date.'); return; }
+    if (!total) { 
+        console.log('  → Everything up to date.'); 
+        return; 
+    }
+
+    console.log(`  → Found ${total.toLocaleString()} new/updated rows to migrate.`);
 
     let offset = 0;
     while (offset < total) {
@@ -186,39 +192,38 @@ async function migrateFahrten() {
              WHERE betriebstag >= $1
              ORDER BY betriebstag, fahrtnummer, produkt
              LIMIT $2 OFFSET $3`,
-            [startDate, BATCH_SIZE, offset]
+            [startDateStr, BATCH_SIZE, offset]
         );
-
+        
         if (!rows.length) break;
 
         await ch.insert({
-            table: 'fahrten',
+            table:  'fahrten',
             format: 'JSONEachRow',
             values: rows.map(r => ({
-                Fahrtnummer: r.fahrtnummer,
-                Betriebstag: fmtDate(r.betriebstag),
-                Produkt: r.produkt,
-                Linienname: r.linienname,
+                Fahrtnummer:    r.fahrtnummer,
+                Betriebstag:    fmtDate(r.betriebstag),
+                Produkt:        r.produkt,
+                Linienname:     r.linienname,
                 Besetzungsgrad: r.besetzungsgrad,
                 Fahrzeugnummer: r.fahrzeugnummer,
-                Richtung: r.richtung,
-                _updated_at: fmtDateTime(new Date()) // Current timestamp helps ReplacingMergeTree
+                Richtung:       r.richtung,
+                _updated_at:    fmtDateTime(new Date()) 
             })),
         });
 
         offset += rows.length;
         progress('fahrten', offset, total);
     }
+    console.log(`\n  → Migration of new rows finished.`);
 }
 
 async function migrateFahrtenHalte() {
     console.log('\n[3/3] fahrten_halte (Incremental)');
 
-    // 1. Get the last date in ClickHouse (e.g., Nov 2025)
     const startDateStr = await getMaxBetriebstag('fahrten_halte');
     const startDate = new Date(startDateStr);
 
-    // 2. Get the last date in Postgres (to know when to stop)
     const { rows: [range] } = await pg.query("SELECT MAX(betriebstag) AS max FROM fahrten_halte");
     if (!range.max) return;
     const lastDay = new Date(range.max);
@@ -226,7 +231,6 @@ async function migrateFahrtenHalte() {
     const firstDayOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
     const nextMonthFirst = (d) => new Date(d.getFullYear(), d.getMonth() + 1, 1);
 
-    // KEY CHANGE: Start the loop at the month of our last migration, not the PG MIN
     let current = firstDayOfMonth(startDate);
     let totalMigrated = 0;
 
@@ -236,7 +240,6 @@ async function migrateFahrtenHalte() {
         const monthStart = fmtDate(current);
         const monthEnd = fmtDate(new Date(nextMonthFirst(current) - 86400_000));
 
-        // Only query rows from the safety point onwards
         const effectiveStart = fmtDate(current > startDate ? current : startDate);
 
         const { rows: [mc] } = await pg.query(
