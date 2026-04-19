@@ -34,7 +34,6 @@
         "hyper-express": "^6.17.3",
         "ioredis": "^5.8.1",
         "joi": "^18.0.1",
-        "megahash": "^1.0.5",
         "module-alias": "^2.2.3",
         "node-cron": "^4.2.1",
         "oepnv-nuremberg": "^0.4.2",
