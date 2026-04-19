@@ -33,7 +33,6 @@ class DB_Store {
 
             DB_Store.APIResponse = jsonData.Haltestellen;
 
-            // `set` is a method in subclasses
             for (const station of jsonData.Haltestellen) {
                 this.set(station.VGNKennung, station);
             }
@@ -176,7 +175,7 @@ class ObjectStore extends DB_Store {
     filterByQuery(query) {
         let results = null;
 
-        if(Object.keys(query).length === 0) return Object.values(this.data); // If the query is empty, return all values (no filtering needed)
+        if (Object.keys(query).length === 0) return Object.values(this.data); // If the query is empty, return all values (no filtering needed)
 
         Object.keys(query).forEach(key => {
             results = this.like(query[key], key, results || Object.values(this.data)); // Reuse the results from the previous query

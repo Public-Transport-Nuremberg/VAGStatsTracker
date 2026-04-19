@@ -7,7 +7,7 @@ const router = new HyperExpress.Router();
 
 const delayLineSchema = Joi.object({
     line: Joi.string().regex(/^[a-zA-Z0-9]+$/).required(),
-    days: Joi.number().integer().min(1).max(365).default(7).optional(),
+    days: Joi.number().integer().min(1).max(180).default(7).optional(),
 });
 
 const percentageSchema = Joi.object({
@@ -16,6 +16,17 @@ const percentageSchema = Joi.object({
     lowerInnerBound: Joi.number().integer().min(-3600).max(3600).default(-60).optional(),
     upperInnerBound: Joi.number().integer().min(-3600).max(3600).default(180).optional(),
     years: Joi.number().integer().min(1).max(10).default(1).optional(),
+});
+
+const histogramSchema = Joi.object({
+    startDate: Joi.date().iso().required(),
+    endDate: Joi.date().iso().min(Joi.ref('startDate')).required(),
+    binSize: Joi.number().integer().min(1).default(60).optional(),
+    minDelay: Joi.number().integer().min(-86400).max(86400).default(-900).optional(),
+    maxDelay: Joi.number().integer().min(-86400).max(86400).default(3600).optional(),
+    linienname: Joi.string().alphanum().optional(),
+    produkt: Joi.number().integer().optional(),
+    fahrzeugnummer: Joi.number().integer().optional(),
 });
 
 /* Plugin info*/
@@ -35,7 +46,7 @@ router.get('/delay/avrage/line', limiter(), async (req, res) => {
 
     const result = await statistics.getAvgDelayByLine(value.line, value.days);
 
-    res.json({station_order: linesWithStops[value.line], result});
+    res.json({ station_order: linesWithStops[value.line], result });
 });
 
 router.get('/delay/percentage/week/product', limiter(60), async (req, res) => {
@@ -44,9 +55,12 @@ router.get('/delay/percentage/week/product', limiter(60), async (req, res) => {
         throw new Error(value.error);
     }
 
-    const result = await statistics.percentageDelayByProductWeek(value.outerNegBound, value.outerPosBound, value.lowerInnerBound, value.upperInnerBound, value.years);
+    const { rows, summary } = await statistics.percentageDelayByProductWeek(value.outerNegBound, value.outerPosBound, value.lowerInnerBound, value.upperInnerBound, value.years);
 
-    res.json(result);
+    res.json({
+        data: rows,
+        summary: summary
+    });
 });
 
 router.get('/delay/percentage/month/product', limiter(60), async (req, res) => {
@@ -55,9 +69,31 @@ router.get('/delay/percentage/month/product', limiter(60), async (req, res) => {
         throw new Error(value.error);
     }
 
-    const result = await statistics.percentageDelayByProductMonth(value.outerNegBound, value.outerPosBound, value.lowerInnerBound, value.upperInnerBound, value.years);
+    const { rows, summary } = await statistics.percentageDelayByProductMonth(value.outerNegBound, value.outerPosBound, value.lowerInnerBound, value.upperInnerBound, value.years);
 
-    res.json(result);
+    res.json({
+        data: rows,
+        summary: summary
+    });
+});
+
+router.get('/delay/histogram', limiter(30), async (req, res) => {
+    const value = await histogramSchema.validateAsync(req.query);
+    if (value.error) throw new Error(value.error);
+
+    const { startDate, endDate, binSize, ...filters } = value;
+
+    const { result, summary } = await statistics.getDelayHistogram(
+        new Date(startDate),
+        new Date(endDate),
+        binSize,
+        filters
+    );
+
+    res.json({
+        data: result,
+        summary: summary
+    });
 });
 
 module.exports = {

@@ -92,9 +92,9 @@ const convertProducttoBool = (product) => {
 
   product.split(',').forEach(type => {
     switch (type.trim()) {
-      case 'Bus':   productBooleans.Produkt_Bus = 1;   break;
+      case 'Bus': productBooleans.Produkt_Bus = 1; break;
       case 'UBahn': productBooleans.Produkt_UBahn = 1; break;
-      case 'Tram':  productBooleans.Produkt_Tram = 1;  break;
+      case 'Tram': productBooleans.Produkt_Tram = 1; break;
       case 'SBahn': productBooleans.Produkt_SBahn = 1; break;
       case 'RBahn': productBooleans.Produkt_RBahn = 1; break;
     }
@@ -113,11 +113,11 @@ const insertOrUpdateHaltestelle = async (VGNKennung, VAGKennung, Haltestellennam
     await client.insert({
       table: 'haltestellen',
       values: [{
-        VGNKennung:      parseInt(VGNKennung),
-        VAGKennung:      VAGKennung.split(',').map(s => s.trim()),
+        VGNKennung: parseInt(VGNKennung),
+        VAGKennung: VAGKennung.split(',').map(s => s.trim()),
         Haltestellenname,
-        Latitude:        parseFloat(Latitude),
-        Longitude:       parseFloat(Longitude),
+        Latitude: parseFloat(Latitude),
+        Longitude: parseFloat(Longitude),
         Produkt_Bus,
         Produkt_UBahn,
         Produkt_Tram,
@@ -150,7 +150,7 @@ const getAllHaltestellen = async () => {
     `,
     format: 'JSONEachRow',
   });
-  return rs.json();
+  return await rs.json();
 }
 
 /* --- --- --- HeatMap --- --- --- */
@@ -173,7 +173,7 @@ const getHeatMapDataDay = async (day) => {
     query_params: { day },
     format: 'JSONEachRow',
   });
-  return rs.json();
+  return await rs.json();
 }
 
 const getHeatMapTimeFrame = async (start, end) => {
@@ -194,8 +194,68 @@ const getHeatMapTimeFrame = async (start, end) => {
     query_params: { start, end },
     format: 'JSONEachRow',
   });
-  return rs.json();
+  return await rs.json();
 }
+
+/**
+ * Generates a histogram of arrival delays with ClickHouse summary metadata.
+ * @param {Date} startDate - The start date for the histogram.
+ * @param {Date} endDate - The end date for the histogram.
+ * @param {number} binSize - The size of each bin in seconds.
+ * @param {Object} filters - Optional filters for the histogram.
+ * @param {string} [filters.linienname] - Filter by line name.
+ * @param {number} [filters.produkt] - Filter by product.
+ * @param {string} [filters.fahrzeugnummer] - Filter by vehicle number.
+ * @param {number} [filters.minDelay] - Minimum delay in seconds.
+ * @param {number} [filters.maxDelay] - Maximum delay in seconds.
+ */
+const getDelayHistogram = async (startDate, endDate, binSize = 60, filters = {}) => {
+  const { linienname, produkt, fahrzeugnummer, minDelay, maxDelay } = filters;
+
+  let filterClauses = [
+    `f.Betriebstag BETWEEN '${startDate.toISOString().split('T')[0]}' AND '${endDate.toISOString().split('T')[0]}'`
+  ];
+
+  if (linienname) filterClauses.push(`f.Linienname = '${linienname}'`);
+  if (produkt !== undefined) filterClauses.push(`f.Produkt = ${produkt}`);
+  if (fahrzeugnummer) filterClauses.push(`f.Fahrzeugnummer = ${fahrzeugnummer}`);
+  if (minDelay !== undefined) filterClauses.push(`fh.\`AnkunftszeitVerspätung\` >= ${minDelay}`);
+  if (maxDelay !== undefined) filterClauses.push(`fh.\`AnkunftszeitVerspätung\` <= ${maxDelay}`);
+
+  const query = `
+        SELECT
+            floor(fh.\`AnkunftszeitVerspätung\` / ${binSize}) * ${binSize} AS bin_start,
+            count() AS count
+        FROM fahrten_halte AS fh
+        INNER JOIN fahrten AS f 
+            ON fh.Fahrtnummer = f.Fahrtnummer 
+            AND fh.Betriebstag = f.Betriebstag 
+            AND fh.Produkt = f.Produkt
+        WHERE ${filterClauses.join(' AND ')}
+          AND fh.\`AnkunftszeitVerspätung\` IS NOT NULL
+        GROUP BY bin_start
+        ORDER BY bin_start ASC
+    `;
+
+  try {
+    const rs = await client.query({
+      query: query,
+      format: 'JSONEachRow',
+      clickhouse_settings: {
+        send_progress_in_http_headers: 1
+      }
+    });
+
+    const result = await rs.json();
+    const headers = rs.response_headers
+    const summary = JSON.parse(headers['x-clickhouse-summary'])
+
+    return { result, summary };
+  } catch (error) {
+    console.error('Histogram Query Failed:', error);
+    throw error;
+  }
+};
 
 /* --- --- --- TopLists --- --- --- */
 
@@ -218,7 +278,7 @@ const getTopListDelayByStops = async (day) => {
     query_params: { day },
     format: 'JSONEachRow',
   });
-  return rs.json();
+  return await rs.json();
 }
 
 const getTopListDelayByVehicles = async (day) => {
@@ -241,7 +301,7 @@ const getTopListDelayByVehicles = async (day) => {
     query_params: { day },
     format: 'JSONEachRow',
   });
-  return rs.json();
+  return await rs.json();
 }
 
 const getTopListDelayByLines = async (day) => {
@@ -264,7 +324,7 @@ const getTopListDelayByLines = async (day) => {
     query_params: { day },
     format: 'JSONEachRow',
   });
-  return rs.json();
+  return await rs.json();
 }
 
 /* --- --- --- Statistic and MISC --- --- --- */
@@ -274,7 +334,7 @@ const getDistinctLines = async () => {
     query: 'SELECT DISTINCT Linienname AS linienname FROM fahrten',
     format: 'JSONEachRow',
   });
-  return rs.json();
+  return await rs.json();
 }
 
 const getavragedelayperline = async (line, days) => {
@@ -314,7 +374,7 @@ const getVehicleHistory = async (vehicle, day) => {
         h.Haltestellenname                                              AS haltestellenname,
         h.Latitude                                                      AS latitude,
         h.Longitude                                                     AS longitude,
-        coalesce(fh.AbfahrtszeitSoll, fh.AnkunftszeitSoll)             AS zeitpunkt,
+        coalesce(fh.AbfahrtszeitSoll, fh.AnkunftszeitSoll)              AS zeitpunkt,
         f.Linienname                                                    AS linienname,
         f.Produkt                                                       AS produkt,
         f.Besetzungsgrad                                                AS besetzungsgrad,
@@ -335,7 +395,7 @@ const getVehicleHistory = async (vehicle, day) => {
     query_params: { vehicle: parseInt(vehicle), day },
     format: 'JSONEachRow',
   });
-  return rs.json();
+  return await rs.json();
 }
 
 const getAllVehicleHistorysGPS = async (day) => {
@@ -359,7 +419,7 @@ const getAllVehicleHistorysGPS = async (day) => {
     query_params: { day },
     format: 'JSONEachRow',
   });
-  return rs.json();
+  return await rs.json();
 }
 
 const servedLinesByVehicleIDandDay = async (vehicle, day) => {
@@ -373,7 +433,7 @@ const servedLinesByVehicleIDandDay = async (vehicle, day) => {
     query_params: { vehicle: parseInt(vehicle), day },
     format: 'JSONEachRow',
   });
-  return rs.json();
+  return await rs.json();
 }
 
 const servedStopsByVehicleIDandDay = async (vehicle, day) => {
@@ -397,8 +457,11 @@ const servedStopsByVehicleIDandDay = async (vehicle, day) => {
     query_params: { vehicle: parseInt(vehicle), day },
     format: 'JSONEachRow',
   });
+
   const rows = await rs.json();
-  return [{ haltestellen: rows }];
+  const headers = rs.response_headers
+  const summary = JSON.parse(headers['x-clickhouse-summary'])
+  return [{ haltestellen: rows, summary }];
 }
 
 const percentageDelayByProductMonth = async (outer_neg_bound, outer_pos_bound, lower_inner_bound, upper_inner_bound, years) => {
@@ -426,9 +489,14 @@ const percentageDelayByProductMonth = async (outer_neg_bound, outer_pos_bound, l
       lib: lower_inner_bound, uib: upper_inner_bound,
       years: parseInt(years),
     },
+    clickhouse_settings: { send_progress_in_http_headers: 1 },
     format: 'JSONEachRow',
   });
-  return rs.json();
+
+  const rows = await rs.json();
+  const headers = rs.response_headers
+  const summary = JSON.parse(headers['x-clickhouse-summary'])
+  return { rows, summary };
 }
 
 const percentageDelayByProductWeek = async (outer_neg_bound, outer_pos_bound, lower_inner_bound, upper_inner_bound, years) => {
@@ -457,41 +525,47 @@ const percentageDelayByProductWeek = async (outer_neg_bound, outer_pos_bound, lo
       lib: lower_inner_bound, uib: upper_inner_bound,
       years: parseInt(years),
     },
+    clickhouse_settings: { send_progress_in_http_headers: 1 },
     format: 'JSONEachRow',
   });
-  return rs.json();
+  
+  const rows = await rs.json();
+  const headers = rs.response_headers
+  const summary = JSON.parse(headers['x-clickhouse-summary'])
+  return { rows, summary };
 }
 
 /* --- --- --- Exports --- --- --- */
 
 const views = {
   topList: {
-    delayByStops:    getTopListDelayByStops,
+    delayByStops: getTopListDelayByStops,
     delayByVehicles: getTopListDelayByVehicles,
-    delayByLines:    getTopListDelayByLines,
+    delayByLines: getTopListDelayByLines,
   },
 }
 
 const haltestellen = {
-  insertOrUpdate:    insertOrUpdateHaltestelle,
+  insertOrUpdate: insertOrUpdateHaltestelle,
   getAllHaltestellen: getAllHaltestellen,
 }
 
 const heatmap = {
-  getDay:       getHeatMapDataDay,
+  getDay: getHeatMapDataDay,
   getTimeFrame: getHeatMapTimeFrame,
 }
 
 const statistics = {
-  getDistinctLines:              getDistinctLines,
-  getAvgDelayByLine:             getavragedelayperline,
+  getDistinctLines: getDistinctLines,
+  getAvgDelayByLine: getavragedelayperline,
   percentageDelayByProductMonth: percentageDelayByProductMonth,
-  percentageDelayByProductWeek:  percentageDelayByProductWeek,
+  percentageDelayByProductWeek: percentageDelayByProductWeek,
+  getDelayHistogram: getDelayHistogram,
 }
 
 const vehicle = {
-  getHistory:                  getVehicleHistory,
-  allGPS:                      getAllVehicleHistorysGPS,
+  getHistory: getVehicleHistory,
+  allGPS: getAllVehicleHistorysGPS,
   servedLinesByVehicleIDandDay: servedLinesByVehicleIDandDay,
   servedStopsByVehicleIDandDay: servedStopsByVehicleIDandDay,
 }

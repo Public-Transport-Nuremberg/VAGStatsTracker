@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Pünktlichkeitsstatistik</title>
     <script src="/dist/js/convertions.js"></script>
+    <script src="/dist/js/lib/chart.js"></script>
     <style>
       body {
         display: flex;
@@ -13,23 +14,74 @@
         justify-content: flex-start;
         height: 100vh;
         margin: 0;
-        overflow: hidden; /* Prevents unwanted scrollbars */
+        background-color: #f4f4f9;
+        overflow: hidden;
       }
 
       .controls {
         margin: 10px;
         display: flex;
+        flex-wrap: wrap;
         gap: 10px;
-        align-items: center;
+        align-items: flex-end;
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
       }
+
+      .controls div {
+        display: flex;
+        flex-direction: column;
+      }
+
+      label {
+        font-size: 11px;
+        margin-bottom: 4px;
+        color: #666;
+        font-weight: bold;
+      }
+
       .controls input,
       .controls select,
       .controls button {
-        height: 40px;
-        padding: 8px;
-        font-size: 16px;
+        height: 35px;
+        padding: 5px;
+        font-size: 14px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
         box-sizing: border-box;
       }
+
+      button {
+        background: #007bff;
+        color: white;
+        cursor: pointer;
+        border: none !important;
+        padding: 0 20px !important;
+      }
+
+      button:disabled {
+        background: #ccc;
+      }
+
+      /* Unified Stats Style */
+      .db-stats {
+        width: 90vw;
+        font-size: 11px;
+        color: #555;
+        background: #e9ecef;
+        padding: 5px 15px;
+        border-radius: 4px;
+        margin-bottom: 5px;
+        display: flex;
+        gap: 20px;
+        font-family: monospace;
+      }
+      .db-stats b {
+        color: #007bff;
+      }
+
       footer {
         position: fixed;
         z-index: 1000;
@@ -41,17 +93,23 @@
         text-align: center;
         height: 30px;
         font-size: 0.8em;
+        line-height: 30px;
       }
       footer a {
         color: #fff;
       }
     </style>
-    <script src="/dist/js/lib/chart.js"></script>
   </head>
   <body>
+    <div class="db-stats" id="dbStats">
+      <span>Rows Read: <b id="statRows">-</b></span>
+      <span>Speed: <b id="statSpeed">-</b> rows/s</span>
+      <span>Duration: <b id="statTime">-</b> ms</span>
+    </div>
+
     <div class="controls">
       <div>
-        <label for="timeRangeSelect">Time Range:</label>
+        <label>Time Range:</label>
         <select id="timeRangeSelect">
           <option value="month">Month</option>
           <option value="week">Week</option>
@@ -59,7 +117,7 @@
       </div>
 
       <div>
-        <label for="percentageSelect">Select Percentage:</label>
+        <label>Select Percentage:</label>
         <select id="percentageSelect">
           <option value="percentage_early">Early</option>
           <option value="percentage_on_time">On Time</option>
@@ -68,28 +126,28 @@
       </div>
 
       <div>
-        <label for="outerNegBound">Outer Negative Bound (minutes):</label>
-        <input style="width: 80px" id="outerNegBound" type="number" value="-15" />
+        <label>Outer Neg (min):</label>
+        <input style="width: 70px" id="outerNegBound" type="number" value="-15" />
       </div>
 
       <div>
-        <label for="lowerInnerBound">Lower Inner Bound (minutes):</label>
-        <input style="width: 80px" id="lowerInnerBound" type="number" value="-1" />
+        <label>Lower Inner (min):</label>
+        <input style="width: 70px" id="lowerInnerBound" type="number" value="-1" />
       </div>
 
       <div>
-        <label for="upperInnerBound">Upper Inner Bound (minutes):</label>
-        <input style="width: 80px" id="upperInnerBound" type="number" value="3" />
+        <label>Upper Inner (min):</label>
+        <input style="width: 70px" id="upperInnerBound" type="number" value="3" />
       </div>
 
       <div>
-        <label for="outerPosBound">Outer Positive Bound (minutes):</label>
-        <input style="width: 80px" id="outerPosBound" type="number" value="15" />
+        <label>Outer Pos (min):</label>
+        <input style="width: 70px" id="outerPosBound" type="number" value="15" />
       </div>
 
       <div>
-        <label for="years">Years:</label>
-        <input style="width: 80px" id="years" type="number" value="1" min="1" max="10" />
+        <label>Years:</label>
+        <input style="width: 60px" id="years" type="number" value="1" min="1" max="10" />
       </div>
 
       <div>
@@ -97,7 +155,7 @@
       </div>
     </div>
 
-    <div style="width: 95vw; height: 85vh">
+    <div style="width: 95vw; height: 75vh">
       <canvas id="linechart"></canvas>
     </div>
 
@@ -109,7 +167,7 @@
       const fetchDataButton = document.getElementById("fetchDataButton");
       const ctx = document.getElementById("linechart").getContext("2d");
       let chart;
-      let cachedData = []; // Stores the last API response
+      let cachedData = [];
 
       document.getElementById("percentageSelect").addEventListener("change", () => {
         if (cachedData.length > 0) {
@@ -120,22 +178,45 @@
       async function fetchAndRenderData() {
         fetchDataButton.disabled = true;
         fetchDataButton.textContent = "Loading...";
+
         const timeRange = document.getElementById("timeRangeSelect").value;
         const apiUrl = `/api/v1/statistics/delay/percentage/${timeRange}/product?outerNegBound=${document.getElementById("outerNegBound").value * 60}&lowerInnerBound=${document.getElementById("lowerInnerBound").value * 60}&upperInnerBound=${document.getElementById("upperInnerBound").value * 60}&outerPosBound=${document.getElementById("outerPosBound").value * 60}&years=${document.getElementById("years").value}`;
 
         try {
           const response = await fetch(apiUrl);
-          fetchDataButton.disabled = false;
-          fetchDataButton.textContent = "Lade Daten";
           if (!response.ok) throw new Error("Failed to fetch data");
 
-          cachedData = await response.json();
+          const body = await response.json();
+
+          cachedData = body.data || body;
+          const summary = body.summary;
+
+          if (summary) {
+            updatePerformanceUI(summary);
+          }
+
           updateChart();
         } catch (error) {
+          console.error("Error fetching data:", error);
+          alert("Failed to fetch data.");
+        } finally {
           fetchDataButton.disabled = false;
           fetchDataButton.textContent = "Lade Daten";
-          console.error("Error fetching data:", error);
-          alert("Failed to fetch data. Check console for details.");
+        }
+      }
+
+      function updatePerformanceUI(summary) {
+        document.getElementById("dbStats").style.display = "flex";
+
+        const rows = parseInt(summary.read_rows) || 0;
+        const ns = parseInt(summary.elapsed_ns) || 0;
+
+        document.getElementById("statRows").textContent = rows.toLocaleString();
+        document.getElementById("statTime").textContent = (ns / 1e6).toFixed(2);
+
+        if (ns > 0) {
+          const rps = rows / (ns / 1e9);
+          document.getElementById("statSpeed").textContent = Math.round(rps).toLocaleString();
         }
       }
 
@@ -149,17 +230,18 @@
             label: `${convertIntToProduct(produkt)}`,
             data: filteredData.map((item) => parseFloat(item[selectedPercentage])),
             borderColor: getProductColor(convertIntToProduct(produkt)),
+            backgroundColor: getProductColor(convertIntToProduct(produkt)),
+            tension: 0.2,
             fill: false,
           };
         });
 
         if (chart) chart.destroy();
 
-        const maxPercentage = Math.max(...datasets.flatMap((dataset) => dataset.data));
-        // Calculate y-axis max value based on the max percentage, make it 2x most (So if 0.02% make it most 0.04%)
-        const yAxisMax = Math.min(Math.ceil(maxPercentage * 2 * 100) / 100, 100);
+        const maxPercentage = Math.max(...datasets.flatMap((dataset) => dataset.data), 1);
+        const yAxisMax = Math.min(Math.ceil(maxPercentage * 1.5), 100);
 
-        const uniqueLabels = Array.from(new Set(cachedData.map((item) => (timeRange === "month" ? new Date(item.month).toLocaleDateString() : `Week ${item.calendar_week}, ${item.year}`)))).reverse();
+        const uniqueLabels = Array.from(new Set(cachedData.map((item) => (timeRange === "month" ? new Date(item.month).toLocaleDateString(undefined, { month: "2-digit", year: "numeric" }) : `W${item.calendar_week}, ${item.year}`)))).reverse();
 
         chart = new Chart(ctx, {
           type: "line",
@@ -169,14 +251,13 @@
           },
           options: {
             responsive: true,
+            maintainAspectRatio: false,
             scales: {
               y: {
                 beginAtZero: true,
                 max: yAxisMax,
                 ticks: {
-                  callback: function (value) {
-                    return value + "%"; // Append '%' to each tick label
-                  },
+                  callback: (value) => value + "%",
                 },
               },
             },

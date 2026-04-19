@@ -14,6 +14,13 @@ const client = createClient({
 const CONTACT_PAGE = 'https://www.vag.de/kontakt/lob-anfrage-und-beschwerde';
 const API_ENDPOINT = 'https://www.vag.de/index.php?id=180&type=7070';
 
+function cleanLineName(name) {
+  name = name.replace('U-Bahn-Linie ', '').trim();
+  name = name.replace('Tram-Linie ', '').trim();
+  name = name.replace('Bus-Linie ', '').trim();
+  return name;
+}
+
 async function getAvailableLines() {
   const response = await fetch(CONTACT_PAGE);
   const html = await response.text();
@@ -93,7 +100,7 @@ async function run() {
       const routeData = await getStopsForLine(line);
       if (routeData) {
         // Using line.name as the key (e.g., "U2", "Tram 4")
-        finalOutput[line.name] = routeData;
+        finalOutput[cleanLineName(line.name)] = routeData;
       }
     }
 

@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Delay Distribution Histogram</title>
+    <script src="/dist/js/convertions.js"></script>
+    <script src="/dist/js/lib/chart.js"></script>
+    <style>
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        font-family: sans-serif;
+        margin: 0;
+        background-color: #f4f4f9;
+        padding-bottom: 50px;
+      }
+      .controls {
+        margin: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        align-items: flex-end;
+      }
+      .controls div {
+        display: flex;
+        flex-direction: column;
+      }
+      label {
+        font-size: 11px;
+        margin-bottom: 4px;
+        color: #666;
+        font-weight: bold;
+      }
+      input,
+      select,
+      button {
+        height: 35px;
+        padding: 5px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+      }
+
+      .btn-add {
+        background: #28a745;
+        color: white;
+        border: none;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      .btn-clear {
+        background: #dc3545;
+        color: white;
+        border: none;
+        cursor: pointer;
+      }
+      button:disabled {
+        background: #ccc;
+      }
+
+      .layers-container {
+        width: 90vw;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+      }
+      .layer-tag {
+        background: #007bff;
+        color: white;
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .db-stats {
+        width: 90vw;
+        font-size: 11px;
+        color: #555;
+        background: #e9ecef;
+        padding: 5px 15px;
+        border-radius: 4px;
+        margin-bottom: 5px;
+        display: flex;
+        gap: 20px;
+        font-family: monospace;
+      }
+      .db-stats b {
+        color: #007bff;
+      }
+      .chart-container {
+        width: 95vw;
+        height: 65vh;
+        position: relative;
+      }
+      footer {
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+        background: #333;
+        color: #fff;
+        text-align: center;
+        height: 30px;
+        font-size: 0.8em;
+        line-height: 30px;
+        z-index: 100;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="db-stats" id="dbStats">
+      <span>Rows Read: <b id="statRows">-</b></span>
+      <span>Speed: <b id="statSpeed">-</b> rows/s</span>
+      <span>Duration: <b id="statTime">-</b> ms</span>
+    </div>
+    <div class="controls">
+      <div>
+        <label>Start Date</label>
+        <input type="date" id="startDate" />
+      </div>
+      <div>
+        <label>End Date</label>
+        <input type="date" id="endDate" />
+      </div>
+      <div>
+        <label>Min (Min)</label>
+        <input type="number" id="minDelay" value="-10" style="width: 60px" />
+      </div>
+      <div>
+        <label>Max (Min)</label>
+        <input type="number" id="maxDelay" value="30" style="width: 60px" />
+      </div>
+      <div>
+        <label>Bin Size</label>
+        <select id="binSize">
+          <option value="1">1s</option>
+          <option value="5">5s</option>
+          <option value="10">10s</option>
+          <option value="30">30s</option>
+          <option value="60" selected>1m</option>
+          <option value="300">5m</option>
+        </select>
+      </div>
+      <div>
+        <label>Product</label>
+        <select id="produkt">
+          <option value="">All</option>
+          <option value="1">U-Bahn</option>
+          <option value="2">Tram</option>
+          <option value="3">Bus</option>
+        </select>
+      </div>
+      <div>
+        <label>Scale</label>
+        <select id="scaleType" onchange="updateChartUI()">
+          <option value="linear">Linear</option>
+          <option value="logarithmic">Log</option>
+        </select>
+      </div>
+      <div>
+        <label>Display Mode</label>
+        <select id="displayMode" onchange="updateChartUI()">
+          <option value="count">Absolute Count</option>
+          <option value="percentage">Percentage (%)</option>
+        </select>
+      </div>
+      <div>
+        <button class="btn-add" id="addBtn" onclick="addTimeLayer()">Add to Compare</button>
+      </div>
+      <div>
+        <button class="btn-clear" onclick="clearLayers()">Clear All</button>
+      </div>
+    </div>
+
+    <div class="layers-container" id="layersList"></div>
+
+    <div class="chart-container">
+      <canvas id="histogramChart"></canvas>
+    </div>
+
+    <footer>
+      <p><%= appName %>@<%= commitId %> <a href="https://github.com/Public-Transport-Nuremberg/VAGStatsTracker" style="color: white">Source</a></p>
+    </footer>
+
+    <script>
+      let chart;
+      let comparisonData = [];
+      const colors = ["rgba(54, 162, 235, 0.7)", "rgba(255, 99, 132, 0.7)", "rgba(75, 192, 192, 0.7)", "rgba(255, 205, 86, 0.7)", "rgba(153, 102, 255, 0.7)"];
+
+      // Default dates
+      const end = new Date();
+      const start = new Date();
+      start.setDate(end.getDate() - 7);
+      document.getElementById("startDate").value = start.toISOString().split("T")[0];
+      document.getElementById("endDate").value = end.toISOString().split("T")[0];
+
+      async function addTimeLayer() {
+        const btn = document.getElementById("addBtn");
+        btn.disabled = true;
+
+        const startStr = document.getElementById("startDate").value;
+        const endStr = document.getElementById("endDate").value;
+
+        const params = new URLSearchParams({
+          startDate: startStr,
+          endDate: endStr,
+          binSize: document.getElementById("binSize").value,
+          minDelay: document.getElementById("minDelay").value * 60,
+          maxDelay: document.getElementById("maxDelay").value * 60,
+        });
+
+        const prod = document.getElementById("produkt").value;
+        if (prod) params.append("produkt", prod);
+
+        try {
+          const response = await fetch(`/api/v1/statistics/delay/histogram?${params.toString()}`);
+          const responseData = await response.json();
+
+          const rawData = responseData.data;
+          const summary = responseData.summary;
+
+          // Update your UI stats elements
+          if (summary) {
+            document.getElementById("statRows").textContent = parseInt(summary.read_rows).toLocaleString();
+            document.getElementById("statTime").textContent = (parseInt(summary.elapsed_ns) / 1e6).toFixed(2);
+
+            const rowsPerSec = parseInt(summary.read_rows) / (parseInt(summary.elapsed_ns) / 1e9);
+            document.getElementById("statSpeed").textContent = rowsPerSec.toLocaleString(undefined, { maximumFractionDigits: 0 });
+          }
+
+          // Process data for chart
+          const total = rawData.reduce((sum, item) => sum + parseInt(item.count), 0);
+          comparisonData.push({
+            label: `${document.getElementById("startDate").value} (${document.getElementById("binSize").value}s)`,
+            rawData: rawData,
+            total: total,
+          });
+
+          renderLayersList();
+          updateChartUI();
+          btn.disabled = false;
+        } catch (err) {
+          console.error("Fetch error:", err);
+        }
+      }
+
+      function clearLayers() {
+        comparisonData = [];
+        renderLayersList();
+        if (chart) chart.destroy();
+      }
+
+      function renderLayersList() {
+        const container = document.getElementById("layersList");
+        container.innerHTML = comparisonData
+          .map(
+            (layer, index) => `
+            <div class="layer-tag" style="background: ${colors[index % colors.length]}">
+                ${layer.label}
+            </div>
+        `,
+          )
+          .join("");
+      }
+
+      function updateChartUI() {
+        if (comparisonData.length === 0) return;
+
+        const mode = document.getElementById("displayMode").value;
+        const scaleType = document.getElementById("scaleType").value;
+        const ctx = document.getElementById("histogramChart").getContext("2d");
+
+        const allBins = new Set();
+        comparisonData.forEach((layer) => {
+          layer.rawData.forEach((item) => allBins.add(parseInt(item.bin_start)));
+        });
+
+        const sortedBins = Array.from(allBins).sort((a, b) => a - b);
+
+        const labels = sortedBins.map((sec) => {
+          const m = Math.floor(Math.abs(sec) / 60);
+          const s = Math.abs(sec) % 60;
+          const sign = sec < 0 ? "-" : "";
+          return `${sign}${m}:${s.toString().padStart(2, "0")}`;
+        });
+
+        const datasets = comparisonData.map((layer, index) => {
+          const binLookup = {};
+          layer.rawData.forEach((item) => {
+            binLookup[parseInt(item.bin_start)] = parseInt(item.count);
+          });
+
+          return {
+            label: layer.label + (mode === "percentage" ? " (%)" : ""),
+            data: sortedBins.map((bin) => {
+              const val = binLookup[bin] || 0;
+              return mode === "percentage" ? (val / layer.total) * 100 : val;
+            }),
+            backgroundColor: colors[index % colors.length],
+            borderColor: colors[index % colors.length].replace("0.7", "1"),
+            borderWidth: 1,
+            barPercentage: comparisonData.length > 1 ? 0.8 : 1.0,
+            categoryPercentage: 0.9,
+          };
+        });
+
+        if (chart) chart.destroy();
+
+        chart = new Chart(ctx, {
+          type: "bar",
+          data: { labels: labels, datasets: datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: { title: { display: true, text: "Delay (MM:SS)" } },
+              y: {
+                type: scaleType,
+                min: scaleType === "logarithmic" ? 0.1 : 0,
+                title: { display: true, text: mode === "percentage" ? "Frequency (%)" : "Frequency (Count)" },
+                ticks: {
+                  callback: (value) => (mode === "percentage" ? value.toFixed(1) + "%" : value.toLocaleString()),
+                },
+              },
+            },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}${mode === "percentage" ? "%" : ""}`,
+                },
+              },
+            },
+          },
+        });
+      }
+    </script>
+  </body>
+</html>
