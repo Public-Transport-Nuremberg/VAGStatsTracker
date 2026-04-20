@@ -31,7 +31,11 @@ const convertHaltepunktToInt = (haltepunkt) => {
     return parseInt(haltepunkt.split(':')[1], 10);
 };
 
-const toCHDateTime = (date) => date.toISOString().replace('T', ' ').slice(0, 19);
+const toCHDateTime = (val) => {
+    if (!val) return null;
+    const date = new Date(val);
+    return date.toISOString().replace('T', ' ').slice(0, 19);
+};
 
 /**
  * Maps to 'fahrten_halte' table
@@ -51,9 +55,9 @@ const insertOrUpdateFahrtEntry = async (
                 VGNKennung: parseInt(VGNKennung),
                 Haltepunkt: convertHaltepunktToInt(Haltepunkt),
                 Richtungstext,
-                AnkunftszeitSoll: AnkunftszeitSoll || null,
+                AnkunftszeitSoll: toCHDateTime(AnkunftszeitSoll),
                 AnkunftszeitVerspätung: AnkunftszeitVerspätung != null ? parseInt(AnkunftszeitVerspätung) : null,
-                AbfahrtszeitSoll: AbfahrtszeitSoll || null,
+                AbfahrtszeitSoll: toCHDateTime(AbfahrtszeitSoll),
                 AbfahrtszeitVerspätung: AbfahrtszeitVerspätung != null ? parseInt(AbfahrtszeitVerspätung) : null,
                 _updated_at: toCHDateTime(new Date())
             }],
