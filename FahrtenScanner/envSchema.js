@@ -45,23 +45,23 @@ module.exports = {
         "validation": "min:1||max:600",
         "default": 60
     },
-    "DB_HOST": {
-        "section": "DATABASE PG",
+    "CH_HOST": {
+        "section": "DATABASE CH",
         "type": "string",
         "validation": "required",
         "default": "127.0.0.1"
     },
-    "DB_PORT": {
+    "CH_PORT": {
         "type": "number",
         "validation": "required",
-        "default": 6969
+        "default": 8123
     },
-    "DB_USER": {
+    "CH_USER": {
         "type": "string",
         "validation": "required",
         "default": "postgres"
     },
-    "DB_PASSWORD": {
+    "CH_PASSWORD": {
         "type": "string",
         "validation": "required",
         "default": "postgres"
