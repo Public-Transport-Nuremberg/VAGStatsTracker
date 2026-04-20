@@ -7,6 +7,11 @@ services:
     volumes:
       - keydb_data:/data
     command: ["keydb-server", "/etc/keydb/keydb.conf", "--protected-mode", "no"]
+    healthcheck:
+      test: ["CMD", "keydb-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: always
 
 volumes:
