@@ -49,6 +49,8 @@ const convertRichtungToInt = (Richtung) => {
     return 0;
 }
 
+const toCHDateTime = (date) => date.toISOString().replace('T', ' ').slice(0, 19);
+
 /**
  * Maps to 'fahrten' table
  */
@@ -67,7 +69,7 @@ const insertOrUpdateFahrt = async (Fahrtnummer, Betriebstag, Produkt, Linienname
                 Besetzungsgrad: convertBesezungsgradToInt(Besetzungsgrad),
                 Fahrzeugnummer: finalFahrzeugnummer,
                 Richtung:       convertRichtungToInt(Richtung),
-                _updated_at:    new Date() // Required for your ReplacingMergeTree
+                _updated_at:    toCHDateTime(new Date()) // Required for your ReplacingMergeTree
             }],
             format: 'JSONEachRow',
         });

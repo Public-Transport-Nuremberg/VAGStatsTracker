@@ -31,6 +31,8 @@ const convertHaltepunktToInt = (haltepunkt) => {
     return parseInt(haltepunkt.split(':')[1], 10);
 };
 
+const toCHDateTime = (date) => date.toISOString().replace('T', ' ').slice(0, 19);
+
 /**
  * Maps to 'fahrten_halte' table
  */
@@ -53,7 +55,7 @@ const insertOrUpdateFahrtEntry = async (
                 AnkunftszeitVerspätung: AnkunftszeitVerspätung != null ? parseInt(AnkunftszeitVerspätung) : null,
                 AbfahrtszeitSoll: AbfahrtszeitSoll || null,
                 AbfahrtszeitVerspätung: AbfahrtszeitVerspätung != null ? parseInt(AbfahrtszeitVerspätung) : null,
-                _updated_at: new Date()
+                _updated_at: toCHDateTime(new Date())
             }],
             format: 'JSONEachRow',
         });
@@ -77,7 +79,7 @@ const insertOrUpdateHaltestelle = async (VGNKennung, VAGKennung, Haltestellennam
                 Latitude: parseFloat(Latitude),
                 Longitude: parseFloat(Longitude),
                 ...productBools,
-                _updated_at: new Date()
+                _updated_at: toCHDateTime(new Date())
             }],
             format: 'JSONEachRow',
         });
