@@ -1,14 +1,10 @@
 const { createClient } = require('@clickhouse/client');
 
 const client = createClient({
-    url: `http://${process.env.DB_HOST}:${process.env.DB_PORT || 8123}`,
-    username: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    clickhouse_settings: {
-        async_insert: 1,
-        wait_for_async_insert: 0,
-    },
+  url: `http://${process.env.CH_HOST}:${process.env.CH_PORT || 8123}`,
+  username: process.env.CH_USER,
+  password: process.env.CH_PASSWORD,
+  database: process.env.CH_DATABASE,
 });
 
 /**
