@@ -1,6 +1,5 @@
 const { createClient } = require('@clickhouse/client');
 
-// Write services use async_insert so ClickHouse buffers small inserts server-side
 const client = createClient({
     url: `http://${process.env.DB_HOST}:${process.env.DB_PORT || 8123}`,
     username: process.env.DB_USER,
@@ -13,74 +12,76 @@ const client = createClient({
 });
 
 /**
- * Converts a product string to an integer
- * @param {String} product
- * @returns {Number}
+ * Helpers
  */
 const convertProductToInt = (product) => {
-    switch (product) {
-        case 'Bus':    return 1;
-        case 'UBahn':  return 2;
-        case 'Tram':   return 3;
-        case 'SBahn':  return 4;
-        case 'RBahn':  return 5;
-        default:       return 0;
-    }
-}
+    const mapping = { 'Bus': 1, 'UBahn': 2, 'Tram': 3, 'SBahn': 4, 'RBahn': 5 };
+    return mapping[product] || 0;
+};
+
+const convertProducttoBoolInt = (product) => {
+    const products = {
+        Produkt_Bus: 0, Produkt_UBahn: 0, Produkt_Tram: 0,
+        Produkt_SBahn: 0, Produkt_RBahn: 0,
+    };
+    if (!product) return products;
+    const key = `Produkt_${product.trim()}`;
+    if (key in products) products[key] = 1; 
+    return products;
+};
+
+const convertHaltepunktToInt = (haltepunkt) => {
+    if (!haltepunkt || !haltepunkt.includes(':')) return 0;
+    return parseInt(haltepunkt.split(':')[1], 10);
+};
 
 /**
- * Converts a besetzungsgrad string to an integer
- * @param {String} besetzungsgrad
- * @returns {Number}
+ * Maps to 'fahrten_halte' table
  */
-const convertBesezungsgradToInt = (besetzungsgrad) => {
-    switch (besetzungsgrad) {
-        case 'Unbekannt':     return 1;
-        case 'Schwachbesetzt': return 2;
-        case 'Starkbesetzt':  return 3;
-        case 'Ueberfuellt':   return 4;
-        default:
-            process.log.warn('Unknown Besetzungsgrad:', besetzungsgrad);
-            return 0;
-    }
-}
-
-/**
- * Extracts the numeric Richtung from a string
- * @param {String} Richtung
- * @returns {Number}
- */
-const convertRichtungToInt = (Richtung) => {
-    if (typeof Richtung === 'string') {
-        const matches = Richtung.match(/\d+/);
-        return matches ? parseInt(matches[0], 10) : 0;
-    }
-    process.log.warn('Unknown Richtung:', Richtung);
-    return 0;
-}
-
-/**
- * @param {Number} Fahrtnummer
- * @param {String} Betriebstag
- * @param {String} Produkt
- * @param {String} Linienname
- * @param {String} Besetzungsgrad
- * @param {String} Fahrzeugnummer
- * @param {String} Richtung
- */
-const insertOrUpdateFahrt = async (Fahrtnummer, Betriebstag, Produkt, Linienname, Besetzungsgrad, Fahrzeugnummer, Richtung) => {
-    if (Fahrzeugnummer === 'PVU') Fahrzeugnummer = 0;
+const insertOrUpdateFahrtEntry = async (
+    Fahrtnummer, Betriebstag, Produkt, VGNKennung, Haltepunkt, 
+    Richtungstext, AnkunftszeitSoll, AnkunftszeitVerspätung, 
+    AbfahrtszeitSoll, AbfahrtszeitVerspätung
+) => {
     try {
         await client.insert({
-            table: 'fahrten',
+            table: 'fahrten_halte',
             values: [{
-                Fahrtnummer:    parseInt(Fahrtnummer),
-                Betriebstag:    Betriebstag,
-                Produkt:        convertProductToInt(Produkt),
-                Linienname:     Linienname,
-                Besetzungsgrad: convertBesezungsgradToInt(Besetzungsgrad),
-                Fahrzeugnummer: parseInt(Fahrzeugnummer),
-                Richtung:       convertRichtungToInt(Richtung),
+                Fahrtnummer: parseInt(Fahrtnummer),
+                Betriebstag, 
+                Produkt: convertProductToInt(Produkt),
+                VGNKennung: parseInt(VGNKennung),
+                Haltepunkt: convertHaltepunktToInt(Haltepunkt),
+                Richtungstext,
+                AnkunftszeitSoll: AnkunftszeitSoll || null,
+                AnkunftszeitVerspätung: AnkunftszeitVerspätung != null ? parseInt(AnkunftszeitVerspätung) : null,
+                AbfahrtszeitSoll: AbfahrtszeitSoll || null,
+                AbfahrtszeitVerspätung: AbfahrtszeitVerspätung != null ? parseInt(AbfahrtszeitVerspätung) : null,
+                _updated_at: new Date()
+            }],
+            format: 'JSONEachRow',
+        });
+    } catch (error) {
+        throw error;
+    }
+};
+
+/**
+ * Maps to 'haltestellen' table
+ */
+const insertOrUpdateHaltestelle = async (VGNKennung, VAGKennung, Haltestellenname, Latitude, Longitude, Produkt) => {
+    const productBools = convertProducttoBoolInt(Produkt);
+    try {
+        await client.insert({
+            table: 'haltestellen',
+            values: [{
+                VGNKennung: parseInt(VGNKennung),
+                VAGKennung: VAGKennung.split(','),
+                Haltestellenname,
+                Latitude: parseFloat(Latitude),
+                Longitude: parseFloat(Longitude),
+                ...productBools,
+                _updated_at: new Date()
             }],
             format: 'JSONEachRow',
         });
@@ -90,5 +91,6 @@ const insertOrUpdateFahrt = async (Fahrtnummer, Betriebstag, Produkt, Linienname
 };
 
 module.exports = {
-    insertOrUpdateFahrt,
-}
+    insertOrUpdateHaltestelle,
+    insertOrUpdateFahrtEntry
+};
