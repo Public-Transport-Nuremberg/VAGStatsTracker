@@ -4,162 +4,80 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Pünktlichkeitsstatistik</title>
+    <link rel="stylesheet" href="/dist/css/tailwind.css" />
     <script src="/dist/js/convertions.js"></script>
     <script src="/dist/js/lib/chart.js"></script>
-    <style>
-      body {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: flex-start;
-        height: 100vh;
-        margin: 0;
-        background-color: #f4f4f9;
-        overflow: hidden;
-      }
-
-      .controls {
-        margin: 10px;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        align-items: flex-end;
-        background: white;
-        padding: 15px;
-        border-radius: 8px;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-      }
-
-      .controls div {
-        display: flex;
-        flex-direction: column;
-      }
-
-      label {
-        font-size: 11px;
-        margin-bottom: 4px;
-        color: #666;
-        font-weight: bold;
-      }
-
-      .controls input,
-      .controls select,
-      .controls button {
-        height: 35px;
-        padding: 5px;
-        font-size: 14px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        box-sizing: border-box;
-      }
-
-      button {
-        background: #007bff;
-        color: white;
-        cursor: pointer;
-        border: none !important;
-        padding: 0 20px !important;
-      }
-
-      button:disabled {
-        background: #ccc;
-      }
-
-      /* Unified Stats Style */
-      .db-stats {
-        width: 90vw;
-        font-size: 11px;
-        color: #555;
-        background: #e9ecef;
-        padding: 5px 15px;
-        border-radius: 4px;
-        margin-bottom: 5px;
-        display: flex;
-        gap: 20px;
-        font-family: monospace;
-      }
-      .db-stats b {
-        color: #007bff;
-      }
-
-      footer {
-        position: fixed;
-        z-index: 1000;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        background: #333;
-        color: #fff;
-        text-align: center;
-        height: 30px;
-        font-size: 0.8em;
-        line-height: 30px;
-      }
-      footer a {
-        color: #fff;
-      }
-    </style>
   </head>
-  <body>
-    <div class="db-stats" id="dbStats">
+  <body class="vag-page">
+    <main class="vag-shell">
+      <header class="vag-header">
+        <div>
+          <h1 class="vag-title">Puenktlichkeitsstatistik</h1>
+          <p class="vag-subtitle">Produktbasierte Anteile fuer fruehe, puenktliche und spaete Fahrten.</p>
+        </div>
+        <a href="/" class="vag-button-secondary">Zurück</a>
+      </header>
+
+    <div class="vag-stat-bar mb-3" id="dbStats">
       <span>Rows Read: <b id="statRows">-</b></span>
       <span>Speed: <b id="statSpeed">-</b> rows/s</span>
       <span>Duration: <b id="statTime">-</b> ms</span>
     </div>
 
-    <div class="controls">
-      <div>
-        <label>Time Range:</label>
-        <select id="timeRangeSelect">
+    <div class="vag-control-bar">
+      <div class="vag-field">
+        <label class="vag-label">Time Range</label>
+        <select class="vag-input" id="timeRangeSelect">
           <option value="month">Month</option>
           <option value="week">Week</option>
         </select>
       </div>
 
-      <div>
-        <label>Select Percentage:</label>
-        <select id="percentageSelect">
+      <div class="vag-field">
+        <label class="vag-label">Select Percentage</label>
+        <select class="vag-input" id="percentageSelect">
           <option value="percentage_early">Early</option>
           <option value="percentage_on_time">On Time</option>
           <option value="percentage_late">Late</option>
         </select>
       </div>
 
-      <div>
-        <label>Outer Neg (min):</label>
-        <input style="width: 70px" id="outerNegBound" type="number" value="-15" />
+      <div class="vag-field min-w-24">
+        <label class="vag-label">Outer Neg (min)</label>
+        <input class="vag-input w-24" id="outerNegBound" type="number" value="-15" />
+      </div>
+
+      <div class="vag-field min-w-24">
+        <label class="vag-label">Lower Inner (min)</label>
+        <input class="vag-input w-24" id="lowerInnerBound" type="number" value="-1" />
+      </div>
+
+      <div class="vag-field min-w-24">
+        <label class="vag-label">Upper Inner (min)</label>
+        <input class="vag-input w-24" id="upperInnerBound" type="number" value="3" />
+      </div>
+
+      <div class="vag-field min-w-24">
+        <label class="vag-label">Outer Pos (min)</label>
+        <input class="vag-input w-24" id="outerPosBound" type="number" value="15" />
+      </div>
+
+      <div class="vag-field min-w-20">
+        <label class="vag-label">Years</label>
+        <input class="vag-input w-20" id="years" type="number" value="1" min="1" max="10" />
       </div>
 
       <div>
-        <label>Lower Inner (min):</label>
-        <input style="width: 70px" id="lowerInnerBound" type="number" value="-1" />
-      </div>
-
-      <div>
-        <label>Upper Inner (min):</label>
-        <input style="width: 70px" id="upperInnerBound" type="number" value="3" />
-      </div>
-
-      <div>
-        <label>Outer Pos (min):</label>
-        <input style="width: 70px" id="outerPosBound" type="number" value="15" />
-      </div>
-
-      <div>
-        <label>Years:</label>
-        <input style="width: 60px" id="years" type="number" value="1" min="1" max="10" />
-      </div>
-
-      <div>
-        <button id="fetchDataButton" onclick="fetchAndRenderData()">Lade Daten</button>
+        <button class="vag-button" id="fetchDataButton" onclick="fetchAndRenderData()">Lade Daten</button>
       </div>
     </div>
 
-    <div style="width: 95vw; height: 75vh">
+    <div class="vag-card mt-4 h-[70vh] w-full p-3">
       <canvas id="linechart"></canvas>
     </div>
+    </main>
 
-    <footer>
+    <footer class="vag-footer">
       <p><%= appName %>@<%= commitId %> <a href="https://github.com/Public-Transport-Nuremberg/VAGStatsTracker">Source</a> <a href="/legal/legal">Imprint</a></p>
     </footer>
 

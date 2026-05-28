@@ -6,6 +6,7 @@ const ejs = require('ejs');
 const app = new HyperExpress.Server({
     fast_buffers: process.env.HE_FAST_BUFFERS == 'false' ? false : true || false,
 });
+const { getLiveMapPayload, linequerySchema } = require('@lib/live_map');
 
 const { log_errors } = require('@config/errors')
 
@@ -13,8 +14,8 @@ app.use(expressCspHeader({
     directives: {
         'default-src': [SELF],
         'script-src': [SELF, INLINE],
-        'style-src': [SELF, INLINE, "https://rsms.me/inter/inter.css"],
-        'font-src': [SELF, "https://rsms.me/inter/font-files/"],
+        'style-src': [SELF, INLINE],
+        'font-src': [SELF],
         'img-src': [
             SELF,
             INLINE,
@@ -24,6 +25,8 @@ app.use(expressCspHeader({
         'worker-src': [SELF, INLINE, 'blob:'],
         'connect-src': [
             SELF,
+            'ws:',
+            'wss:',
             `ws://${process.env.WebSocketURL}`,
             `wss://${process.env.WebSocketURL}`
         ],
@@ -67,6 +70,42 @@ app.get('/vehicleHistory/*', (req, res) => {
 app.get('/ontimelinechart', (req, res) => {
     res.header('Content-Type', 'text/html');
     res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'ontimelinechart.html')));
+});
+
+app.upgrade('/api/v1/live/map/ws', async (req, res) => {
+    const query = await linequerySchema.validateAsync(req.query);
+    res.upgrade({ query });
+});
+
+app.ws('/api/v1/live/map/ws', { idle_timeout: 60, message_type: 'String', max_payload_length: 1024 }, (ws) => {
+    let query = ws.context.query || {};
+
+    const sendSnapshot = async () => {
+        try {
+            const data = await getLiveMapPayload(query, { validated: true });
+            ws.send(JSON.stringify({ type: 'snapshot', data, timestamp: new Date().toISOString() }));
+        } catch (error) {
+            process.log.error(error);
+            ws.send(JSON.stringify({ type: 'error', message: error.message || 'Failed to load live map data' }));
+        }
+    };
+
+    const interval = setInterval(sendSnapshot, Number(process.env.LIVE_MAP_WS_INTERVAL_MS) || 1000);
+
+    ws.on('message', async (message) => {
+        try {
+            const payload = JSON.parse(message);
+            if (payload.type === 'subscribe') {
+                query = await linequerySchema.validateAsync({ Linie: payload.Linie, Line: payload.Line, line: payload.line });
+                await sendSnapshot();
+            }
+        } catch (error) {
+            ws.send(JSON.stringify({ type: 'error', message: error.message || 'Invalid websocket message' }));
+        }
+    });
+
+    ws.on('close', () => clearInterval(interval));
+    sendSnapshot();
 });
 
 // Legal Pages

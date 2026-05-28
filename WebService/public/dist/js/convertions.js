@@ -58,7 +58,6 @@ const convertBesezungsgradToInt = (besetzungsgrad) => {
         case 'Ueberfuellt':
             return 4;
         default:
-            process.log.warn('Unknown Besetzungsgrad:', besetzungsgrad);
             return 0;
     }
 }
@@ -79,7 +78,6 @@ const convertIntToBesetzungsgrad = (besetzungsgradInt) => {
         case 4:
             return 'Ueberfuellt';
         default:
-            process.log.warn('Unknown Besetzungsgrad integer:', besetzungsgradInt);
             return 'Unknown';
     }
 }

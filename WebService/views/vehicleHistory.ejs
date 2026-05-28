@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>History Map</title>
+    <link rel="stylesheet" href="/dist/css/tailwind.css" />
     <link rel="stylesheet" href="/dist/css/ol.css" type="text/css" />
     <script src="/dist/js/convertions.js"></script>
     <script src="/dist/js/ol.js"></script>
@@ -53,7 +54,8 @@
   </head>
   <body>
     <div id="map"></div>
-    <div style="position: absolute; z-index: 2; bottom: 10%; left: 20px; background: white; padding: 10px; border-radius: 5px">
+    <a href="/livemap" class="vag-button-secondary fixed left-3 top-3 z-20 h-9 px-3 text-xs no-underline">Livemap</a>
+    <div class="vag-map-panel absolute bottom-[14%] left-3 z-20 max-w-[calc(100vw-1.5rem)] sm:left-5">
       <div id="vehicle_info"></div>
     </div>
     <div class="slider-container">

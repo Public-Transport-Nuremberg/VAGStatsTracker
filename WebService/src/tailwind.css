@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+  }
+
+  a {
+    @apply text-vag-blue underline-offset-4 hover:underline;
+  }
+}
+
+@layer components {
+  .vag-page {
+    @apply min-h-screen bg-slate-50 pb-14 text-slate-900;
+  }
+
+  .vag-shell {
+    @apply mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8;
+  }
+
+  .vag-header {
+    @apply mb-5 flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-end sm:justify-between;
+  }
+
+  .vag-title {
+    @apply text-2xl font-semibold tracking-normal text-slate-950 sm:text-3xl;
+  }
+
+  .vag-subtitle {
+    @apply max-w-3xl text-sm leading-6 text-slate-600;
+  }
+
+  .vag-card {
+    @apply rounded-lg border border-slate-200 bg-white shadow-sm;
+  }
+
+  .vag-panel {
+    @apply rounded-lg border border-slate-200 bg-white p-4 shadow-panel;
+  }
+
+  .vag-control-bar {
+    @apply flex w-full flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm;
+  }
+
+  .vag-field {
+    @apply flex min-w-32 flex-col gap-1;
+  }
+
+  .vag-label {
+    @apply text-xs font-semibold uppercase tracking-normal text-slate-500;
+  }
+
+  .vag-input {
+    @apply h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-vag-blue focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100;
+  }
+
+  .vag-button {
+    @apply inline-flex h-10 items-center justify-center rounded-md bg-vag-blue px-4 text-sm font-semibold text-white no-underline shadow-sm transition hover:bg-blue-700 hover:no-underline disabled:cursor-not-allowed disabled:bg-slate-300;
+  }
+
+  .vag-button-secondary {
+    @apply inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 no-underline shadow-sm transition hover:bg-slate-100 hover:no-underline;
+  }
+
+  .vag-button-danger {
+    @apply inline-flex h-10 items-center justify-center rounded-md bg-vag-red px-4 text-sm font-semibold text-white no-underline shadow-sm transition hover:bg-red-700 hover:no-underline;
+  }
+
+  .vag-stat-bar {
+    @apply flex w-full flex-wrap gap-4 rounded-md border border-slate-200 bg-slate-100 px-3 py-2 font-mono text-xs text-slate-600;
+  }
+
+  .vag-stat-bar b {
+    @apply text-vag-blue;
+  }
+
+  .vag-footer {
+    @apply fixed bottom-0 left-0 z-50 flex h-9 w-full items-center justify-center bg-slate-950 px-3 text-center text-xs text-white;
+  }
+
+  .vag-footer a {
+    @apply text-white;
+  }
+
+  .vag-map {
+    @apply fixed inset-0 h-screen w-screen;
+  }
+
+  .vag-map-panel {
+    @apply rounded-lg border border-slate-200 bg-white/95 p-3 shadow-panel backdrop-blur;
+  }
+
+  .vag-table-wrap {
+    @apply w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-sm;
+  }
+}

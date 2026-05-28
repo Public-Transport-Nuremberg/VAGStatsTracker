@@ -132,7 +132,6 @@ async function getMaxBetriebstag(tableName) {
         });
 
         const result = await rs.json();
-        console.log(result)
         const maxDate = result[0]?.m;
 
         if (!maxDate || maxDate === '0000-00-00' || maxDate === '1970-01-01') {

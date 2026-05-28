@@ -1,85 +1,232 @@
-const emojiMap = {
-	"UBahn": "🚇",
-	"Tram": "🚋",
-	"Bus": "🚌",
-}
+const productLabelMap = {
+	UBahn: "U-Bahn",
+	Tram: "Tram",
+	Bus: "Bus",
+};
+
+const productIconMap = {
+	UBahn: "U",
+	Tram: "T",
+	Bus: "B",
+};
+
+const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
+	"&": "&amp;",
+	"<": "&lt;",
+	">": "&gt;",
+	'"': "&quot;",
+	"'": "&#39;",
+}[char]));
 
 const formatSecondsToHTML = (seconds) => {
+	if (!Number.isFinite(seconds)) return '<span title="Keine Daten">-</span>';
 	const minutes = Math.round(Math.abs(seconds) / 60);
 	const sign = seconds >= 0 ? "+" : "-";
 
-	return `<span title="${seconds} Sek">${sign}${minutes} Min</span>`;
-}
+	return `<span title="${Math.round(seconds)} Sek">${sign}${minutes} Min</span>`;
+};
 
-const formatBesezungsgrad = (besetzungsgrad) => {
+const formatOccupancy = (besetzungsgrad) => {
 	switch (besetzungsgrad) {
-		case 'Unbekannt':
-			return 'Unbekannt';
-		case 'Schwachbesetzt':
-			return 'Schwach besetzt';
-		case 'Starkbesetzt':
-			return 'Stark besetzt';
-		case 'Ueberfuellt':
-			return 'Überfüllt';
+		case "Unbekannt":
+			return "Unbekannt";
+		case "Schwachbesetzt":
+			return "Schwach besetzt";
+		case "Starkbesetzt":
+			return "Stark besetzt";
+		case "Ueberfuellt":
+			return "Ueberfuellt";
 		default:
-			return 'Unbekannt';
+			return "Unbekannt";
 	}
-}
+};
+
+const formatLength = (millimeters) => {
+	const length = Number(millimeters);
+	if (!Number.isFinite(length)) return null;
+	return `${(length / 1000).toFixed(1)} m`;
+};
+
+const readDoorAccessibility = (info) => {
+	const doorCount = Number(info.anzahl_tueren || info.AnzahlTueren || 6);
+	const doors = [];
+
+	for (let i = 1; i <= Math.min(Math.max(doorCount, 0), 12); i++) {
+		const value = info[`tuer_${i}_mit_aufstellflaeche`];
+		if (value === true || value === "ja") doors.push(`<span title="Tuer ${i}: Rollstuhlbereich">[♿]</span>`);
+		else if (value === false || value === "nein") doors.push(`<span title="Tuer ${i}: Kein Rollstuhlbereich">[🚪]</span>`);
+		else if (value === "nv") doors.push(`<span title="Tuer ${i}: Nicht verfuegbar">[x]</span>`);
+	}
+
+	return doors.length ? doors.join(" ") : null;
+};
+
+const vehicleSpecRows = (info) => {
+	if (!info || typeof info !== "object") return "";
+
+	const kennzeichen = getInfoValue(info, ["Kennzeichen"]);
+	const stehplaetze = getInfoValue(info, ["Stehplätze", "Stehplaetze", "Stehplatze", "StehplÃ¤tze"]);
+	const sitzplaetze = getInfoValue(info, ["Sitzplätze", "Sitzplaetze", "Sitzplatze", "SitzplÃ¤tze"]);
+	const rollstuhlplaetze = getInfoValue(info, ["Rollstuhlplätze", "Rollstuhlplaetze", "Rollstuhlplatze", "RollstuhlplÃ¤tze"]);
+	const hasBusDetails = Boolean(kennzeichen || stehplaetze || rollstuhlplaetze);
+
+	const rows = [
+		["Name", info.Name],
+		["Kennzeichen", kennzeichen],
+		["Stehplätze", stehplaetze],
+		["Sitzplätze", hasBusDetails ? sitzplaetze : null],
+		["Rollstuhlplätze", rollstuhlplaetze],
+		["Plätze", info.Gesamtplaetze ? `${info.Gesamtplaetze} gesamt (${info.Sitzplaetze || "-"} Sitz / ${info.Stehplaetze4prom2 || "-"} Steh)` : null],
+		["Tueren", readDoorAccessibility(info)],
+	].filter(([, value]) => value !== null && value !== undefined && value !== "");
+
+	if (rows.length === 0) return "";
+
+	return `<dl class="lm-specs">${rows.map(([label, value]) => `
+		<div>
+			<dt>${escapeHTML(label)}</dt>
+			<dd>${label === "Tueren" ? value : escapeHTML(value)}</dd>
+		</div>
+	`).join("")}</dl>`;
+};
+
+const getInfoValue = (info, keys) => {
+	for (const key of keys) {
+		if (info?.[key] !== undefined && info[key] !== null && info[key] !== "") return info[key];
+	}
+	return null;
+};
+
+const vehicleFeatureBadges = (info) => {
+	if (!info || typeof info !== "object") return "";
+
+	const emojis = {
+		Klimatisierung: "❄️",
+		Rollstuhlplaetze: "♿",
+		Gas: "⛽",
+		Diesel: "⛽️",
+		CNG: "🍃",
+		Elektro: "🔋",
+	};
+
+	const badges = [];
+	const airConditioning = getInfoValue(info, ["Klimatisierung"]);
+	const wheelchairSpaces = getInfoValue(info, ["Rollstuhlplätze", "Rollstuhlplaetze", "RollstuhlplÃ¤tze"]);
+	const fuelType = getInfoValue(info, ["Kraftstoffart"]);
+
+	if (airConditioning) {
+		badges.push(`<span class="lm-feature-badge" title="${escapeHTML(airConditioning)}">${emojis.Klimatisierung}</span>`);
+	}
+
+	if (wheelchairSpaces) {
+		badges.push(`<span class="lm-feature-badge" title="${escapeHTML(wheelchairSpaces)} Rollstuhlplätze">${emojis.Rollstuhlplaetze}</span>`);
+	}
+
+	if (fuelType && emojis[fuelType]) {
+		badges.push(`<span class="lm-feature-badge" title="${escapeHTML(fuelType)}">${emojis[fuelType]}</span>`);
+	}
+
+	return badges.length ? `<span class="lm-feature-badges">${badges.join("")}</span>` : "";
+};
+
+const vehicleHeaderLine = (fahrzeugnummer, info) => {
+	const label = info?.Name || info?.typ || `Fahrzeug ${fahrzeugnummer || "-"}`;
+	return `${escapeHTML(label)}${vehicleFeatureBadges(info)}`;
+};
 
 const getVehicleInfo = (fahrzeugnummer, info) => {
-	console.log(fahrzeugnummer, info);
-	if (fahrzeugnummer === 'PVU') {
-		return '(Privat) - Keine Fahrzeugdaten verfügbar';
-	} else if (typeof info === "string") {
-		return `(${info}) - Keine Fahrzeugdaten verfügbar`;
-	} else {
-		let message = '(VAG) ';
-		const emojis = {
-			Klimatisierung: '❄️',
-			Rollstuhlplätze: '♿',
-			Gas: '⛽',
-			Diesel: '⛽️',
-			CNG: '🍃',
-			Elektro: '🔋',
-			DoorAccessible: '♿', // Door accessible for wheelchair emoji
-			DoorNotAccessible: '🚪', // Door not accessible emoji
-			DoorNotAvailable: '🚫', // Door status not available emoji
-		};
-
-		// Handling door accessibility
-		let accessibleDoors = 0;
-		let doorRepresentation = info.FahrzeugInfo ? 'Türen: ' : '';
-		for (let i = 1; i <= 6; i++) {
-			const doorKey = `tuer_${i}_mit_aufstellflaeche`;
-			if (info[doorKey] === 'ja') {
-				accessibleDoors++;
-				doorRepresentation += `<span title="Tür ${i}: Rollstuhlgerecht">[${emojis.DoorAccessible}]</span> `;
-			} else if (info[doorKey] === 'nein') {
-				doorRepresentation += `<span title="Tür ${i}: Nicht Rollstuhlgerecht">[${emojis.DoorNotAccessible}]</span> `;
-			} else if (info[doorKey] === 'nv') {
-				doorRepresentation += `<span title="Tür ${i}: Nicht verfügbar">[${emojis.DoorNotAvailable}]</span> `;
-			}
-		}
-
-		message += doorRepresentation;
-
-		// Add air conditioning emoji
-		if (info.Klimatisierung) { message += `<span title="${info.Klimatisierung}">${emojis.Klimatisierung}</span> `; }
-		// Add wheelchair space emoji
-		if (info.Rollstuhlplätze) { message += `<span title="${info.Rollstuhlplätze} Rollstuhlplätze">${emojis.Rollstuhlplätze}</span> `; }
-		// Add fuel type emoji
-		if (info.Kraftstoffart && emojis[info.Kraftstoffart]) { message += `<span title="${info.Kraftstoffart}">${emojis[info.Kraftstoffart]}</span>`; }
-		return message;
+	if (fahrzeugnummer === "PVU") {
+		return '<p class="lm-muted">(Privat) - Keine Fahrzeugdaten verfuegbar</p>';
 	}
-}
 
-// Example usage
-const resultHTML = formatSecondsToHTML(150); // For 150 seconds
-console.log(resultHTML); // Outputs: <span title="150 seconds">+2 minutes</span>
+	if (typeof info === "string") {
+		return `<p class="lm-muted">(${escapeHTML(info)}) - Keine Fahrzeugdaten verfuegbar</p>`;
+	}
 
-const resultHTMLNegative = formatSecondsToHTML(-150); // For -150 seconds
-console.log(resultHTMLNegative); // Outputs: <span title="-150 seconds">-2 minutes</span>
+	if (!info || typeof info !== "object") {
+		return '<p class="lm-muted">Keine Fahrzeugdaten verfuegbar</p>';
+	}
 
+	return vehicleSpecRows(info);
+};
+
+const propertiesToColor = (item) => {
+	switch (item.Produkt) {
+		case "UBahn":
+			return item.Linienname === "U1" ? "#005CA9" : item.Linienname === "U2" ? "#E3000B" : "#008A4B";
+		case "Tram":
+			return "#7C3AED";
+		case "Bus":
+			return "#E3000B";
+		default:
+			return "#111827";
+	}
+};
+
+const calculateTiming = (p) => {
+	const abfahrtszeitIst = new Date(p.AbfahrtszeitIst);
+	const abfahrtszeitSoll = new Date(p.AbfahrtszeitSoll);
+	const nextAnkunftszeitIst = new Date(p.nextAnkunftszeitIst);
+	const nextAnkunftszeitSoll = new Date(p.nextAnkunftszeitSoll);
+	const delayLast = abfahrtszeitIst - abfahrtszeitSoll;
+	const expectedTravelTime = nextAnkunftszeitSoll - abfahrtszeitSoll;
+	const expectedNextArrival = new Date(abfahrtszeitIst.getTime() + expectedTravelTime);
+	const delayNext = nextAnkunftszeitIst - expectedNextArrival;
+
+	return {
+		abfahrtszeitSoll,
+		nextAnkunftszeitSoll,
+		delayLast: delayLast / 1000,
+		delayNext: delayNext / 1000,
+	};
+};
+
+const formatStopLine = (label, stopName, products, time, delay) => `
+	<p><span>${label}</span>: ${escapeHTML(stopName || "-")} <small>${escapeHTML(products || "")}</small></p>
+	<p class="lm-time">${time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} (${formatSecondsToHTML(delay)})</p>
+`;
+
+const formatProgress = (progress) => {
+	const value = Math.round(Math.max(0, Math.min(1, Number(progress) || 0)) * 100);
+	return `<div class="lm-progress" title="${value}% zur naechsten Haltestelle"><span style="width: ${value}%"></span></div>`;
+};
+
+const renderVehicleCard = (p, compact = false) => {
+	const timing = calculateTiming(p);
+	const color = propertiesToColor(p);
+	const vehicleInfoHtml = getVehicleInfo(p.Fahrzeugnummer, p.FahrzeugInfo);
+	const vehicleHistory = `<a class="lm-link" href="/vehicleHistory/${escapeHTML(p.Betriebstag)}/${escapeHTML(p.Fahrzeugnummer)}" target="_blank" rel="noopener noreferrer">Fahrzeughistorie</a>`;
+
+	return `
+		<article class="lm-content">
+			<header class="lm-vehicle-head">
+				<span class="lm-route" style="background:${color}">${escapeHTML(productIconMap[p.Produkt] || "?")}${escapeHTML(p.Linienname || "")}</span>
+				<div>
+					<h2>${escapeHTML(productLabelMap[p.Produkt] || p.Produkt)} ${escapeHTML(p.Linienname || "")} nach ${escapeHTML(p.Richtungstext || "-")}</h2>
+					<p>${vehicleHeaderLine(p.Fahrzeugnummer, p.FahrzeugInfo)}</p>
+				</div>
+			</header>
+			${formatProgress(p.PercentageToNextStop)}
+			${formatStopLine("Letzter Halt", p.Haltestellenname, p.Produkte, timing.abfahrtszeitSoll, timing.delayLast)}
+			${formatStopLine("Naechster Halt", p.nextHaltestellenname, p.nextProdukte, timing.nextAnkunftszeitSoll, timing.delayNext)}
+			${compact ? "" : `
+				<p><span>Besetzgrad</span>: ${escapeHTML(formatOccupancy(p.Besetzgrad))}</p>
+				${vehicleInfoHtml ? `<section class="lm-vehicle-info">
+					<h3>Fahrzeug</h3>
+					${vehicleInfoHtml}
+				</section>` : ""}
+				${p.Fahrzeugnummer === "PVU" ? '<p class="lm-muted">Fahrzeughistorie nicht moeglich</p>' : vehicleHistory}
+			`}
+		</article>
+	`;
+};
+
+const setStatus = (label, state = "idle") => {
+	const status = document.getElementById("liveStatus");
+	if (!status) return;
+	status.textContent = label;
+	status.dataset.state = state;
+};
 
 const map = new ol.Map({
 	target: "map",
@@ -98,111 +245,64 @@ const vectorSource = new ol.source.Vector({
 	features: [],
 });
 
-const propertiesToColor = (item) => {
-	switch (item.Produkt) {
-		case "UBahn":
-			return item.Linienname === "U1" ? "blue" : item.Linienname === "U2" ? "red" : "green";
-		case "Tram":
-			return "purple";
-		case "Bus":
-			return "red";
-		default:
-			return "black";
-	}
-}
+const renderLiveMap = (data) => {
+	vectorSource.clear();
+
+	Object.keys(data).forEach((key) => {
+		const item = data[key];
+		if (!Number.isFinite(Number(item.Longitude)) || !Number.isFinite(Number(item.Latitude))) return;
+		const color = propertiesToColor(item);
+
+		const marker = new ol.Feature({
+			geometry: new ol.geom.Point(ol.proj.fromLonLat([Number(item.Longitude), Number(item.Latitude)])),
+			...item,
+			color,
+		});
+
+		vectorSource.addFeature(marker);
+	});
+
+	setStatus(`${vectorSource.getFeatures().length} Fahrzeuge live`, "live");
+};
 
 const refreshLiveMap = () => {
 	const queryString = window.location.search;
 
 	fetch(`/api/v1/live/map${queryString}`)
 		.then((response) => response.json())
-		.then((data) => {
-			vectorSource.clear();
-
-			Object.keys(data).forEach((key) => {
-				const item = data[key];
-				let color = propertiesToColor(item);
-
-				const marker = new ol.Feature({
-					geometry: new ol.geom.Point(ol.proj.fromLonLat([item.Longitude, item.Latitude])),
-					VGNKennung: item.VGNKennung,
-					VGNKennung: item.VGNKennung,
-					nextVGNKennung: item.nextVGNKennung,
-					nextVAGKennung: item.nextVAGKennung,
-					Produkt: item.Produkt,
-					nextProdukte: item.nextProdukte,
-					Linienname: item.Linienname,
-					Richtung: item.Richtung,
-					Richtungstext: item.Richtungstext,
-					Fahrzeugnummer: item.Fahrzeugnummer,
-					FahrzeugInfo: item.FahrzeugInfo,
-					Betriebstag: item.Betriebstag,
-					Besetzgrad: item.Besetzgrad,
-					Haltepunkt: item.Haltepunkt,
-					AnkunftszeitSoll: item.AnkunftszeitSoll,
-					AnkunftszeitIst: item.AnkunftszeitIst,
-					nextAnkunftszeitSoll: item.nextAnkunftszeitSoll,
-					nextAnkunftszeitIst: item.nextAnkunftszeitIst,
-					AbfahrtszeitSoll: item.AbfahrtszeitSoll,
-					AbfahrtszeitIst: item.AbfahrtszeitIst,
-					nextAbfahrtszeitSoll: item.nextAbfahrtszeitSoll,
-					nextAbfahrtszeitIst: item.nextAbfahrtszeitIst,
-					PercentageToNextStop: item.PercentageToNextStop,
-					Haltestellenname: item.Haltestellenname,
-					nextHaltestellenname: item.nextHaltestellenname,
-					Produkte: item.Produkte,
-					Latitude: item.Latitude,
-					nextLatitude: item.nextLatitude,
-					Longitude: item.Longitude,
-					nextLongitude: item.nextLongitude,
-					color: color,
-				});
-
-				vectorSource.addFeature(marker);
-			});
-		});
+		.then(renderLiveMap)
+		.catch(() => setStatus("HTTP Fallback gestoert", "error"));
 };
 
-// Create a cluster source with the vector source
 const clusterSource = new ol.source.Cluster({
-	distance: 5, // Cluster distance in pixels. Adjust as needed.
-	source: vectorSource, // The source with individual features
+	distance: window.innerWidth < 640 ? 28 : 10,
+	source: vectorSource,
 });
 
-// Create a vector layer using the cluster source
 const clusterLayer = new ol.layer.Vector({
 	source: clusterSource,
 	style: function (feature) {
 		const features = feature.get("features");
 		let color = features[0].get("color");
 		const allSameColor = features.every((f) => f.get("color") === color);
-
 		const size = features.length;
 
-		// If there's no feature (shouldn't happen in normal circumstances), return a default style
-		if (size === 0) {
-			return new ol.style.Style({
-				// Define a default style
-			});
-		}
+		if (size === 0) return new ol.style.Style({});
+		if (!allSameColor) color = "#111827";
 
-		if (!allSameColor) {
-			color = "black"; // Set to black if there are multiple colors
-		}
+		const label = size === 1 ? `${features[0].get("Linienname") || ""}` : size.toString();
 
 		return new ol.style.Style({
-			image: new ol.style.RegularShape({
-				fill: new ol.style.Fill({ color: color }),
-				stroke: new ol.style.Stroke({ color: color, width: 1 }),
-				points: 8,
-				radius: 8,
-				angle: Math.PI / 4,
+			image: new ol.style.Circle({
+				fill: new ol.style.Fill({ color }),
+				stroke: new ol.style.Stroke({ color: "#fff", width: 2 }),
+				radius: size === 1 ? 12 : 14,
 			}),
 			text: new ol.style.Text({
-				text: size.toString(),
-				fill: new ol.style.Fill({ color: "#fff" }), // White text color
-				stroke: new ol.style.Stroke({ color: "#000", width: 1 }), // Black text outline for readability
-				font: "bold 11px sans-serif",
+				text: label,
+				fill: new ol.style.Fill({ color: "#fff" }),
+				stroke: new ol.style.Stroke({ color: "#111827", width: 2 }),
+				font: "bold 11px system-ui, sans-serif",
 			}),
 		});
 	},
@@ -210,150 +310,89 @@ const clusterLayer = new ol.layer.Vector({
 
 const popup = document.getElementById("popup");
 const popupContent = document.getElementById("popup-content");
+const closePopupButton = document.getElementById("popup-close");
 
 const overlay = new ol.Overlay({
 	element: popup,
 	positioning: "bottom-center",
-	stopEvent: false,
-	offset: [0, 0],
+	stopEvent: true,
+	offset: [0, -18],
 });
 
-// Add the cluster layer to the map
 map.addLayer(clusterLayer);
 map.addOverlay(overlay);
 
 map.on("singleclick", function (event) {
-	map.forEachFeatureAtPixel(event.pixel, function (feature, layer) {
+	let foundFeature = false;
+
+	map.forEachFeatureAtPixel(event.pixel, function (feature) {
+		foundFeature = true;
 		const clusterPoints = feature.get("features");
 
 		if (clusterPoints.length > 1) {
-			// Smaler Cluster, Show multiple Pics
-			const features = feature.get("features");
-			const properties = features.map(function (feature) {
-				return feature.getProperties();
-			});
+			const properties = clusterPoints.map((clusterFeature) => clusterFeature.getProperties());
 
-			popupContent.innerHTML = `<div class="lm-content">
-                <h2>Fahrzeuge</h2>
-                ${properties
-					.map(function (p) {
-						const abfahrtszeitIst = new Date(p.AbfahrtszeitIst);
-						const abfahrtszeitSoll = new Date(p.AbfahrtszeitSoll);
-						const nextAnkunftszeitIst = new Date(p.nextAnkunftszeitIst);
-						const nextAnkunftszeitSoll = new Date(p.nextAnkunftszeitSoll);
+			popupContent.innerHTML = `
+				<div class="lm-cluster">
+					<h2>${properties.length} Fahrzeuge</h2>
+					${properties.map((p) => renderVehicleCard(p, true)).join("<div class='lm-split'></div>")}
+				</div>
+			`;
 
-						// Calculate delay at departure
-						const delayLast = abfahrtszeitIst - abfahrtszeitSoll;
-
-						// Calculate expected arrival time at the next stop if the travel had no additional delays
-						const expectedTravelTime = nextAnkunftszeitSoll - abfahrtszeitSoll;
-						const expectedNextAnkunftszeit = new Date(abfahrtszeitIst.getTime() + expectedTravelTime);
-
-						// Calculate the actual delay at the next stop
-						const vehicleHistory = `<p><a href="/vehicleHistory/${p.Betriebstag}/${p.Fahrzeugnummer}" target="_blank" rel="noopener noreferrer">Fahrzeughistorie</a></p>`
-						const delayNext = nextAnkunftszeitIst - expectedNextAnkunftszeit;
-						return `
-                        <div class="lm-content">
-							<h2>${emojiMap[p.Produkt]} <span style="color: ${propertiesToColor(p)}"</span>(${p.Linienname}) ${p.Richtungstext}</span></h2>
-							<p><span>Letzter Halt</span>: ${p.Haltestellenname} @ ${abfahrtszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayLast / 1000)})</p>
-							<p><span>Nächster Halt</span>: ${p.nextHaltestellenname} @ ${nextAnkunftszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayNext / 1000)})</p>
-							<p><span>Besetzgrad</span>: ${formatBesezungsgrad(p.Besetzgrad)}</p>
-							<p><span>Fahrzeug</span>: ${getVehicleInfo(p.Fahrzeugnummer, p.FahrzeugInfo)}</p>
-							${p.Fahrzeugnummer === 'PVU' ? 'Fahrzeughistorie nicht Möglich' : vehicleHistory}
-						</div>
-                    `;
-					})
-					.join("<div class='lm-split'></div>")}
-                </div>
-            `;
-
-			// popupContent.innerHTML = '<strong>Fahrzeuge</strong><br/>' +
-
-			//     // Add the properties of all features in the cluster use 1 row per feature
-			//     properties.map(function (properties) {
-			//         return `Linie: ${properties.Linienname} | Richtung: ${properties.Richtungstext} | Fahrzeugnummer: ${properties.Fahrzeugnummer} | Betriebstag: ${properties.Betriebstag} | Besetzgrad: ${properties.Besetzgrad} | Haltepunkt: ${properties.Haltepunkt} | Haltestelle: ${properties.Haltestellenname}`;
-			//     }).join('<br/>');
-
-			overlay.setPosition(
-				clusterPoints[0].getProperties().geometry.flatCoordinates
-			); // set position absolute to coords
+			overlay.setPosition(clusterPoints[0].getGeometry().getCoordinates());
 			popup.style.display = "block";
 		} else {
-			const feature = clusterPoints[0];
-			const p = feature.getProperties();
-
-			/*
-					VGNKennung: item.VGNKennung,
-					VGNKennung: item.VGNKennung,
-					nextVGNKennung: item.nextVGNKennung,
-					nextVAGKennung: item.nextVAGKennung,
-					Produkt: item.Produkt,
-					nextProdukte: item.nextProdukte,
-					Linienname: item.Linienname,
-					Richtung: item.Richtung,
-					Richtungstext: item.Richtungstext,
-					Fahrzeugnummer: item.Fahrzeugnummer,
-					Betriebstag: item.Betriebstag,
-					Besetzgrad: item.Besetzgrad,
-					Haltepunkt: item.Haltepunkt,
-					AnkunftszeitSoll: item.AnkunftszeitSoll,
-					AnkunftszeitIst: item.AnkunftszeitIst,
-					nextAnkunftszeitSoll: item.nextAnkunftszeitSoll,
-					nextAnkunftszeitIst: item.nextAnkunftszeitIst,
-					AbfahrtszeitSoll: item.AbfahrtszeitSoll,
-					AbfahrtszeitIst: item.AbfahrtszeitIst,
-					nextAbfahrtszeitSoll: item.nextAbfahrtszeitSoll,
-					nextAbfahrtszeitIst: item.nextAbfahrtszeitIst,
-					PercentageToNextStop: item.PercentageToNextStop,
-					Haltestellenname: item.Haltestellenname,
-					nextHaltestellenname: item.nextHaltestellenname,
-					Produkte: item.Produkte,
-					Latitude: item.Latitude,
-					nextLatitude: item.nextLatitude,
-					Longitude: item.Longitude,
-					nextLongitude: item.nextLongitude,
-					color: color,
-			*/
-
-			const abfahrtszeitIst = new Date(p.AbfahrtszeitIst);
-			const abfahrtszeitSoll = new Date(p.AbfahrtszeitSoll);
-			const nextAnkunftszeitIst = new Date(p.nextAnkunftszeitIst);
-			const nextAnkunftszeitSoll = new Date(p.nextAnkunftszeitSoll);
-
-			// Calculate delay at departure
-			const delayLast = abfahrtszeitIst - abfahrtszeitSoll;
-
-			// Calculate expected arrival time at the next stop if the travel had no additional delays
-			const expectedTravelTime = nextAnkunftszeitSoll - abfahrtszeitSoll;
-			const expectedNextAnkunftszeit = new Date(abfahrtszeitIst.getTime() + expectedTravelTime);
-
-			// Calculate the actual delay at the next stop
-			const delayNext = nextAnkunftszeitIst - expectedNextAnkunftszeit;
-
-			const vehicleHistory = `<p><a href="/vehicleHistory/${p.Betriebstag}/${p.Fahrzeugnummer}" target="_blank" rel="noopener noreferrer">Fahrzeughistorie</a></p>`
-
-			popupContent.innerHTML = `<div class="lm-content">
-                <h2>${emojiMap[p.Produkt]} <span style="color: ${propertiesToColor(p)}"</span>(${p.Linienname}) ${p.Richtungstext}</span></h2>
-				<p><span>Letzter Halt</span>: ${p.Haltestellenname} @ ${abfahrtszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayLast / 1000)})</p>
-				<p><span>Nächster Halt</span>: ${p.nextHaltestellenname} @ ${nextAnkunftszeitSoll.toLocaleTimeString()} (${formatSecondsToHTML(delayNext / 1000)})</p>
-                <p><span>Besetzgrad</span>: ${formatBesezungsgrad(p.Besetzgrad)}</p>
-				<p><span>Fahrzeug</span>: ${getVehicleInfo(p.Fahrzeugnummer, p.FahrzeugInfo)}</p>
-				${p.Fahrzeugnummer === 'PVU' ? 'Fahrzeughistorie nicht Möglich' : vehicleHistory}
-            </div>`;
-			overlay.setPosition(p.geometry.flatCoordinates); // set position absolute to coords
+			const p = clusterPoints[0].getProperties();
+			popupContent.innerHTML = renderVehicleCard(p);
+			overlay.setPosition(clusterPoints[0].getGeometry().getCoordinates());
 			popup.style.display = "block";
 		}
 	});
+
+	if (!foundFeature) popup.style.display = "none";
 });
 
-// Hide the popup when the map is moved
 map.on("movestart", function () {
 	popup.style.display = "none";
 });
 
-// Create a vector layer using the cluster source
-const vectorLayer = new ol.layer.Vector({
-	source: vectorSource,
+closePopupButton?.addEventListener("click", () => {
+	popup.style.display = "none";
 });
 
-setInterval(refreshLiveMap, 1000);
+document.getElementById("locateButton")?.addEventListener("click", () => {
+	const features = vectorSource.getFeatures();
+	if (features.length === 0) return;
+	const extent = vectorSource.getExtent();
+	map.getView().fit(extent, { padding: [80, 40, 80, 40], maxZoom: 15, duration: 250 });
+});
+
+const startHttpFallback = () => {
+	setStatus("HTTP Fallback", "fallback");
+	refreshLiveMap();
+	return setInterval(refreshLiveMap, 1000);
+};
+
+const connectLiveMap = () => {
+	if (!("WebSocket" in window)) return startHttpFallback();
+
+	const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+	const socket = new WebSocket(`${protocol}//${window.location.host}/api/v1/live/map/ws${window.location.search}`);
+	let fallbackInterval = null;
+
+	socket.addEventListener("open", () => setStatus("WebSocket verbunden", "live"));
+	socket.addEventListener("message", (event) => {
+		const payload = JSON.parse(event.data);
+		if (payload.type === "snapshot") renderLiveMap(payload.data);
+		if (payload.type === "error") setStatus(payload.message, "error");
+	});
+	socket.addEventListener("close", () => {
+		setStatus("WebSocket getrennt", "fallback");
+		if (!fallbackInterval) fallbackInterval = startHttpFallback();
+	});
+	socket.addEventListener("error", () => setStatus("WebSocket Fehler", "error"));
+
+	return socket;
+};
+
+connectLiveMap();

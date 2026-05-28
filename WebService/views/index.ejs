@@ -1,130 +1,73 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VAG Stats</title>
-    <style>
-      body {
-        margin: 0;
-        padding: 20px;
-        background-color: #f4f4f9;
-      }
-      .grid-container {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 20px;
-      }
-      .grid-item {
-        background: #fff;
-        border: 1px solid #ddd;
-        padding: 10px;
-        text-align: center;
-        box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
-      }
-      .grid-item img {
-        max-width: 100%;
-        height: auto;
-        display: block;
-        margin: 0 auto 10px;
-      }
-      .grid-item p {
-        margin: 0 0 10px;
-      }
-      .grid-item a {
-        color: #007acc;
-        text-decoration: none;
-      }
-      footer {
-        position: fixed;
-        z-index: 1000;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        background: #333;
-        color: #fff;
-        text-align: center;
-        height: 30px;
-        font-size: 0.8em;
-      }
-      footer a {
-        color: #fff;
-      }
-    </style>
+    <link rel="stylesheet" href="/dist/css/tailwind.css" />
   </head>
-  <body>
-    <div class="grid-container" id="gridContainer">
-      <!-- Grid items will be inserted here -->
-    </div>
-    <footer>
+  <body class="vag-page">
+    <main class="vag-shell">
+      <header class="vag-header">
+        <div>
+          <h1 class="vag-title">VAG Stats</h1>
+          <p class="vag-subtitle">Livekarten, Verspaetungen und Fahrzeugverlaeufe fuer den Nahverkehr in Nuernberg.</p>
+        </div>
+      </header>
+
+      <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <a class="vag-card group overflow-hidden no-underline transition hover:-translate-y-0.5 hover:shadow-panel" href="/livemap">
+          <img class="aspect-video w-full object-cover" src="/dist/img/318438398-1b42237a-1d7c-4da9-9092-963dad3c6972.webp" alt="Livemap" />
+          <div class="p-4">
+            <h2 class="text-lg font-semibold text-slate-950">Livemap</h2>
+            <p class="mt-1 text-sm leading-6 text-slate-600">Aktuelle Fahrzeugpositionen mit Linie, Richtung, Halten und Fahrzeugdetails.</p>
+          </div>
+        </a>
+
+        <a class="vag-card group overflow-hidden no-underline transition hover:-translate-y-0.5 hover:shadow-panel" href="/heatmap">
+          <img class="aspect-video w-full object-cover" src="/dist/img/318444039-a6953e61-28fb-4892-83ab-2da07ac3c001.webp" alt="Heatmap" />
+          <div class="p-4">
+            <h2 class="text-lg font-semibold text-slate-950">Heatmap</h2>
+            <p class="mt-1 text-sm leading-6 text-slate-600">Durchschnittliche Verspaetungen an Stationen fuer einen ausgewaehlten Tag.</p>
+          </div>
+        </a>
+
+        <a class="vag-card group overflow-hidden no-underline transition hover:-translate-y-0.5 hover:shadow-panel" href="/linestats">
+          <img class="aspect-video w-full object-cover" src="/dist/img/linestats.webp" alt="Linienstatistik" />
+          <div class="p-4">
+            <h2 class="text-lg font-semibold text-slate-950">Linienstatistik</h2>
+            <p class="mt-1 text-sm leading-6 text-slate-600">Ankunfts- und Abfahrtsverzoegerung je Station, Linie und Stunde.</p>
+          </div>
+        </a>
+
+        <a class="vag-card group overflow-hidden no-underline transition hover:-translate-y-0.5 hover:shadow-panel" href="/livemap">
+          <img class="aspect-video w-full object-cover" src="/dist/img/vehicleHistory.webp" alt="Fahrzeughistorie" />
+          <div class="p-4">
+            <h2 class="text-lg font-semibold text-slate-950">Fahrzeughistorie</h2>
+            <p class="mt-1 text-sm leading-6 text-slate-600">Historische Halte und Tagesstrecken direkt aus einem Livemap-Fahrzeug oeffnen.</p>
+          </div>
+        </a>
+
+        <a class="vag-card group overflow-hidden no-underline transition hover:-translate-y-0.5 hover:shadow-panel" href="/ontimelinechart">
+          <img class="aspect-video w-full object-cover" src="/dist/img/ProductLineChart.webp" alt="Puenktlichkeitsstatistik" />
+          <div class="p-4">
+            <h2 class="text-lg font-semibold text-slate-950">Puenktlichkeit</h2>
+            <p class="mt-1 text-sm leading-6 text-slate-600">Wochen- und Monatswerte nach Produkt als Liniendiagramm.</p>
+          </div>
+        </a>
+
+        <a class="vag-card group overflow-hidden no-underline transition hover:-translate-y-0.5 hover:shadow-panel" href="/histogram">
+          <img class="aspect-video w-full object-cover" src="/dist/img/Histogram.webp" alt="Histogramm" />
+          <div class="p-4">
+            <h2 class="text-lg font-semibold text-slate-950">Histogramm</h2>
+            <p class="mt-1 text-sm leading-6 text-slate-600">Verteilung der Verspaetungen mit Vergleich mehrerer Zeitraeume.</p>
+          </div>
+        </a>
+      </section>
+    </main>
+
+    <footer class="vag-footer">
       <p><%= appName %>@<%= commitId %> <a href="https://github.com/Public-Transport-Nuremberg/VAGStatsTracker">Source</a> <a href="/legal/legal">Imprint</a></p>
     </footer>
-
-    <script>
-      // Define an array of objects for each grid item
-      const gridItems = [
-        {
-          image: "/dist/img/318438398-1b42237a-1d7c-4da9-9092-963dad3c6972.webp",
-          description: "Livekarte mit dem aktuellen Standort der Fahrzeuge der VAG Nürnberg. Die Fahrzeuge können angeklickt werden, um weitere Informationen zu erhalten.",
-          url: "/livemap",
-        },
-        {
-          image: "/dist/img/318444039-a6953e61-28fb-4892-83ab-2da07ac3c001.webp",
-          description: "Heatmap von Verspätungen der Fahrzeuge der VAG Nürnberg. Die Heatmap zeigt die durchschnittliche Verspätungen der Fahrzeuge an Stationen eines bestimmten Tages (Standard gestern).",
-          url: "/heatmap",
-        },
-        {
-          image: "/dist/img/linestats.webp",
-          description: "Tabelle mit der durchschnittlichen Ankunfts-/Abfahrtsverzögerung in Sekunden pro Station und Stunde. Die Linien werden aus den Daten extrahiert und spiegeln möglicherweise keine vorübergehenden Änderungen wider.",
-          url: "/linestats",
-        },
-        {
-          image: "/dist/img/vehicleHistory.webp",
-          description: "Schau dir die Geschichte eines Fahrzeugs an. Klicke herzu auf eine den Marker eines Fahrzeugs und dann auf „Fahrzeughistorie“.",
-          url: "/livemap",
-        },
-        {
-          image: "/dist/img/ProductLineChart.webp",
-          description: "Verspätungstatistik pro Woche oder Monat. Die Daten werden in einem Liniendiagramm dargestellt.",
-          url: "/ontimelinechart",
-        },
-        {
-          image: "/dist/img/Histogram.webp",
-          description: "Histogram der Verspätungen. Die Daten werden in einem Histogram dargestellt.",
-          url: "/histogram",
-        }
-      ];
-
-      // Get the grid container element
-      const gridContainer = document.getElementById("gridContainer");
-
-      // Loop through each item in the array and create the grid elements
-      gridItems.forEach((item) => {
-        // Create a container div for the grid item
-        const gridItem = document.createElement("div");
-        gridItem.className = "grid-item";
-
-        // Create and set the image element
-        const img = document.createElement("img");
-        img.src = item.image;
-        img.alt = item.description;
-
-        // Create a paragraph for the description
-        const desc = document.createElement("p");
-        desc.textContent = item.description;
-
-        // Create a link element
-        const link = document.createElement("a");
-        link.href = item.url;
-        link.textContent = "Probiere es aus";
-
-        // Append the image, description, and link to the grid item
-        gridItem.appendChild(img);
-        gridItem.appendChild(desc);
-        gridItem.appendChild(link);
-
-        // Append the grid item to the container
-        gridContainer.appendChild(gridItem);
-      });
-    </script>
   </body>
 </html>

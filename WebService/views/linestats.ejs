@@ -4,145 +4,186 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Line Delay Heatmap</title>
+    <link rel="stylesheet" href="/dist/css/tailwind.css" />
     <style>
+      html,
       body {
         display: flex;
         flex-direction: column;
-        align-items: center; /* Centers horizontally */
-        justify-content: flex-start; /* Aligns content to the top */
-        height: 100vh;
-        margin: 0;
+        height: 100%;
+        overflow: hidden;
       }
-      .controls {
-        margin: 10px;
-        display: flex;
-        gap: 10px;
-        align-items: center;
+
+      .linestats-shell {
+        flex: 1 1 auto;
+        height: auto;
+        min-height: 0;
       }
+
+      .linestats-footer {
+        position: static;
+        flex: 0 0 2.25rem;
+      }
+
+      .linestats-table-wrap {
+        min-height: 0;
+        overflow: hidden;
+      }
+
       table {
-        margin-top: 10px;
+        width: 100%;
+        height: 100%;
         border-collapse: collapse;
-        width: auto;
+        table-layout: fixed;
       }
+
       th,
       td {
-        border: 1px solid black;
-        padding: 3px;
+        height: calc((100vh - 206px) / var(--row-count, 28));
+        max-height: 26px;
+        min-height: 14px;
+        border: 1px solid #cbd5e1;
+        padding: 0 3px;
+        overflow: hidden;
         text-align: center;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: clamp(8px, calc((100vh - 206px) / (var(--row-count, 28) * 1.65)), 12px);
+        line-height: 1.05;
       }
+
       th:first-child,
       td:first-child {
-        width: auto;
-        max-width: none;
-        white-space: nowrap;
+        width: 16rem;
+        max-width: 16rem;
+        text-align: left;
       }
+
       th:not(:first-child),
       td:not(:first-child) {
-        width: 50px;
-        overflow: hidden;
-        white-space: nowrap;
+        width: calc((100vw - 18rem) / 24);
       }
+
+      thead th {
+        font-weight: 700;
+        color: #0f172a;
+      }
+
       .heatmap-cell {
         color: white;
       }
-      /* Dropdown styles */
+
       .dropdown-container {
         position: relative;
+        min-width: 6rem;
       }
+
       .dropdown-input {
         width: 100%;
-        padding: 8px;
-        font-size: 16px;
         box-sizing: border-box;
       }
+
       .suggestions {
         position: absolute;
         top: 100%;
         left: 0;
         right: 0;
-        border: 1px solid #ccc;
-        border-top: none;
-        background: #fff;
+        z-index: 1000;
+        display: none;
         max-height: 150px;
         overflow-y: auto;
-        z-index: 1000;
-        display: none; /* Hidden by default */
+        border: 1px solid #cbd5e1;
+        border-top: none;
+        border-radius: 0 0 6px 6px;
+        background: #fff;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
       }
+
       .suggestion-item {
-        padding: 8px;
+        padding: 6px 8px;
         cursor: pointer;
+        font-size: 12px;
       }
+
       .suggestion-item:hover {
-        background-color: #f0f0f0;
+        background-color: #f1f5f9;
       }
-      /* Uniform control heights */
-      .controls input,
-      .controls select,
-      .controls button {
-        height: 40px;
-        padding: 8px;
-        font-size: 16px;
-        box-sizing: border-box;
-      }
-      footer {
-        position: fixed;
-        z-index: 1000;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        background: #333;
-        color: #fff;
-        text-align: center;
-        height: 30px;
-        font-size: 0.8em;
-      }
-      footer a {
-        color: #fff;
+
+      @media (max-width: 720px) {
+        th:first-child,
+        td:first-child {
+          width: 9rem;
+          max-width: 9rem;
+        }
+
+        th:not(:first-child),
+        td:not(:first-child) {
+          width: calc((100vw - 10rem) / 24);
+        }
       }
     </style>
   </head>
-  <body>
-    <!-- Input Fields -->
-    <div class="controls">
-      <label for="lineInput">Line:</label>
-      <div class="dropdown-container">
-        <input type="text" id="lineInput" class="dropdown-input" placeholder="Type to search..." />
-        <div id="suggestions" class="suggestions"></div>
+  <body class="bg-slate-50 text-slate-900">
+    <main class="linestats-shell flex w-screen flex-col gap-2 p-2">
+      <header class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
+        <div>
+          <h1 class="text-lg font-semibold leading-tight text-slate-950">Line Delay Heatmap</h1>
+          <p class="text-xs text-slate-600">Average delay by line, direction, stop and hour.</p>
+        </div>
+        <a href="/" class="vag-button-secondary h-8 px-3 text-xs">Zurueck</a>
+      </header>
+
+      <div class="vag-control-bar shrink-0 gap-2 p-2">
+        <label class="vag-field min-w-24">
+          <span class="vag-label">Line</span>
+          <div class="dropdown-container">
+            <input type="text" id="lineInput" class="dropdown-input vag-input h-8 px-2 text-xs" placeholder="Type to search..." />
+            <div id="suggestions" class="suggestions"></div>
+          </div>
+        </label>
+
+        <label class="vag-field min-w-20">
+          <span class="vag-label">Richtung</span>
+          <select class="vag-input h-8 px-2 text-xs" id="line_direction" onchange="refreshTable()">
+            <option value="1">1</option>
+            <option value="2">2</option>
+          </select>
+        </label>
+
+        <label class="vag-field min-w-20">
+          <span class="vag-label">Tage</span>
+          <input class="vag-input h-8 w-20 px-2 text-xs" type="number" id="dayInput" value="7" />
+        </label>
+
+        <label class="vag-field min-w-44">
+          <span class="vag-label">Verspaetungstyp</span>
+          <select class="vag-input h-8 px-2 text-xs" id="delayType" onchange="refreshTable()">
+            <option value="avg_departure_delay">Abfahrt</option>
+            <option value="avg_arrival_delay">Ankunft</option>
+          </select>
+        </label>
+
+        <label class="vag-field min-w-36" for="displayMode">
+          <span class="vag-label">Anzeigeart</span>
+          <select class="vag-input h-8 px-2 text-xs" id="displayMode" onchange="setDisplayMode()">
+            <option value="SS">Sekunden</option>
+            <option value="MM:SS">MM:SS</option>
+            <option value="VAGLeitstelle">VAG Leitstelle</option>
+          </select>
+        </label>
+
+        <button class="vag-button h-8 px-3 text-xs" id="fetchDataButton" onclick="fetchData()">Lade Daten</button>
       </div>
-      <label>
-        Richtung:
-        <select id="line_direction" onchange="refreshTable()">
-          <option value="1">1</option>
-          <option value="2">2</option>
-        </select>
-      </label>
-      <label>
-        Durschnitt aus Tage(n):
-        <input type="number" id="dayInput" value="7" style="width: 80px" />
-      </label>
-      <label>
-        Verspätungstyp:
-        <select id="delayType" onchange="refreshTable()">
-          <option value="avg_departure_delay">Abfahrts Verspätung</option>
-          <option value="avg_arrival_delay">Ankunfts Verspätung</option>
-        </select>
-      </label>
-      <label for="showInMin">Anzeigeart:</label>
-      <select id="displayMode" onchange="setDisplayMode()">
-        <option value="SS">Sekunden</option>
-        <option value="MM:SS">MM:SS</option>
-        <option value="VAGLeitstelle">VAG Leitstelle</option>
-      </select>
-      <button id="fetchDataButton" onclick="fetchData()">Lade Daten</button>
-    </div>
 
-    <!-- Data Table -->
-    <table id="dataTable">
-      <thead></thead>
-      <tbody></tbody>
-    </table>
+      <div class="linestats-table-wrap vag-table-wrap flex-1">
+        <table id="dataTable" class="bg-white">
+          <thead class="bg-slate-100"></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </main>
 
-    <footer>
+    <footer class="vag-footer linestats-footer">
       <p>
         <%= appName %>@<%= commitId %>
         <a href="https://github.com/Public-Transport-Nuremberg/VAGStatsTracker">Source</a>
@@ -151,10 +192,10 @@
     </footer>
 
     <script>
-      // Load display mode from local storage
       if (localStorage.getItem("displayMode")) {
         document.getElementById("displayMode").value = localStorage.getItem("displayMode");
       }
+
       let lines = [];
       let displayMode = document.getElementById("displayMode").value;
       let lastDataResponse = null;
@@ -169,7 +210,7 @@
           const response = await fetch("/api/v1/statistics/lines");
           if (!response.ok) throw new Error("Network response was not ok");
           lines = await response.json();
-          lineInput.value = "U1"; // Default to load heatmap on page load
+          lineInput.value = "U1";
         } catch (error) {
           console.error("Error fetching lines:", error);
         }
@@ -223,7 +264,6 @@
         if (lines.length === 0) await fetchLines();
         const line = lineInput.value.trim();
         const days = document.getElementById("dayInput").value;
-        const direction = directionInput.value; // Get selected direction
 
         if (!line) {
           alert("Please enter a line.");
@@ -231,7 +271,6 @@
         }
 
         try {
-          // Fetch data with direction filter
           fetchDataButton.disabled = true;
           fetchDataButton.textContent = "Loading...";
           const response = await fetch(`/api/v1/statistics/delay/avrage/line?line=${line}&days=${days}`);
@@ -249,14 +288,15 @@
       }
 
       function processData(response) {
-        if (!response.station_order) {
-          alert("Line does probably not exist or has no data available.");
+        if (!response || !response.station_order) {
+          if (response !== null) alert("Line does probably not exist or has no data available.");
           return;
         }
+
         const delayType = document.getElementById("delayType").value;
-        const direction = directionInput.value; // Get selected direction
-        const stationOrder = response.station_order[direction]; // Get station order for the direction
-        const data = response.result.filter((entry) => entry.richtung == direction); // Filter data for the selected direction
+        const direction = directionInput.value;
+        const stationOrder = response.station_order[direction];
+        const data = response.result.filter((entry) => entry.richtung == direction);
 
         const table = document.getElementById("dataTable");
         const thead = table.querySelector("thead");
@@ -267,7 +307,7 @@
         const stations = {};
         let minDelay = Infinity;
         let maxDelay = -Infinity;
-        let timeBuckets = new Set([...Array(24).keys()]); // Ensure all 0-23 are included
+        let timeBuckets = new Set([...Array(24).keys()]);
 
         data.forEach((entry) => {
           const delay = parseFloat(entry[delayType]);
@@ -283,11 +323,12 @@
         const headerRow = document.createElement("tr");
         headerRow.innerHTML = `<th>Station</th>` + sortedBuckets.map((tb) => `<th>${tb}</th>`).join("");
         thead.appendChild(headerRow);
+        table.style.setProperty("--row-count", Math.max(stationOrder.length + 1, 1));
 
         stationOrder.forEach((vgnkennung) => {
           if (stations[vgnkennung]) {
             const row = document.createElement("tr");
-            let rowHtml = `<td>${stations[vgnkennung].name}</td>`;
+            let rowHtml = `<td title="${stations[vgnkennung].name}">${stations[vgnkennung].name}</td>`;
             sortedBuckets.forEach((tb) => {
               const delay = stations[vgnkennung].data[tb] !== undefined ? stations[vgnkennung].data[tb] : "";
               rowHtml += `<td class='heatmap-cell' style='${getColor(parseInt(delay), minDelay, maxDelay)}'>${convertSecondsToDisplayMode(parseInt(delay))}</td>`;
@@ -311,49 +352,47 @@
         }
 
         if (displayMode === "VAGLeitstelle") {
-          if (isNaN(seconds)) return ""; // Empty cells stay empty
+          if (isNaN(seconds)) return "";
           if (absSeconds < 60) return isNegative ? "-0" : "0";
           if (absSeconds < 120) return isNegative ? "-1" : "1";
           if (absSeconds < 180) return isNegative ? "-2" : "2";
           return isNegative ? ">-3" : ">3";
         }
 
-        return seconds; // Default fallback
+        return seconds;
       }
 
       function getColor(value, min, max) {
-        let bgColor = "#ffffff"; // Default background color
-        let color = "#000000"; // Default text color
+        let bgColor = "#ffffff";
+        let color = "#000000";
 
-        if (value === "") return "background-color: #ffffff; color: #000000;"; // Empty cells
+        if (value === "") return "background-color: #ffffff; color: #000000;";
 
         value = parseFloat(value);
 
         const colors = {
           default: { bg: "#ffffff", text: "#000000" },
-          zero: "#acacac", // Gray for zero value
+          zero: "#acacac",
           negative: (normalized) => {
-            // Green to Blue for negative values
             const hue = 120 + normalized * 120;
-            return `hsl(${hue}, 100%, 40%)`; // Green to Blue in HSL
+            return `hsl(${hue}, 100%, 40%)`;
           },
           positive: (normalized) => {
-            // Green to Red for positive values
             const hue = 120 - normalized * 120;
-            return `hsl(${hue}, 100%, 40%)`; // Green to Red in HSL
+            return `hsl(${hue}, 100%, 40%)`;
           },
           VAGLeitstelle: [
-            { threshold: 60, bg: "#008000" }, // Green
-            { threshold: 120, bg: "#ffff00" }, // Yellow
-            { threshold: 180, bg: "#ffa500" }, // Orange
-            { threshold: 240, bg: "#0000ff" }, // Blue
+            { threshold: 60, bg: "#008000" },
+            { threshold: 120, bg: "#ffff00" },
+            { threshold: 180, bg: "#ffa500" },
+            { threshold: 240, bg: "#0000ff" },
           ],
         };
 
         if (displayMode === "VAGLeitstelle") {
-          if (isNaN(value)) bgColor = colors.zero; // Gray for invalid numbers
+          if (isNaN(value)) bgColor = colors.zero;
           else if (value < 0) {
-            bgColor = "#ff0000"; // Red for any negative seconds
+            bgColor = "#ff0000";
           } else {
             for (let { threshold, bg } of colors.VAGLeitstelle) {
               if (value < threshold) {
@@ -368,7 +407,7 @@
             const normalized = (0 - value) / (0 - min);
             bgColor = colors.negative(normalized);
           } else {
-            const normalized = (value - min) / (max - min); // Normalize positive range
+            const normalized = (value - min) / (max - min);
             bgColor = colors.positive(normalized);
           }
         }
@@ -389,8 +428,7 @@
         } else if (bgColor.startsWith("rgb")) {
           [r, g, b] = bgColor.match(/\d+/g).map(Number);
         } else if (bgColor.startsWith("hsl")) {
-          // If HSL, convert to RGB for brightness calculation
-          const hsl = bgColor.match(/\d+(\.\d+)?/g).map(Number); // regex to handle floats as well
+          const hsl = bgColor.match(/\d+(\.\d+)?/g).map(Number);
           const h = hsl[0] / 360;
           const s = hsl[1] / 100;
           const l = hsl[2] / 100;
@@ -408,14 +446,13 @@
           g = Math.round((g1 + m) * 255);
           b = Math.round((b1 + m) * 255);
         } else {
-          return "#000000"; // Default if unknown color name
+          return "#000000";
         }
 
         const brightness = (r * 299 + g * 587 + b * 114) / 1000;
         return brightness > 80 ? "#000000" : "#ffffff";
       }
 
-      // Fetch initial data on page load
       fetchData();
     </script>
   </body>
