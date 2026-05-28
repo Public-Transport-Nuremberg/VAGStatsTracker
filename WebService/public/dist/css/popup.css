@@ -10,6 +10,7 @@
    padding: 14px;
    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
    display: none;
+   z-index: 30;
 }
 
 .lm-close {
@@ -203,13 +204,15 @@
 @media (max-width: 640px) {
    .lm-popup {
       position: fixed !important;
-      left: 12px !important;
-      right: 12px !important;
-      top: auto !important;
-      bottom: 48px !important;
-      width: auto;
-      max-height: 58vh;
-      transform: none !important;
+      left: 50% !important;
+      right: auto !important;
+      top: 50% !important;
+      bottom: auto !important;
+      width: calc(100vw - 24px) !important;
+      min-width: 0;
+      max-width: calc(100vw - 24px);
+      max-height: 76vh;
+      transform: translate(-50%, -50%) !important;
    }
 
    .lm-specs div {

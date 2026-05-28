@@ -4,12 +4,6 @@ const productLabelMap = {
 	Bus: "Bus",
 };
 
-const productIconMap = {
-	UBahn: "U",
-	Tram: "T",
-	Bus: "B",
-};
-
 const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
 	"&": "&amp;",
 	"<": "&lt;",
@@ -200,7 +194,7 @@ const renderVehicleCard = (p, compact = false) => {
 	return `
 		<article class="lm-content">
 			<header class="lm-vehicle-head">
-				<span class="lm-route" style="background:${color}">${escapeHTML(productIconMap[p.Produkt] || "?")}${escapeHTML(p.Linienname || "")}</span>
+				<span class="lm-route" style="background:${color}">${escapeHTML(p.Linienname || "")}</span>
 				<div>
 					<h2>${escapeHTML(productLabelMap[p.Produkt] || p.Produkt)} ${escapeHTML(p.Linienname || "")} nach ${escapeHTML(p.Richtungstext || "-")}</h2>
 					<p>${vehicleHeaderLine(p.Fahrzeugnummer, p.FahrzeugInfo)}</p>
@@ -311,6 +305,8 @@ const clusterLayer = new ol.layer.Vector({
 const popup = document.getElementById("popup");
 const popupContent = document.getElementById("popup-content");
 const closePopupButton = document.getElementById("popup-close");
+let popupOverlayContainer = null;
+let activePopupCoordinate = null;
 
 const overlay = new ol.Overlay({
 	element: popup,
@@ -321,6 +317,40 @@ const overlay = new ol.Overlay({
 
 map.addLayer(clusterLayer);
 map.addOverlay(overlay);
+popupOverlayContainer = popup.parentElement;
+
+const isMobilePopup = () => window.matchMedia("(max-width: 640px)").matches;
+
+const syncPopupHost = () => {
+	if (!popup) return;
+
+	if (isMobilePopup()) {
+		if (popup.parentElement !== document.body) document.body.appendChild(popup);
+		return;
+	}
+
+	if (popupOverlayContainer && popup.parentElement !== popupOverlayContainer) {
+		popupOverlayContainer.appendChild(popup);
+	}
+};
+
+const showPopup = (coordinate) => {
+	activePopupCoordinate = coordinate;
+	syncPopupHost();
+
+	if (isMobilePopup()) {
+		overlay.setPosition(undefined);
+	} else {
+		overlay.setPosition(coordinate);
+	}
+
+	popup.style.display = "block";
+};
+
+const hidePopup = () => {
+	activePopupCoordinate = null;
+	popup.style.display = "none";
+};
 
 map.on("singleclick", function (event) {
 	let foundFeature = false;
@@ -339,25 +369,28 @@ map.on("singleclick", function (event) {
 				</div>
 			`;
 
-			overlay.setPosition(clusterPoints[0].getGeometry().getCoordinates());
-			popup.style.display = "block";
+			showPopup(clusterPoints[0].getGeometry().getCoordinates());
 		} else {
 			const p = clusterPoints[0].getProperties();
 			popupContent.innerHTML = renderVehicleCard(p);
-			overlay.setPosition(clusterPoints[0].getGeometry().getCoordinates());
-			popup.style.display = "block";
+			showPopup(clusterPoints[0].getGeometry().getCoordinates());
 		}
 	});
 
-	if (!foundFeature) popup.style.display = "none";
+	if (!foundFeature) hidePopup();
 });
 
 map.on("movestart", function () {
-	popup.style.display = "none";
+	if (!isMobilePopup()) hidePopup();
 });
 
 closePopupButton?.addEventListener("click", () => {
-	popup.style.display = "none";
+	hidePopup();
+});
+
+window.addEventListener("resize", () => {
+	if (activePopupCoordinate && popup.style.display === "block") showPopup(activePopupCoordinate);
+	else syncPopupHost();
 });
 
 document.getElementById("locateButton")?.addEventListener("click", () => {
