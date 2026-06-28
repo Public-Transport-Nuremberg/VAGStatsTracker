@@ -7,6 +7,10 @@ URL: https://opendata.vag.de/
 
 Download latest database export: [Download](https://drive.google.com/file/d/1WsdxNYbiaegu13yUydA3m48MArfmWu3V/view?usp=drive_link) - 27 January 2025 until 18 April 2026
 
+# Disclaimer
+Please read the Disclaimer & Assumptions Section [HERE](#Disclaimer)
+
+
 [Try it out now](https://vagstats.ebg.pw/)  
 [Install](#Install)  
 ## Goal
@@ -47,6 +51,66 @@ Tram: (Operator) and Door configuration (Wheelchair accessible or not)
 ### Delay Heat Map
 Displays all delays of a date or timespan on the map
 ![grafik](https://github.com/Public-Transport-Nuremberg/VAGStatsTracker/assets/35345288/a6953e61-28fb-4892-83ab-2da07ac3c001)
+
+
+# Disclaimer
+Disclaimer & Assumptions:
+I thought a real time API would actualy reflect real time, during suspention of some lines due to extream heat the API and official Webpage still shows all suspended Lines as punctual. The official Page just picked random times where they get hidden.
+API at 28.06.2026 13:32
+```
+{
+    "disabledLines": [
+        {
+            "fromTime": "2026-06-27T20:52:18.913Z",
+            "lineId": "11",
+            "toTime": "2026-06-30T00:00:18.913Z",
+            "vehiclesOnly": true
+        },
+        {
+            "fromTime": "2026-06-27T20:52:18.913Z",
+            "lineId": "4",
+            "toTime": "2026-06-29T00:00:18.913Z",
+            "vehiclesOnly": true
+        },
+        {
+            "fromTime": "2026-06-27T20:52:18.913Z",
+            "lineId": "5",
+            "toTime": "2026-06-29T00:00:18.913Z",
+            "vehiclesOnly": true
+        },
+        {
+            "fromTime": "2026-06-27T20:52:18.913Z",
+            "lineId": "6",
+            "toTime": "2026-06-29T00:00:18.913Z",
+            "vehiclesOnly": true
+        },
+        {
+            "fromTime": "2026-06-27T20:52:18.913Z",
+            "lineId": "7",
+            "toTime": "2026-06-29T00:00:18.913Z",
+            "vehiclesOnly": true
+        },
+        {
+            "fromTime": "2026-06-27T20:52:18.913Z",
+            "lineId": "8",
+            "toTime": "2026-06-29T00:00:18.913Z",
+            "vehiclesOnly": true
+        },
+        {
+            "fromTime": "2026-06-27T20:52:18.913Z",
+            "lineId": "10",
+            "toTime": "2026-06-29T00:00:18.913Z",
+            "vehiclesOnly": true
+        }
+    ],
+    "showMessage": true,
+    "fromTime": "2026-06-27T20:52:18.913Z",
+    "title": "Straßenbahnbetrieb vorübergehend eingestellt",
+    "message": "<p>Aufgrund von Hitzeschäden können vorübergehend keine Straßenbahnen mehr fahren. Wir richten einen Ersatzverkehr mit Bussen ein. Weitere Details finden Sie auf <a href=\"https://www.vag.de/aktuelles/aktuelle-meldungen/detail/strassenbahnbetrieb-voruebergehend-eingestellt\" rel=\"noopener noreferrer\">vag.de<\/a>.<\/p>",
+    "toTime": "2026-06-30T01:00:18.913Z"
+}
+```
+
 
 ## API
 Avaible at: `/api/v1`
