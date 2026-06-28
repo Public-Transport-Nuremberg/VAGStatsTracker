@@ -7,7 +7,7 @@ URL: https://opendata.vag.de/
 
 Download latest database export: [Download](https://drive.google.com/file/d/1WsdxNYbiaegu13yUydA3m48MArfmWu3V/view?usp=drive_link) - 27 January 2025 until 18 April 2026
 
-# Disclaimer
+# INFO
 Please read the Disclaimer & Assumptions Section [HERE](#Disclaimer)
 
 
