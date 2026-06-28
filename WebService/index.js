@@ -50,9 +50,8 @@ renderEJSToPublic(path.join(__dirname, 'views'), path.join(__dirname, 'public'),
 
 (async () => {
     const { StopObjectStore } = require('@lib/haltestellen_cache');
-    const { createTables, haltestellen, views } = require('@lib/postgres');
+    const { haltestellen, views } = require('@lib/clickhouse');
     try {
-        await createTables();
         await StopObjectStore.init()
         const haltestellen_data = await StopObjectStore.getKeysAmount();
         haltestellen_data.forEach(async (haltestelle) => {
@@ -61,7 +60,7 @@ renderEJSToPublic(path.join(__dirname, 'views'), path.join(__dirname, 'public'),
         });
         StopObjectStore.update();
     } catch (error) {
-        process.log.error(`Failed to create tables: ${error}`);
+        process.log.error(`Failed to initialize WebService data: ${error}`);
         if (process.env.SENTRY_DSN) process.sentry.captureException(error);
         exit(1);
     }
@@ -82,3 +81,4 @@ renderEJSToPublic(path.join(__dirname, 'views'), path.join(__dirname, 'public'),
         }, 1500);
     }, process.env.GlobalWaitTime || 100);
 })();
+

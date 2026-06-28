@@ -40,7 +40,7 @@ module.exports = {
         "default": 60
     },
     "DB_HOST": {
-        "section": "DATABASE PG",
+        "section": "DATABASE CH",
         "type": "string",
         "validation": "required",
         "default": "127.0.0.1"
@@ -48,17 +48,17 @@ module.exports = {
     "DB_PORT": {
         "type": "number",
         "validation": "required",
-        "default": 6969
+        "default": 8123
     },
     "DB_USER": {
         "type": "string",
         "validation": "required",
-        "default": "postgres"
+        "default": "vag"
     },
     "DB_PASSWORD": {
         "type": "string",
         "validation": "required",
-        "default": "postgres"
+        "default": "YourStrongPassword123"
     },
     "REDIS_USER": {
         "section": " DATABASEREDIS (Cache)",
@@ -98,3 +98,5 @@ module.exports = {
         "default": 3600
     }
 }
+
+

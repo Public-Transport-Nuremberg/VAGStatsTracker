@@ -1,99 +1,124 @@
+const cheerio = require('cheerio');
+const { createClient } = require('@clickhouse/client');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
-require('module-alias/register');
 
-const { Client } = require('pg');
-const fs = require('node:fs');
+const client = createClient({
+  url: `http://${process.env.CH_HOST}:${process.env.CH_PORT || 8123}`,
+  username: process.env.CH_USER,
+  password: process.env.CH_PASSWORD,
+  database: process.env.CH_DATABASE,
+});
 
-(async function () {
-  const client = new Client({
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    database: process.env.DB_NAME,
-    password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT,
+const CONTACT_PAGE = 'https://www.vag.de/kontakt/lob-anfrage-und-beschwerde';
+const API_ENDPOINT = 'https://www.vag.de/index.php?id=180&type=7070';
+
+function cleanLineName(name) {
+  name = name.replace('U-Bahn-Linie ', '').trim();
+  name = name.replace('Tram-Linie ', '').trim();
+  name = name.replace('Bus-Linie ', '').trim();
+  return name;
+}
+
+async function getAvailableLines() {
+  const response = await fetch(CONTACT_PAGE);
+  const html = await response.text();
+  const $ = cheerio.load(html);
+  const lines = [];
+  
+  // Scrape the main dropdown for all available lines
+  $('#powermail_field_routeselect_line option').each((_, el) => {
+    const val = $(el).val();
+    const name = $(el).text().trim();
+    if (val && val !== "") {
+      lines.push({ id: val, name: name });
+    }
   });
+  return lines;
+}
 
+async function getStopsForLine(line) {
   try {
-    await client.connect();
+    const response = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `tx_pulslinien_show[linien]=${encodeURIComponent(line.id)}`
+    });
 
-    // Retrieve all distinct line names
-    const { rows: lines } = await client.query(`
-      SELECT DISTINCT Linienname
-      FROM public.fahrten
-      ORDER BY Linienname ASC;
-    `);
+    const html = await response.text();
+    const $ = cheerio.load(html);
+    const stopIds = [];
 
-    const output = {};
+    const stopOptions = $('#stops option');
+    
+    for (let i = 0; i < stopOptions.length; i++) {
+      const vgnid = $(stopOptions[i]).val();
+      const webName = $(stopOptions[i]).text().trim();
 
-    for (const { linienname } of lines) {
-      console.log(`Processing line ${linienname}`);
+      if (!vgnid) continue;
+      
+      const idNum = parseInt(vgnid);
+      stopIds.push(idNum);
 
-      // Fetch distinct directions for the line
-      const { rows: directions } = await client.query(`
-        SELECT DISTINCT Richtung
-        FROM public.fahrten
-        WHERE Linienname = $1;
-      `, [linienname]);
+      // ClickHouse Validation
+      const resultSet = await client.query({
+        query: `SELECT Haltestellenname FROM haltestellen WHERE VGNKennung = {id:String}`,
+        query_params: { id: vgnid },
+        format: 'JSONEachRow',
+      });
+      const rows = await resultSet.json();
 
-      output[linienname] = {};
-
-      for (const { richtung } of directions) {
-        console.log(`  Processing direction ${richtung}`);
-
-        const { rows: tripRows } = await client.query(`
-          WITH latest_betriebstag AS (
-            SELECT MAX(Betriebstag) AS last_day
-            FROM public.fahrten
-            WHERE Linienname = $1 AND Richtung = $2
-          ),
-          fahrten_with_stops AS (
-            SELECT f.Fahrtnummer, f.Betriebstag, COUNT(*) AS stop_count
-            FROM public.fahrten f
-            JOIN public.fahrten_halte fh 
-              ON f.Fahrtnummer = fh.Fahrtnummer 
-              AND f.Betriebstag = fh.Betriebstag 
-              AND f.Produkt = fh.Produkt
-            WHERE f.Linienname = $1
-              AND f.Richtung = $2
-              AND f.Betriebstag = (SELECT last_day FROM latest_betriebstag)
-            GROUP BY f.Fahrtnummer, f.Betriebstag
-          ),
-          mode_stop_count AS (
-            SELECT stop_count
-            FROM fahrten_with_stops
-            GROUP BY stop_count
-            ORDER BY COUNT(*) DESC, stop_count DESC
-            LIMIT 1
-          )
-          SELECT fws.Fahrtnummer, fws.Betriebstag, fws.stop_count
-          FROM fahrten_with_stops fws
-          WHERE fws.stop_count = (SELECT stop_count FROM mode_stop_count)
-          LIMIT 1;
-        `, [linienname, richtung]);
-
-        if (tripRows.length === 0) {
-          output[linienname][richtung] = [];
-          continue;
+      if (rows.length > 0) {
+        const dbName = rows[0].Haltestellenname;
+        if (dbName !== webName) {
+          console.warn(`[VIOLATION] Line: ${line.name} | ID: ${vgnid} | Web: "${webName}" vs CH: "${dbName}"`);
         }
-
-        const { fahrtnummer, betriebstag } = tripRows[0];
-
-        const { rows: stopRows } = await client.query(`
-          SELECT h.VGNKennung
-          FROM public.fahrten_halte fh
-          JOIN public.haltestellen h ON fh.VGNKennung = h.VGNKennung
-          WHERE fh.Fahrtnummer = $1 AND fh.Betriebstag = $2
-          ORDER BY fh.AbfahrtszeitSoll ASC;
-        `, [fahrtnummer, betriebstag]);
-
-        output[linienname][richtung] = stopRows.map(row => row.vgnkennung);
+      } else {
+        console.log(`[NOT FOUND] ID ${vgnid} ("${webName}") missing in ClickHouse.`);
       }
     }
 
-    fs.writeFileSync('./config/linesWithStops.json', JSON.stringify(output));
+    return {
+      "1": [...stopIds],
+      "2": [...stopIds].reverse()
+    };
+
   } catch (err) {
-    console.error('Error executing queries', err);
-  } finally {
-    await client.end();
+    console.error(`Error on line ${line.name}:`, err.message);
+    return null;
   }
-})();
+}
+
+async function run() {
+  try {
+    const lines = await getAvailableLines();
+    const finalOutput = {};
+
+    for (const line of lines) {
+      console.log(`Processing ${line.name}...`);
+      const routeData = await getStopsForLine(line);
+      if (routeData) {
+        // Using line.name as the key (e.g., "U2", "Tram 4")
+        finalOutput[cleanLineName(line.name)] = routeData;
+      }
+    }
+
+    const configDir = path.join(__dirname, 'config');
+    if (!fs.existsSync(configDir)) fs.mkdirSync(configDir);
+    
+    fs.writeFileSync(
+      path.join(configDir, 'linesWithStops.json'),
+      JSON.stringify(finalOutput)
+    );
+
+    console.log('\n--- Extraction Complete ---');
+    console.log(`File saved to: ${path.join(configDir, 'linesWithStops.json')}`);
+  } catch (error) {
+    console.error('Fatal error:', error);
+  } finally {
+    await client.close();
+  }
+}
+
+run();

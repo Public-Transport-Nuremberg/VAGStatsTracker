@@ -201,6 +201,36 @@
    color: #b91c1c;
 }
 
+#liveStatus[data-tooltip] {
+   position: relative;
+   cursor: default;
+}
+
+#liveStatus[data-tooltip]::after {
+   position: absolute;
+   left: 0;
+   top: calc(100% + 8px);
+   z-index: 30;
+   display: none;
+   min-width: 150px;
+   border: 1px solid #cbd5e1;
+   border-radius: 6px;
+   background: rgba(255, 255, 255, 0.98);
+   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+   color: #0f172a;
+   content: attr(data-tooltip);
+   font-size: 12px;
+   font-weight: 600;
+   line-height: 1.55;
+   padding: 8px 10px;
+   white-space: pre-line;
+}
+
+#liveStatus[data-tooltip]:hover::after,
+#liveStatus[data-tooltip]:focus-visible::after {
+   display: block;
+}
+
 @media (max-width: 640px) {
    .lm-popup {
       position: fixed !important;

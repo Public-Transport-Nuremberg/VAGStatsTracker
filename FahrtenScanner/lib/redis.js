@@ -49,8 +49,9 @@ const checkTripKey = async (number) => {
  * @param {String} Produkt 
  * @param {Number} runAtTimestamp 
  * @param {Number} Endzeit 
+ * @param {Object} Fahrt
  */
-const addJob = async (Fahrtnummer, Betriebstag, Produkt, runAtTimestamp, Endzeit) => {
+const addJob = async (Fahrtnummer, Betriebstag, Produkt, runAtTimestamp, Endzeit, Fahrt = null) => {
     const key = `TRIP:${Fahrtnummer}`;
 
     const ttl = parseInt(((Endzeit - new Date().getTime()) / 1000) + (60 * 60), 10);
@@ -70,6 +71,7 @@ const addJob = async (Fahrtnummer, Betriebstag, Produkt, runAtTimestamp, Endzeit
         AbfahrtszeitSoll: 0,
         AbfahrtszeitIst: 0,
         PercentageToNextStop: 0,
+        Fahrt,
     }
 
     redis.set(key, JSON.stringify(keyData), "EX", ttl);
@@ -80,7 +82,8 @@ const addJob = async (Fahrtnummer, Betriebstag, Produkt, runAtTimestamp, Endzeit
         Produkt: Produkt,
         AlreadyTrackedStops: [],
         Startzeit: runAtTimestamp,
-        Endzeit: Endzeit
+        Endzeit: Endzeit,
+        Fahrt,
     }, { delay: delay, attempts: 2 });
 
     return delay

@@ -1,6 +1,7 @@
 const { openvgn } = require('oepnv-nuremberg');
 const { StopObjectStore } = require('@lib/haltestellen_cache');
 const { findAllTripKeys, getValuesFromKeys } = require('@lib/redis');
+const { live } = require('@lib/clickhouse');
 const { linequerySchema } = require('./query_schema');
 
 const vgn = new openvgn();
@@ -47,6 +48,10 @@ const getLiveMapPayload = async (query = {}, options = {}) => {
 
         payload[key] = enrichTrip(trip);
     });
+
+    payload.__meta = {
+        cancelledToday: await live.getCancelledTripsToday(),
+    };
 
     return payload;
 };

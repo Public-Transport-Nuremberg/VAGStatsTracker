@@ -7,7 +7,7 @@ const { Worker } = require('bullmq');
 const { getLastStopAndProgress, removeDuplicatesAndKeepOrder } = require('@lib/util');
 const { writeNewDatapoint, ScheduleJob, delTripKey, errorExporter, addTripLocation } = require('@lib/redis');
 
-const { insertOrUpdateFahrtEntry, insertOrUpdateHaltestelle } = require('@lib/postgres');
+const { insertOrUpdateFahrtEntry, insertOrUpdateHaltestelle } = require('@lib/clickhouse');
 
 const queueData = {
     port: process.env.REDIS_PORT || 6379,
@@ -20,7 +20,7 @@ const queueData = {
 new Worker('q:trips', async (job) => {
     let currentTripResponse = null;
     try {
-        const { Fahrtnummer, Betriebstag, Produkt, AlreadyTrackedStops, Startzeit, Endzeit } = job.data;
+        const { Fahrtnummer, Betriebstag, Produkt, AlreadyTrackedStops, Startzeit, Endzeit, Fahrt: ScannerFahrt } = job.data;
 
         const tripData = await vgn.getTrip(Fahrtnummer, { product: Produkt, date: Betriebstag })
 
@@ -110,6 +110,7 @@ new Worker('q:trips', async (job) => {
             nextAbfahrtszeitSoll: nextStopObject.AbfahrtszeitSoll ?? -1,
             nextAbfahrtszeitIst: nextStopObject.AbfahrtszeitIst ?? -1,
             PercentageToNextStop: Fahrtverlauf_result.progress,
+            Fahrt: ScannerFahrt ?? null,
         }
 
         let nextRunAtTimestamp = 0

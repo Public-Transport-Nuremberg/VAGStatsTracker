@@ -1,7 +1,7 @@
 const HyperExpress = require('hyper-express');
 const { limiter } = require('@middleware/limiter');
 const Joi = require('joi');
-const { vehicle } = require('@lib/postgres');
+const { vehicle } = require('@lib/clickhouse');
 const { openvgn } = require('oepnv-nuremberg');
 const { StopObjectStore } = require('@lib/haltestellen_cache');
 const { findAllTripKeys, getValuesFromKeys } = require('@lib/redis');

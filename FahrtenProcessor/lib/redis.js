@@ -104,6 +104,7 @@ const addTripLocation = async (tripId, latitude, longitude) => {
  * @property {String} AbfahrtszeitSoll
  * @property {String} AbfahrtszeitIst
  * @property {Number} PercentageToNextStop
+ * @property {Object} Fahrt
  */
 
 /**
@@ -133,7 +134,8 @@ const ScheduleJob = async (Fahrtnummer, Betriebstag, Produkt, keyData, AlreadyTr
         Produkt: Produkt,
         AlreadyTrackedStops: AlreadyTrackedStops,
         Startzeit: Startzeit,
-        Endzeit: Endzeit
+        Endzeit: Endzeit,
+        Fahrt: keyData.Fahrt ?? null,
     }, { delay: Math.max(delay, 30000), attempts: 2 });
 
     return delay

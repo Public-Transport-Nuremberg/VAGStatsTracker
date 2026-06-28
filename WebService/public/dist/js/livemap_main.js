@@ -215,11 +215,49 @@ const renderVehicleCard = (p, compact = false) => {
 	`;
 };
 
-const setStatus = (label, state = "idle") => {
+const setStatus = (label, state = "idle", tooltip = "") => {
 	const status = document.getElementById("liveStatus");
 	if (!status) return;
 	status.textContent = label;
 	status.dataset.state = state;
+	if (tooltip) {
+		status.dataset.tooltip = tooltip;
+		status.title = tooltip;
+	} else {
+		delete status.dataset.tooltip;
+		status.removeAttribute("title");
+	}
+};
+
+const normalizeProduct = (product) => {
+	if (product === "U-Bahn") return "UBahn";
+	return product || "Unbekannt";
+};
+
+const formatLiveStatusTooltip = (data) => {
+	const trips = data?.trips || data;
+	const meta = data?.__meta || data?.meta || {};
+	const summary = {
+		Bus: 0,
+		Tram: 0,
+		UBahn: 0,
+		cancelledToday: Number(meta.cancelledToday || 0),
+	};
+
+	Object.entries(trips).forEach(([key, trip]) => {
+		if (key === "__meta") return;
+		const product = normalizeProduct(trip?.Produkt ?? trip?.Fahrt?.Produkt);
+		if (product === "Bus") summary.Bus += 1;
+		if (product === "Tram") summary.Tram += 1;
+		if (product === "UBahn") summary.UBahn += 1;
+	});
+
+	return [
+		`Bus: ${summary.Bus}`,
+		`Tram: ${summary.Tram}`,
+		`U-Bahn: ${summary.UBahn}`,
+		`Heute Ausgefallen: ${summary.cancelledToday}`,
+	].join("\n");
 };
 
 const map = new ol.Map({
@@ -240,10 +278,12 @@ const vectorSource = new ol.source.Vector({
 });
 
 const renderLiveMap = (data) => {
+	const trips = data?.trips || data;
 	vectorSource.clear();
 
-	Object.keys(data).forEach((key) => {
-		const item = data[key];
+	Object.keys(trips).forEach((key) => {
+		if (key === "__meta") return;
+		const item = trips[key];
 		if (!Number.isFinite(Number(item.Longitude)) || !Number.isFinite(Number(item.Latitude))) return;
 		const color = propertiesToColor(item);
 
@@ -256,7 +296,7 @@ const renderLiveMap = (data) => {
 		vectorSource.addFeature(marker);
 	});
 
-	setStatus(`${vectorSource.getFeatures().length} Fahrzeuge live`, "live");
+	setStatus(`${vectorSource.getFeatures().length} Fahrzeuge live`, "live", formatLiveStatusTooltip(data));
 };
 
 const refreshLiveMap = () => {

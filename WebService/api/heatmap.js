@@ -1,7 +1,7 @@
 const HyperExpress = require('hyper-express');
 const { limiter } = require('@middleware/limiter');
 const { plublicStaticCache } = require('@middleware/cacheRequest');
-const { heatmap } = require('@lib/postgres');
+const { heatmap } = require('@lib/clickhouse');
 const Joi = require('joi');
 const router = new HyperExpress.Router();
 

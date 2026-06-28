@@ -1,7 +1,7 @@
 const HyperExpress = require('hyper-express');
 const { limiter } = require('@middleware/limiter');
 const linesWithStops = require('@config/linesWithStops');
-const { statistics } = require('@lib/postgres');
+const { statistics } = require('@lib/clickhouse');
 const Joi = require('joi');
 const router = new HyperExpress.Router();
 

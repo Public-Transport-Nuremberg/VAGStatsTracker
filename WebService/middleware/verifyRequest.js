@@ -2,7 +2,7 @@ const { checkPermission } = require('@lib/permission');
 const { checkWebToken } = require('@lib/token');
 const { delWebtoken, IPLimit, IPCheck } = require('@lib/cache');
 const { InvalidToken, TooManyRequests, PermissionsError } = require('@lib/errors');
-const { webtoken } = require('@lib/postgres');
+const { webtoken } = require('@lib/clickhouse');
 const useragent = require('express-useragent');
 
 /**

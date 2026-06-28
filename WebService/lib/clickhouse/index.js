@@ -1,5 +1,4 @@
 const { createClient } = require('@clickhouse/client');
-const { SQLError } = require('@lib/errors');
 
 const client = createClient({
   url: `http://${process.env.CH_HOST}:${process.env.CH_PORT || 8123}`,
@@ -8,75 +7,6 @@ const client = createClient({
   database: process.env.CH_DATABASE,
 });
 
-/* --- --- --- --- --- Schema --- --- --- --- --- */
-
-// Column names match the existing migrated tables (mixed-case, same as original Postgres DDL).
-// All SELECT queries alias results to lowercase so downstream code is unchanged
-// (Postgres always returned lowercase keys for unquoted identifiers).
-const createTables = async () => {
-  try {
-    await createTable(`
-      CREATE TABLE IF NOT EXISTS haltestellen (
-        VGNKennung       Int16,
-        VAGKennung       Array(String),
-        Haltestellenname String,
-        Latitude         Float64,
-        Longitude        Float64,
-        Produkt_Bus      UInt8,
-        Produkt_UBahn    UInt8,
-        Produkt_Tram     UInt8,
-        Produkt_SBahn    UInt8,
-        Produkt_RBahn    UInt8,
-        _updated_at      DateTime DEFAULT now()
-      ) ENGINE = ReplacingMergeTree(_updated_at)
-      ORDER BY VGNKennung
-    `, 'haltestellen');
-
-    await createTable(`
-      CREATE TABLE IF NOT EXISTS fahrten (
-        Fahrtnummer    Int32,
-        Betriebstag    Date,
-        Produkt        Int8,
-        Linienname     String,
-        Besetzungsgrad Int8,
-        Fahrzeugnummer Int32,
-        Richtung       Int8,
-        _updated_at    DateTime DEFAULT now()
-      ) ENGINE = ReplacingMergeTree(_updated_at)
-      PARTITION BY toYYYYMM(Betriebstag)
-      ORDER BY (Betriebstag, Fahrtnummer, Produkt)
-    `, 'fahrten');
-
-    await createTable(`
-      CREATE TABLE IF NOT EXISTS fahrten_halte (
-        Fahrtnummer              Int32,
-        Betriebstag              Date,
-        Produkt                  Int8,
-        VGNKennung               Int16,
-        Haltepunkt               Int16,
-        Richtungstext            String,
-        AnkunftszeitSoll         Nullable(DateTime),
-        \`AnkunftszeitVerspätung\` Nullable(Int16),
-        AbfahrtszeitSoll         Nullable(DateTime),
-        \`AbfahrtszeitVerspätung\` Nullable(Int16),
-        _updated_at              DateTime DEFAULT now()
-      ) ENGINE = ReplacingMergeTree(_updated_at)
-      PARTITION BY toYYYYMM(Betriebstag)
-      ORDER BY (Betriebstag, VGNKennung, Fahrtnummer, Produkt)
-    `, 'fahrten_halte');
-  } catch (error) {
-    throw new SQLError(error);
-  }
-}
-
-const createTable = async (query, table) => {
-  try {
-    await client.exec({ query });
-  } catch (err) {
-    process.log.error(`Table-gen: Error ${table}: ${err}`);
-    throw err;
-  }
-}
 
 /* --- --- --- --- --- MISC --- --- --- --- --- */
 
@@ -131,7 +61,7 @@ const insertOrUpdateHaltestelle = async (VGNKennung, VAGKennung, Haltestellennam
   }
 }
 
-// Alias all columns to lowercase — downstream code expects Postgres-style lowercase keys.
+// Alias all columns to lowercase — downstream code expects ClickHouse-style lowercase keys.
 const getAllHaltestellen = async () => {
   const rs = await client.query({
     query: `
@@ -535,6 +465,44 @@ const percentageDelayByProductWeek = async (outer_neg_bound, outer_pos_bound, lo
   return { rows, summary };
 }
 
+let fahrtenFaelltAusColumnExists;
+
+const hasFahrtenFaelltAusColumn = async () => {
+  if (fahrtenFaelltAusColumnExists !== undefined) return fahrtenFaelltAusColumnExists;
+
+  const rs = await client.query({
+    query: `
+      SELECT count() AS n
+      FROM system.columns
+      WHERE database = currentDatabase()
+        AND table = 'fahrten'
+        AND name = 'FaelltAus'
+    `,
+    format: 'JSONEachRow',
+  });
+
+  const rows = await rs.json();
+  fahrtenFaelltAusColumnExists = Number(rows[0]?.n || 0) > 0;
+  return fahrtenFaelltAusColumnExists;
+}
+
+const getCancelledTripsToday = async () => {
+  if (!await hasFahrtenFaelltAusColumn()) return 0;
+
+  const rs = await client.query({
+    query: `
+      SELECT count() AS cancelled_today
+      FROM fahrten FINAL
+      WHERE Betriebstag = today()
+        AND FaelltAus = 1
+    `,
+    format: 'JSONEachRow',
+  });
+
+  const rows = await rs.json();
+  return Number(rows[0]?.cancelled_today || 0);
+}
+
 /* --- --- --- Exports --- --- --- */
 
 const views = {
@@ -570,11 +538,16 @@ const vehicle = {
   servedStopsByVehicleIDandDay: servedStopsByVehicleIDandDay,
 }
 
+const live = {
+  getCancelledTripsToday: getCancelledTripsToday,
+}
+
 module.exports = {
-  createTables,
   views,
   heatmap,
   haltestellen,
   statistics,
   vehicle,
+  live,
 }
+

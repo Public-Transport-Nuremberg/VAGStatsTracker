@@ -1,14 +1,15 @@
 {
-  "name": "pg-to-clickhouse-migration",
+  "name": "clickhouse-migrations",
   "version": "1.0.0",
-  "description": "One-time migration from PostgreSQL to ClickHouse",
+  "description": "ClickHouse schema migrations",
   "main": "migrate.js",
   "scripts": {
-    "migrate": "node migrate.js"
+    "migrate": "node migrate.js",
+    "migrate:clickhouse": "node migrate.js"
   },
   "dependencies": {
     "@clickhouse/client": "^1.0.0",
-    "dotenv": "^16.0.0",
-    "pg": "^8.0.0"
+    "dotenv": "^16.0.0"
   }
 }
+

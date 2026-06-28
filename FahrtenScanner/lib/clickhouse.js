@@ -54,7 +54,7 @@ const toCHDateTime = (date) => date.toISOString().replace('T', ' ').slice(0, 19)
 /**
  * Maps to 'fahrten' table
  */
-const insertOrUpdateFahrt = async (Fahrtnummer, Betriebstag, Produkt, Linienname, Besetzungsgrad, Fahrzeugnummer, Richtung) => {
+const insertOrUpdateFahrt = async (Fahrtnummer, Betriebstag, Produkt, Linienname, Besetzungsgrad, Fahrzeugnummer, Richtung, FaelltAus = false) => {
     // Original logic: handle "PVU" special case
     let finalFahrzeugnummer = Fahrzeugnummer === "PVU" ? 0 : parseInt(Fahrzeugnummer);
 
@@ -69,6 +69,7 @@ const insertOrUpdateFahrt = async (Fahrtnummer, Betriebstag, Produkt, Linienname
                 Besetzungsgrad: convertBesezungsgradToInt(Besetzungsgrad),
                 Fahrzeugnummer: finalFahrzeugnummer,
                 Richtung:       convertRichtungToInt(Richtung),
+                FaelltAus:      FaelltAus ? 1 : 0,
                 _updated_at:    toCHDateTime(new Date()) // Required for your ReplacingMergeTree
             }],
             format: 'JSONEachRow',

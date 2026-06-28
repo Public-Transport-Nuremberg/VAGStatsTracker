@@ -2,7 +2,7 @@ const vgn_wrapper = require('oepnv-nuremberg');
 
 const { writeNewDatapoint, writeNewDatapointKey, addJob } = require('@lib/redis');
 const { filterDuplicates } = require('@lib/util');
-const { insertOrUpdateFahrt } = require('@lib/postgres');
+const { insertOrUpdateFahrt } = require('@lib/clickhouse');
 
 const vgn = new vgn_wrapper.openvgn();
 
@@ -14,7 +14,7 @@ const MakeTripRequests = async () => {
     });
 
     try {
-        const results = await Promise.allSettled(ProductPromiseArray)
+        const results = await Promise.allSettled(ProductPromiseArray);
 
         results.map(async (result) => {
             const { status, value } = result;
@@ -32,6 +32,8 @@ const MakeTripRequests = async () => {
             writeNewDatapoint('METRICLIST:Trips.RequestTime', Meta.RequestTime); // Store the request time for later analysis
 
             const { Fahrten, Produkt } = Fahrt;
+
+            console.log(Fahrten)
             process.app.watchdog.updateMonitor(Produkt); // Update the watchdog monitor for the product
             writeNewDatapointKey(`METRIC:TotalTripsTracked.${Produkt}`, Fahrten.length); // Store the amount of trips we got
 
@@ -51,9 +53,14 @@ const MakeTripRequests = async () => {
             // const testfilteredFahrten = filteredFahrten.slice(0, 1)
 
             filteredFahrten.map(async (fahrt) => {
-                await insertOrUpdateFahrt(fahrt.Fahrtnummer, fahrt.Betriebstag, Produkt, fahrt.Linienname, fahrt.Besetzgrad, fahrt.Fahrzeugnummer ?? -1, fahrt.Richtung);
+                await insertOrUpdateFahrt(fahrt.Fahrtnummer, fahrt.Betriebstag, Produkt, fahrt.Linienname, fahrt.Besetzgrad, fahrt.Fahrzeugnummer ?? -1, fahrt.Richtung, fahrt.FaelltAus);
+
+                if (fahrt.FaelltAus === true) {
+                    process.log.info(`Skipped Redis job for cancelled Fahrt ${fahrt.Fahrtnummer} (Produkt: ${Produkt}, Betriebstag: ${fahrt.Betriebstag})`);
+                    return;
+                }
                 
-                const jobDelay = await addJob(fahrt.Fahrtnummer, fahrt.Betriebstag, Produkt, new Date(fahrt.Startzeit).getTime(), new Date(fahrt.Endzeit).getTime());
+                const jobDelay = await addJob(fahrt.Fahrtnummer, fahrt.Betriebstag, Produkt, new Date(fahrt.Startzeit).getTime(), new Date(fahrt.Endzeit).getTime(), fahrt);
                 process.log.info(`Added job for ${fahrt.Fahrtnummer} (Produkt: ${Produkt}) to run at ${new Date(fahrt.Startzeit).toLocaleString()} (${jobDelay})`);
             }); 
         });
@@ -72,3 +79,4 @@ const MakeTripRequests = async () => {
     await MakeTripRequests();
     setInterval(MakeTripRequests, parseInt(process.env.SCAN_INTERVAL, 10) * 60 * 1000);
 })();
+

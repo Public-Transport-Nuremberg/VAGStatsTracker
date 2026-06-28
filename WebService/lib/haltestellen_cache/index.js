@@ -1,4 +1,4 @@
-const { haltestellen } = require('@lib/postgres');
+const { haltestellen } = require('@lib/clickhouse');
 const { formatDBHaltestellenToPULSFormat } = require('@lib/haltestellen_utils');
 
 class DB_Store {

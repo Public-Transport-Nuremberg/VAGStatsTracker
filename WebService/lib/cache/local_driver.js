@@ -1,5 +1,5 @@
 const MegaHash = require('megahash');
-const { webtoken, user } = require('@lib/postgres');
+const { webtoken, user } = require('@lib/clickhouse');
 const { mergePermissions } = require('@lib/permission');
 
 const store = new MegaHash();

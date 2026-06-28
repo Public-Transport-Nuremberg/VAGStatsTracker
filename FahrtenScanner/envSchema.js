@@ -59,12 +59,12 @@ module.exports = {
     "CH_USER": {
         "type": "string",
         "validation": "required",
-        "default": "postgres"
+        "default": "vag"
     },
     "CH_PASSWORD": {
         "type": "string",
         "validation": "required",
-        "default": "postgres"
+        "default": "YourStrongPassword123"
     },
     "REDIS_USER": {
         "section": " DATABASEREDIS (Cache)",
@@ -99,3 +99,4 @@ module.exports = {
         "default": 5
     },
 }
+
