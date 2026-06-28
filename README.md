@@ -56,6 +56,7 @@ Displays all delays of a date or timespan on the map
 # Disclaimer
 Disclaimer & Assumptions:
 I thought a real time API would actualy reflect real time, during suspention of some lines due to extream heat the API and official Webpage still shows all suspended Lines as punctual. The official Page just picked random times where they get hidden.
+However Puls actualy got a atribut "FaelltAus" thats set to true for those rides.
 API at 28.06.2026 13:32
 ```
 {
