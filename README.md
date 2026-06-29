@@ -24,6 +24,7 @@ ToDo:
 - [X] Generate Heatmaps of delays
 - [X] Geoline API - Get exact WGS84 coordinates for lines with rails
 - [X] Mutch faster Stops API
+- [X] Departure board with station autocomplete and GPS closest station
 - [X] Toplist
 
 Things i´d like to do but got not enough time for:  
@@ -130,6 +131,26 @@ Parameters:
 - Latitude: Int -Min/Max=180 optional  
 - Longitude: Int -Min/Max=180 optional  
 - Radius: Number -Max=40000KM  
+
+### Departures
+`/station`: Live departures for a station. Prefers the station's VGN ID.
+Parameters:
+- VGNKennung: Int
+- VAGKennung: String
+- Product: String (UBahn,Tram,Bus) optional
+- TimeSpan: Int optional
+- TimeDelay: Int optional
+- LimitCount: Int
+
+`/closest`: Live departures for the closest station in a given radius.
+Parameters:
+- Latitude: Int -Min/Max=90
+- Longitude: Int -Min/Max=180
+- Radius: Number -Max=40000KM
+- Product: String (UBahn,Tram,Bus) optional
+- TimeSpan: Int optional
+- TimeDelay: Int optional
+- LimitCount: Int
 
 ### Geolines
 `/:line` Possible: 4,5,6,7,8,10,11,U1,U2,U3  
