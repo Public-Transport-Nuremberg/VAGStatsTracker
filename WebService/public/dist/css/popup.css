@@ -231,6 +231,18 @@
    display: block;
 }
 
+#statsButton {
+   flex: 0 0 2.25rem;
+   width: 2.25rem;
+   min-width: 2.25rem;
+   height: 2.25rem;
+}
+
+#statsButton svg {
+   width: 1rem;
+   height: 1rem;
+}
+
 .lm-modal[hidden] {
    display: none;
 }
