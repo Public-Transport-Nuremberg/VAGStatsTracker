@@ -235,7 +235,7 @@ const normalizeProduct = (product) => {
 };
 
 const formatLiveStatusTooltip = (data) => {
-	const trips = data?.trips || data;
+	const trips = data?.trips || data || {};
 	const meta = data?.__meta || data?.meta || {};
 	const summary = {
 		Bus: 0,
@@ -260,6 +260,100 @@ const formatLiveStatusTooltip = (data) => {
 	].join("\n");
 };
 
+const getLiveTrips = (data) => {
+	const trips = data?.trips || data || {};
+	return Object.entries(trips)
+		.filter(([key, trip]) => key !== "__meta" && trip && Number.isFinite(Number(trip.Longitude)) && Number.isFinite(Number(trip.Latitude)))
+		.map(([, trip]) => trip);
+};
+
+const classifyFuelType = (trip) => {
+	const product = normalizeProduct(trip?.Produkt ?? trip?.Fahrt?.Produkt);
+	if (product === "UBahn" || product === "Tram") return "electro";
+	if (product !== "Bus") return "unknown";
+
+	const fuelType = String(getInfoValue(trip?.FahrzeugInfo, ["Kraftstoffart"]) || "").toLowerCase();
+	if (!fuelType) return "unknown";
+	if (fuelType.includes("elektro") || fuelType.includes("electric")) return "electro";
+	if (fuelType.includes("diesel")) return "diesel";
+	if (fuelType.includes("gas") || fuelType.includes("cng")) return "gas";
+
+	return "unknown";
+};
+
+const buildLiveStats = (data) => {
+	const trips = getLiveTrips(data);
+	const stats = {
+		total: trips.length,
+		ac: {
+			yes: 0,
+			no: 0,
+		},
+		engine: {
+			unknown: 0,
+			gas: 0,
+			diesel: 0,
+			electro: 0,
+		},
+	};
+
+	trips.forEach((trip) => {
+		const hasAc = Boolean(getInfoValue(trip?.FahrzeugInfo, ["Klimatisierung"]));
+		stats.ac[hasAc ? "yes" : "no"] += 1;
+		stats.engine[classifyFuelType(trip)] += 1;
+	});
+
+	return stats;
+};
+
+const renderStatLine = (rows, total) => `
+	<div class="lm-stat-line" aria-label="${escapeHTML(rows.map(({ label, value }) => `${label}: ${value}`).join(", "))}">
+		${rows.map(({ label, value, color, textColor }) => {
+	const percent = total > 0 ? (value / total) * 100 : 0;
+	return `<span title="${escapeHTML(label)}: ${value}" style="width: ${percent}%; background: ${color}; color: ${textColor || "#fff"}">${value}</span>`;
+}).join("")}
+	</div>
+`;
+
+const renderStatSummaryLine = (rows) => `
+	<div class="lm-stat-summary">
+		${rows.map(({ label, value, color, textColor }) => `<span style="--stat-color: ${color}; color: ${textColor || color}">${escapeHTML(label)} <strong>${value}</strong></span>`).join("<b>|</b>")}
+	</div>
+`;
+
+const renderStatsModalContent = (stats) => `
+	<div class="lm-stat-grid">
+		<section class="lm-stat-section">
+			<h3>AC</h3>
+			${renderStatSummaryLine([
+		{ label: "AC", value: stats.ac.yes, color: "#005ca9" },
+		{ label: "No AC", value: stats.ac.no, color: "#e3000b" },
+	])}
+			${renderStatLine([
+		{ label: "AC", value: stats.ac.yes, color: "#005ca9" },
+		{ label: "No AC", value: stats.ac.no, color: "#e3000b" },
+	], stats.total)}
+		</section>
+		<section class="lm-stat-section">
+			<h3>Antrieb</h3>
+			${renderStatSummaryLine([
+		{ label: "Unknown", value: stats.engine.unknown, color: "#fff", textColor: "#0f172a" },
+		{ label: "Gas", value: stats.engine.gas, color: "#facc15", textColor: "#a16207" },
+		{ label: "Diesel", value: stats.engine.diesel, color: "#e3000b" },
+		{ label: "Electro", value: stats.engine.electro, color: "#16a34a" },
+	])}
+			${renderStatLine([
+		{ label: "Unknown", value: stats.engine.unknown, color: "#fff", textColor: "#0f172a" },
+		{ label: "Gas", value: stats.engine.gas, color: "#facc15", textColor: "#0f172a" },
+		{ label: "Diesel", value: stats.engine.diesel, color: "#e3000b" },
+		{ label: "Electro", value: stats.engine.electro, color: "#16a34a" },
+	], stats.total)}
+		</section>
+	</div>
+`;
+
+let latestLiveMapData = {};
+
 const map = new ol.Map({
 	target: "map",
 	layers: [
@@ -278,7 +372,8 @@ const vectorSource = new ol.source.Vector({
 });
 
 const renderLiveMap = (data) => {
-	const trips = data?.trips || data;
+	latestLiveMapData = data || {};
+	const trips = data?.trips || data || {};
 	vectorSource.clear();
 
 	Object.keys(trips).forEach((key) => {
@@ -438,6 +533,29 @@ document.getElementById("locateButton")?.addEventListener("click", () => {
 	if (features.length === 0) return;
 	const extent = vectorSource.getExtent();
 	map.getView().fit(extent, { padding: [80, 40, 80, 40], maxZoom: 15, duration: 250 });
+});
+
+const statsModal = document.getElementById("statsModal");
+const statsModalContent = document.getElementById("statsModalContent");
+const statsModalSubtitle = document.getElementById("statsModalSubtitle");
+
+const openStatsModal = () => {
+	if (!statsModal || !statsModalContent) return;
+	const stats = buildLiveStats(latestLiveMapData);
+	statsModalContent.innerHTML = renderStatsModalContent(stats);
+	if (statsModalSubtitle) statsModalSubtitle.textContent = `${stats.total} Fahrzeuge live`;
+	statsModal.hidden = false;
+};
+
+const closeStatsModal = () => {
+	if (statsModal) statsModal.hidden = true;
+};
+
+document.getElementById("statsButton")?.addEventListener("click", openStatsModal);
+document.getElementById("statsModalClose")?.addEventListener("click", closeStatsModal);
+document.querySelectorAll("[data-stats-close]").forEach((element) => element.addEventListener("click", closeStatsModal));
+document.addEventListener("keydown", (event) => {
+	if (event.key === "Escape" && statsModal && !statsModal.hidden) closeStatsModal();
 });
 
 const startHttpFallback = () => {
