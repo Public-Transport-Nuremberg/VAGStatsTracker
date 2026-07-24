@@ -62,9 +62,21 @@ const countAccessibleDoors = (info) => {
     return accessibleDoors || null;
 };
 
+const getAirConditioning = (departure, info) => {
+    const airConditioning = getInfoValue(info, ['Klimatisierung']);
+    if (airConditioning) return airConditioning;
+
+    if (departure?.Produkt !== 'Tram') return null;
+
+    const vehicleType = String(getInfoValue(info, ['typ', 'Fahrzeugtyp', 'Name']) || '').trim().toLowerCase();
+    if (vehicleType.includes('gta8') || vehicleType.includes('avenio')) return 'Vollklima';
+
+    return null;
+};
+
 const buildFeatureData = (departure) => {
     const info = departure?.Fahrzeug || {};
-    const airConditioning = getInfoValue(info, ['Klimatisierung']);
+    const airConditioning = getAirConditioning(departure, info);
     const fuelType = getInfoValue(info, ['Kraftstoffart']);
     const wheelchairSpaces = getInfoValue(info, ['Rollstuhlplaetze', 'Rollstuhlplatze']);
     const accessibleDoors = countAccessibleDoors(info);
@@ -181,4 +193,5 @@ module.exports = {
     PluginName: PluginName,
     PluginRequirements: PluginRequirements,
     PluginVersion: PluginVersion,
+    buildFeatureData,
 };
