@@ -9,7 +9,7 @@ const PluginName = 'Live'; //This plugins name
 const PluginRequirements = []; //Put your Requirements and version here <Name, not file name>|Version
 const PluginVersion = '0.0.1'; //This plugins version
 
-router.get('all', limiter(), async (req, res) => {
+router.get('/all', limiter(), async (req, res) => {
     const allTripKeys = await findAllTripKeys();
     const allTripValues = await getValuesFromKeys("TRIP:", allTripKeys);
 

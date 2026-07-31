@@ -37,7 +37,7 @@ setInterval(() => {
     updateMetrics()
 }, metricsScanTime * 1000);
 
-router.get('', limiter(), async (req, res) => {
+router.get('/', limiter(), async (req, res) => {
     if(!metricsFirstScan) {
         res.status(503).send('Metrics are not ready yet');
     }
