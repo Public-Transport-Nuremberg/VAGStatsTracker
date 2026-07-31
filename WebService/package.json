@@ -33,7 +33,7 @@
         "express-csp-header": "^6.3.1",
         "express-useragent": "^2.2.0",
         "geolib": "^3.3.14",
-        "hyper-express": "^6.17.3",
+        "hyper-express": "^7.0.0",
         "ioredis": "^5.11.0",
         "joi": "^18.2.1",
         "megahash": "^1.0.6",
