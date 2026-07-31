@@ -503,6 +503,57 @@ const getCancelledTripsToday = async () => {
   return Number(rows[0]?.cancelled_today || 0);
 }
 
+/* --- --- --- ConnAct Observe --- --- --- */
+
+const toClickHouseDateTime64 = (value) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error('Invalid timestamp');
+
+  return date.toISOString().replace('T', ' ').replace('Z', '');
+}
+
+const insertConnActTemperatureObservation = async (value) => {
+  await client.insert({
+    table: 'connact_temperature_observations',
+    values: [{
+      timestamp: toClickHouseDateTime64(value.timestamp),
+      device: value.device,
+      sequence: value.sequence,
+      block_identifier: value.block_identifier,
+      rail_temperature: value.rail_temperature,
+      ambient_temperature: value.ambient_temperature,
+      raw_telegram: value.raw_telegram,
+    }],
+    format: 'JSONEachRow',
+  });
+}
+
+const getLatestConnActTemperatureObservation = async (device) => {
+  const hasDeviceFilter = device !== undefined && device !== null && device !== '';
+  const rs = await client.query({
+    query: `
+      SELECT
+        timestamp,
+        device,
+        sequence,
+        block_identifier,
+        rail_temperature,
+        ambient_temperature,
+        raw_telegram,
+        ingested_at
+      FROM connact_temperature_observations FINAL
+      ${hasDeviceFilter ? 'WHERE device = {device:String}' : ''}
+      ORDER BY ingested_at DESC, timestamp DESC
+      LIMIT 1
+    `,
+    query_params: hasDeviceFilter ? { device } : {},
+    format: 'JSONEachRow',
+  });
+
+  const rows = await rs.json();
+  return rows[0] || null;
+}
+
 /* --- --- --- Exports --- --- --- */
 
 const views = {
@@ -542,6 +593,11 @@ const live = {
   getCancelledTripsToday: getCancelledTripsToday,
 }
 
+const observe = {
+  insertTemperature: insertConnActTemperatureObservation,
+  getLatestTemperature: getLatestConnActTemperatureObservation,
+}
+
 module.exports = {
   views,
   heatmap,
@@ -549,5 +605,6 @@ module.exports = {
   statistics,
   vehicle,
   live,
+  observe,
 }
 
