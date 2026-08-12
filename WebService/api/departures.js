@@ -1,9 +1,9 @@
-const HyperExpress = require('hyper-express');
+const express = require('ultimate-express');
 const { limiter } = require('@middleware/limiter');
 const Joi = require('joi');
 const { openvgn } = require('oepnv-nuremberg');
 const { StopObjectStore } = require('@lib/haltestellen_cache');
-const router = new HyperExpress.Router();
+const router = new express.Router();
 
 const vgn = new openvgn();
 

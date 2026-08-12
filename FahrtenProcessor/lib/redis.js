@@ -96,7 +96,6 @@ const errorExporter = (errorMessage, errorData, jobData) => {
  * @property {String} AbfahrtszeitSoll
  * @property {String} AbfahrtszeitIst
  * @property {Number} PercentageToNextStop
- * @property {{Latitude: Number, Longitude: Number}|null} EstimatedGPS
  * @property {Object} Fahrt
  */
 

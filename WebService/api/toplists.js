@@ -1,11 +1,11 @@
-const HyperExpress = require('hyper-express');
+const express = require('ultimate-express');
 const { limiter } = require('@middleware/limiter');
 const { plublicStaticCache } = require('@middleware/cacheRequest');
 const performance = require('perf_hooks').performance;
 const geolib = require('geolib');
 const { views, vehicle } = require('@lib/clickhouse');
 const Joi = require('joi');
-const router = new HyperExpress.Router();
+const router = new express.Router();
 const { StopObjectStore } = require('@lib/haltestellen_cache');
 const { openvgn } = require('oepnv-nuremberg');
 const vgn = new openvgn();

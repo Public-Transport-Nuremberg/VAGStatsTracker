@@ -1,14 +1,25 @@
-const HyperExpress = require('hyper-express');
-const { expressCspHeader, INLINE, NONE, SELF } = require('express-csp-header');
+const express = require('ultimate-express');
+const { expressCspHeader, INLINE, SELF } = require('express-csp-header');
 const fs = require('fs');
 const path = require('path');
 const ejs = require('ejs');
-const app = new HyperExpress.Server({
-    fast_buffers: process.env.HE_FAST_BUFFERS == 'false' ? false : true || false,
-});
-const { getLiveMapPayload, linequerySchema } = require('@lib/live_map');
+const errorHandler = require('@middleware/errorhandler');
+const {
+    getLiveMapPayload,
+    linequerySchema,
+    startLiveMapPositionWorker,
+} = require('@lib/live_map');
 
-const { log_errors } = require('@config/errors')
+const app = express();
+app.set('catch async errors', true);
+startLiveMapPositionWorker();
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use((req, res, next) => {
+    // Compatibility for the observation endpoint's async body-reader helper.
+    req.json = async () => req.body;
+    next();
+});
 
 app.use(expressCspHeader({
     directives: {
@@ -19,233 +30,169 @@ app.use(expressCspHeader({
         'img-src': [
             SELF,
             INLINE,
-            "https://tile.openstreetmap.org/",
+            'https://tile.openstreetmap.org/',
         ],
-        // Add 'blob:' to the 'worker-src' directive
         'worker-src': [SELF, INLINE, 'blob:'],
         'connect-src': [
             SELF,
             'ws:',
             'wss:',
             `ws://${process.env.WebSocketURL}`,
-            `wss://${process.env.WebSocketURL}`
+            `wss://${process.env.WebSocketURL}`,
         ],
-        'block-all-mixed-content': true
-    }
+        'block-all-mixed-content': true,
+    },
 }));
 
+const parseWebSocketQuery = (rawQuery) => {
+    const query = {};
+    for (const [key, value] of new URLSearchParams(rawQuery)) query[key] = value;
+    return query;
+};
 
-/* Server Static Files */
-
-app.get('/', (req, res) => {
-    res.header('Content-Type', 'text/html');
-    res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html')));
-});
-
-app.get('/livemap', (req, res) => {
-    res.header('Content-Type', 'text/html');
-    res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'livemap.html')));
-});
-
-app.get('/livemap-test', (req, res) => {
-    res.header('Content-Type', 'text/html');
-    res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'livemap-test.html')));
-});
-
-app.get('/heatmap', (req, res) => {
-    res.header('Content-Type', 'text/html');
-    res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'heatmap.html')));
-});
-
-app.get('/histogram', (req, res) => {
-    res.header('Content-Type', 'text/html');
-    res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'histogram.html')));
-});
-
-app.get('/linestats', (req, res) => {
-    res.header('Content-Type', 'text/html');
-    res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'linestats.html')));
-});
-
-app.get('/departures', (req, res) => {
-    res.header('Content-Type', 'text/html');
-    res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'departures.html')));
-});
-
-app.get('/vehicleHistory/*', (req, res) => {
-    res.header('Content-Type', 'text/html');
-    res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'vehicleHistory.html')));
-});
-
-app.get('/ontimelinechart', (req, res) => {
-    res.header('Content-Type', 'text/html');
-    res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'ontimelinechart.html')));
-});
-
-app.upgrade('/api/v1/live/map/ws', async (req, res) => {
-    const query = await linequerySchema.validateAsync(req.query);
-    res.upgrade({ query });
-});
-
-app.ws('/api/v1/live/map/ws', { idle_timeout: 60, message_type: 'String', max_payload_length: 1024 }, (ws) => {
-    let query = ws.context.query || {};
-
-    const sendSnapshot = async () => {
-        try {
-            const data = await getLiveMapPayload(query, { validated: true });
-            ws.send(JSON.stringify({ type: 'snapshot', data, timestamp: new Date().toISOString() }));
-        } catch (error) {
-            process.log.error(error);
-            ws.send(JSON.stringify({ type: 'error', message: error.message || 'Failed to load live map data' }));
+// Ultimate Express exposes the native uWebSockets application for WebSockets.
+app.uwsApp.ws('/api/v1/live/map/ws', {
+    idleTimeout: 60,
+    maxPayloadLength: 1024,
+    upgrade: (response, request, context) => {
+        const validation = linequerySchema.validate(parseWebSocketQuery(request.getQuery()));
+        if (validation.error) {
+            response.writeStatus('400 Bad Request').end(validation.error.message);
+            return;
         }
-    };
 
-    const interval = setInterval(sendSnapshot, Number(process.env.LIVE_MAP_WS_INTERVAL_MS) || 1000);
+        response.upgrade(
+            { query: validation.value, interval: null, closed: false, sending: false },
+            request.getHeader('sec-websocket-key'),
+            request.getHeader('sec-websocket-protocol'),
+            request.getHeader('sec-websocket-extensions'),
+            context
+        );
+    },
+    open: (ws) => {
+        const state = ws.getUserData();
 
-    ws.on('message', async (message) => {
-        try {
-            const payload = JSON.parse(message);
-            if (payload.type === 'subscribe') {
-                query = await linequerySchema.validateAsync({
-                    Linie: payload.Linie,
-                    Line: payload.Line,
-                    line: payload.line,
-                    pos1: payload.pos1,
-                    pos2: payload.pos2,
-                });
-                await sendSnapshot();
+        const sendSnapshot = async () => {
+            if (state.closed || state.sending) return;
+            state.sending = true;
+            try {
+                const data = await getLiveMapPayload(state.query, { validated: true });
+                if (!state.closed) {
+                    ws.send(JSON.stringify({ type: 'snapshot', data, timestamp: new Date().toISOString() }));
+                }
+            } catch (error) {
+                process.log.error(error);
+                if (!state.closed) {
+                    ws.send(JSON.stringify({ type: 'error', message: error.message || 'Failed to load live map data' }));
+                }
+            } finally {
+                state.sending = false;
             }
-        } catch (error) {
-            ws.send(JSON.stringify({ type: 'error', message: error.message || 'Invalid websocket message' }));
-        }
-    });
+        };
 
-    ws.on('close', () => clearInterval(interval));
-    sendSnapshot();
+        state.sendSnapshot = sendSnapshot;
+        state.interval = setInterval(sendSnapshot, Number(process.env.LIVE_MAP_WS_INTERVAL_MS) || 1000);
+        void sendSnapshot();
+    },
+    message: async (ws, rawMessage) => {
+        const state = ws.getUserData();
+        try {
+            const payload = JSON.parse(Buffer.from(rawMessage).toString('utf8'));
+            if (payload.type !== 'subscribe') return;
+
+            state.query = await linequerySchema.validateAsync({
+                Linie: payload.Linie,
+                Line: payload.Line,
+                line: payload.line,
+                pos1: payload.pos1,
+                pos2: payload.pos2,
+            });
+            await state.sendSnapshot();
+        } catch (error) {
+            if (!state.closed) {
+                ws.send(JSON.stringify({ type: 'error', message: error.message || 'Invalid websocket message' }));
+            }
+        }
+    },
+    close: (ws) => {
+        const state = ws.getUserData();
+        state.closed = true;
+        clearInterval(state.interval);
+    },
 });
 
-// Legal Pages
-app.get('/legal/legal', (req, res) => {
+const sendHtml = (res, filename) => {
     res.header('Content-Type', 'text/html');
+    res.send(fs.readFileSync(path.join(__dirname, '..', 'public', filename)));
+};
+
+app.get('/', (req, res) => sendHtml(res, 'index.html'));
+app.get('/livemap', (req, res) => sendHtml(res, 'livemap.html'));
+app.get('/livemap-test', (req, res) => sendHtml(res, 'livemap-test.html'));
+app.get('/heatmap', (req, res) => sendHtml(res, 'heatmap.html'));
+app.get('/histogram', (req, res) => sendHtml(res, 'histogram.html'));
+app.get('/linestats', (req, res) => sendHtml(res, 'linestats.html'));
+app.get('/departures', (req, res) => sendHtml(res, 'departures.html'));
+app.get('/vehicleHistory/*', (req, res) => sendHtml(res, 'vehicleHistory.html'));
+app.get('/ontimelinechart', (req, res) => sendHtml(res, 'ontimelinechart.html'));
+
+app.get('/legal/legal', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'public', 'legal', 'legal.html'));
 });
 
 const apiv1 = require('@api');
-
-app.get('/*', (req, res) => {
-    // Split the URL to separate the path and query string
-    const filePath = req.url.split('?')[0];
-
-    // Determine the content type based on the file extension
-    switch (filePath.split('.').pop()) {
-        case 'js':
-            res.header('Content-Type', 'text/javascript');
-            break;
-        case 'css':
-            res.header('Content-Type', 'text/css');
-            break;
-        case 'png':
-            res.header('Content-Type', 'image/png');
-            break;
-        case 'jpg':
-            res.header('Content-Type', 'image/jpg');
-            break;
-        case 'svg':
-            res.header('Content-Type', 'image/svg+xml');
-            break;
-        case 'ico':
-            res.header('Content-Type', 'image/x-icon');
-            break;
-        default:
-            res.header('Content-Type', 'text/plain');
-            break;
-    }
-
-    try {
-        // Read the file from the filesystem without the query string
-        // Add cache poloicy to cache 48h
-        res.header('Cache-Control', 'public, max-age=172800');
-        res.send(fs.readFileSync(path.join(__dirname, '..', 'public', filePath)));
-    } catch (error) {
-        process.log.error(error)
-        if (process.env.SENTRY_DSN) process.sentry.captureException(error, "404");
-        ejs.renderFile(path.join(__dirname, '..', 'views', 'error', 'error-xxx.ejs'), { statusCode: 404, message: "Page not found", info: "Request can not be served", reason: "The requested page was not found", back_url: process.env.DOMAIN, domain: process.env.DOMAIN }, (err, str) => {
-            res.header('Content-Type', 'text/html');
-            if (err) {
-                process.log.error(err);
-                if (process.env.SENTRY_DSN) process.sentry.captureException(err, "renderFile");
-            }
-            res.send(str);
-        });
-    };
-});
-
 app.use('/api/v1', apiv1);
 
-/* Handlers */
-app.set_error_handler((req, res, error) => {
-    if (process.env.SENTRY_DSN) process.sentry.captureException(error, { req, res });
-    console.log(error)
-    process.log.debug(error);
-    const outError = {
-        message: error.message || "",
-        info: error.info || "",
-        reason: error.reason || "",
-        headers: error.headers || false,
-        statusCode: error.status || 500, // Default to error 500
-        back_url: error.back_url || false,
+const sendNotFoundResponse = (req, res, next) => {
+    res.status(404);
+    ejs.renderFile(path.join(__dirname, '..', 'views', 'error', 'error-xxx.ejs'), {
+        statusCode: 404,
+        message: 'Page not found',
+        info: 'Request can not be served',
+        reason: 'The requested page was not found',
+        back_url: process.env.DOMAIN,
+        domain: process.env.DOMAIN,
+    }, (error, html) => {
+        if (error) return next(error);
+        res.header('Content-Type', 'text/html');
+        return res.send(html);
+    });
+};
+
+app.get('/*', (req, res, next) => {
+    const requestedPath = decodeURIComponent(req.path);
+    const publicDirectory = path.resolve(__dirname, '..', 'public');
+    const resolvedPath = path.resolve(publicDirectory, `.${requestedPath}`);
+
+    if (!resolvedPath.startsWith(`${publicDirectory}${path.sep}`) && resolvedPath !== publicDirectory) {
+        return sendNotFoundResponse(req, res, next);
     }
 
-    /* Returns 400 if the client didn´t provide all data/wrong data type*/
-    if (error.name === "ValidationError" || error.name === "InvalidOption") {
-        outError.message = error.name
-        outError.info = error.message
-        outError.reason = error.details
-        outError.statusCode = 400;
-    }
+    const extension = path.extname(resolvedPath).toLowerCase();
+    const contentTypes = {
+        '.js': 'text/javascript',
+        '.css': 'text/css',
+        '.png': 'image/png',
+        '.jpg': 'image/jpg',
+        '.jpeg': 'image/jpg',
+        '.svg': 'image/svg+xml',
+        '.ico': 'image/x-icon',
+        '.html': 'text/html',
+        '.json': 'application/json',
+    };
 
-    /* Returns 401 if the client is not authorized*/
-    if (error.message === "Token not provided" || error.message === "Token Invalid") {
-        statusCode = 401;
-    }
-
-    /* Returns 403 if the client is not allowed to do something*/
-    if (error.message === "NoPermissions" || error.message === "Permission Denied") {
-        statusCode = 403;
-    }
-
-    /* Returns 429 if the client is ratelimited*/
-    if (error.message === "Too Many Requests" || error.message === "Too Many Requests - IP Blocked") {
-        statusCode = 429;
-    }
-
-    if (log_errors[error.name]) process.log.error(`[${outError.statusCode}] ${req.method} "${req.url}" >> ${outError.message} in "${error.path}:${error.fileline}"`);
-    res.status(outError.statusCode);
-    if (outError.headers) { res.header(outError.headers.name, outError.headers.value); }
-
-    if (outError.back_url) {
-        outError.domain = process.env.DOMAIN; // Apend the domain to the error
-        ejs.renderFile(path.join(__dirname, '..', 'views', 'error', 'error-xxx.ejs'), outError, (err, str) => {
-            if (err) {
-                res.json({
-                    message: outError.message,
-                    info: outError.info,
-                    reason: outError.reason,
-                });
-
-                throw err;
-            } else {
-                res.header('Content-Type', 'text/html');
-                res.send(str);
-            }
-        });
-    } else {
-        res.json({
-            message: outError.message,
-            info: outError.info,
-            reason: outError.reason,
-        });
+    try {
+        if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile()) {
+            return sendNotFoundResponse(req, res, next);
+        }
+        res.header('Content-Type', contentTypes[extension] || 'application/octet-stream');
+        res.header('Cache-Control', 'public, max-age=172800');
+        return res.send(fs.readFileSync(resolvedPath));
+    } catch (error) {
+        return next(error);
     }
 });
+
+app.use(errorHandler);
 
 module.exports = app;

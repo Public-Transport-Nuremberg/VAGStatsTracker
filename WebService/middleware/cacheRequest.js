@@ -1,31 +1,35 @@
 const { addPublicStaticResponse, getPublicStaticResponseSave, addPrivateStaticResponse, getPrivateStaticResponseSave } = require('@lib/cache');
 
+const getRouteCacheKey = (req) => `${req.baseUrl || ''}${req.route?.path || req.path || req.url}`;
+
 /**
  * Will only work on send and json
  * @param {Number} duration | In ms
  * @returns 
  */
 const plublicStaticCache = (duration) => {
-    return async (req, res) => {
+    return async (req, res, next) => {
         try {
+            const routeCacheKey = getRouteCacheKey(req);
             const oldSend = res.send;
             const oldJson = res.json;
 
             res.send = function (data) {
                 res.body = data;
                 if(!res.bodyType) res.bodyType = 'string';
-                oldSend.apply(res, arguments);
+                return oldSend.apply(res, arguments);
             }
 
             res.json = function (obj) {
                 res.bodyType = 'json';
-                oldJson.call(this, obj);
+                res.body = JSON.stringify(obj);
+                return oldJson.call(this, obj);
             };
 
-            const cacheResult = await getPublicStaticResponseSave(req.route.id, duration);
+            const cacheResult = await getPublicStaticResponseSave(routeCacheKey, duration);
             // If we get a cache hit we will return the data
             if(cacheResult) {
-                process.log.debug(`Public Static Cache Hit on ${req.route.pattern}`)
+                process.log.debug(`Public Static Cache Hit on ${routeCacheKey}`)
                 res.status(cacheResult.statusCode);
                 if(cacheResult.type === 'string') return res.send(cacheResult.data)
                 if(cacheResult.type === 'json') return res.json(JSON.parse(cacheResult.data))
@@ -33,10 +37,11 @@ const plublicStaticCache = (duration) => {
 
             res.on('finish', () => {
                 // Every time the request finished we will add the data to the cache
-                addPublicStaticResponse(req.route.id, res.bodyType, res.body, res.statusCode, duration)
+                addPublicStaticResponse(routeCacheKey, res.bodyType, res.body, res.statusCode, duration)
             });
+            return next();
         } catch (error) {
-            return (error);
+            return next(error);
         }
     }
 }
@@ -49,24 +54,26 @@ const plublicStaticCache = (duration) => {
 const privateStaticCache = (duration) => {
     return async (req, res, next) => {
         try {
+            const routeCacheKey = getRouteCacheKey(req);
             const oldSend = res.send;
             const oldJson = res.json;
 
             res.send = function (data) {
                 res.body = data;
                 if(!res.bodyType) res.bodyType = 'string';
-                oldSend.apply(res, arguments);
+                return oldSend.apply(res, arguments);
             }
 
             res.json = function (obj) {
                 res.bodyType = 'json';
-                oldJson.call(this, obj);
+                res.body = JSON.stringify(obj);
+                return oldJson.call(this, obj);
             };
 
-            const cacheResult = await getPrivateStaticResponseSave(req.route.id, req.authorization, duration);
+            const cacheResult = await getPrivateStaticResponseSave(routeCacheKey, req.authorization, duration);
             // If we get a cache hit we will return the data
             if(cacheResult) {
-                process.log.debug(`Private Static Cache Hit for ${req.user.username} on ${req.route.pattern}`)
+                process.log.debug(`Private Static Cache Hit for ${req.user.username} on ${routeCacheKey}`)
                 res.status(cacheResult.statusCode);
                 if(cacheResult.type === 'string') return res.send(cacheResult.data)
                 if(cacheResult.type === 'json') return res.json(JSON.parse(cacheResult.data))
@@ -74,10 +81,11 @@ const privateStaticCache = (duration) => {
 
             res.on('finish', () => {
                 // Every time the request finished we will add the data to the cache
-                addPrivateStaticResponse(req.route.id, req.authorization, res.bodyType, res.body, res.statusCode, duration)
+                addPrivateStaticResponse(routeCacheKey, req.authorization, res.bodyType, res.body, res.statusCode, duration)
             });
+            return next();
         } catch (error) {
-            next(error);
+            return next(error);
         }
     }
 }

@@ -1,9 +1,9 @@
-const HyperExpress = require('hyper-express');
+const express = require('ultimate-express');
 const { limiter } = require('@middleware/limiter');
 const { plublicStaticCache } = require('@middleware/cacheRequest');
 const { heatmap } = require('@lib/clickhouse');
 const Joi = require('joi');
-const router = new HyperExpress.Router();
+const router = new express.Router();
 
 /* Plugin info*/
 const PluginName = 'Heatmap'; //This plugins name

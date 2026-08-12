@@ -1,5 +1,5 @@
-const HyperExpress = require('hyper-express');
-const router = new HyperExpress.Router();
+const express = require('ultimate-express');
+const router = new express.Router();
 const fs = require('fs');
 
 var plugins = [];

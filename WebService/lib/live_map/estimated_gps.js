@@ -1,8 +1,52 @@
 const VALID_LINES = new Set(['4', '5', '6', '7', '8', '10', '11', 'U1', 'U2', 'U3']);
 const EARTH_RADIUS_METERS = 6371008.8;
+const LINE_GEOMETRY_RETRY_MS = 60000;
 const lineGeometryCache = new Map();
+const lineGeometryRetryAfter = new Map();
+const stopProjectionCache = new Map();
 
 const toRadians = (degrees) => degrees * Math.PI / 180;
+const clampProgress = (progress) => Math.max(0, Math.min(1, Number(progress) || 0));
+
+const toTimestamp = (value) => {
+    if (value === null || value === undefined || value === '' || value === -1 || value === '-1') {
+        return null;
+    }
+    const timestamp = typeof value === 'string' && /^\d+$/.test(value)
+        ? Number(value)
+        : new Date(value).getTime();
+    return Number.isFinite(timestamp) ? timestamp : null;
+};
+
+const firstTimestamp = (...values) => {
+    for (const value of values) {
+        const timestamp = toTimestamp(value);
+        if (timestamp !== null) return timestamp;
+    }
+    return null;
+};
+
+const calculateTripProgress = (trip, now = Date.now()) => {
+    const storedProgress = clampProgress(trip.PercentageToNextStop);
+    const departureTime = firstTimestamp(
+        trip.AbfahrtszeitIst,
+        trip.AbfahrtszeitSoll,
+        trip.AnkunftszeitIst,
+        trip.AnkunftszeitSoll
+    );
+    const nextArrivalTime = firstTimestamp(
+        trip.nextAnkunftszeitIst,
+        trip.nextAnkunftszeitSoll,
+        trip.nextAbfahrtszeitIst,
+        trip.nextAbfahrtszeitSoll
+    );
+
+    if (departureTime === null || nextArrivalTime === null || nextArrivalTime <= departureTime) {
+        return storedProgress;
+    }
+
+    return clampProgress((Number(now) - departureTime) / (nextArrivalTime - departureTime));
+};
 
 const distanceMeters = (point1, point2) => {
     const latitude1 = toRadians(point1[1]);
@@ -39,17 +83,22 @@ const prepareGeometry = (coordinates) => {
 
 const getLineGeometry = async (vgn, line) => {
     if (!VALID_LINES.has(line)) return null;
+    if ((lineGeometryRetryAfter.get(line) || 0) > Date.now()) return null;
 
     if (!lineGeometryCache.has(line)) {
         const geometryPromise = Promise.resolve()
             .then(() => vgn.geoLines(line))
             .then((response) => {
                 if (response instanceof Error) throw response;
-                return prepareGeometry(response?.Cords ?? response);
+                const geometry = prepareGeometry(response?.Cords ?? response);
+                if (!geometry) throw new Error('Invalid line geometry response');
+                lineGeometryRetryAfter.delete(line);
+                return geometry;
             })
             .catch((error) => {
                 lineGeometryCache.delete(line);
-                process.log?.warning?.(`Failed to load geometry for line ${line}: ${error.message}`);
+                lineGeometryRetryAfter.set(line, Date.now() + LINE_GEOMETRY_RETRY_MS);
+                process.log?.warn?.(`Failed to load geometry for line ${line}: ${error.message}`);
                 return null;
             });
         lineGeometryCache.set(line, geometryPromise);
@@ -94,6 +143,14 @@ const projectOntoGeometry = (position, geometry) => {
     return closest;
 };
 
+const getStopProjection = (line, position, geometry) => {
+    const cacheKey = `${line}:${position[0]}:${position[1]}`;
+    if (!stopProjectionCache.has(cacheKey)) {
+        stopProjectionCache.set(cacheKey, projectOntoGeometry(position, geometry));
+    }
+    return stopProjectionCache.get(cacheKey);
+};
+
 const pointAtDistance = (geometry, distanceAlongLine) => {
     const distances = geometry.cumulativeDistances;
     let low = 0;
@@ -119,7 +176,7 @@ const pointAtDistance = (geometry, distanceAlongLine) => {
 };
 
 const estimateGpsPosition = async (vgn, line, currentStop, nextStop, progress) => {
-    const normalizedLine = String(line);
+    const normalizedLine = String(line).trim();
     if (!VALID_LINES.has(normalizedLine)) return null;
 
     const currentPosition = [Number(currentStop?.Longitude), Number(currentStop?.Latitude)];
@@ -129,8 +186,8 @@ const estimateGpsPosition = async (vgn, line, currentStop, nextStop, progress) =
     const geometry = await getLineGeometry(vgn, normalizedLine);
     if (!geometry) return null;
 
-    const currentProjection = projectOntoGeometry(currentPosition, geometry);
-    const nextProjection = projectOntoGeometry(nextPosition, geometry);
+    const currentProjection = getStopProjection(normalizedLine, currentPosition, geometry);
+    const nextProjection = getStopProjection(normalizedLine, nextPosition, geometry);
     if (!currentProjection || !nextProjection) return null;
 
     const normalizedProgress = Math.max(0, Math.min(1, Number(progress) || 0));
@@ -142,6 +199,7 @@ const estimateGpsPosition = async (vgn, line, currentStop, nextStop, progress) =
 
 module.exports = {
     VALID_LINES,
+    calculateTripProgress,
     estimateGpsPosition,
     prepareGeometry,
 };

@@ -66,9 +66,10 @@ const verifyRequest = (permission) => {
             // Add the user data to the request
             req.user = WebTokenResponse.Data;
             req.authorization = UserToken;
+            return next();
 
         } catch (error) {
-            next(error);
+            return next(error);
         }
     };
 };

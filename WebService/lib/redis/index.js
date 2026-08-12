@@ -162,6 +162,38 @@ const getIndexedTripValues = async () => {
     return getTripValuesByIds(await redis.zrange(TRIPS_GEO_KEY, 0, -1));
 };
 
+const updateTripLocations = async (locations) => {
+    const validLocations = locations.filter(({ tripId, latitude, longitude }) => tripId !== undefined
+        && tripId !== null
+        && Number.isFinite(Number(latitude))
+        && Number.isFinite(Number(longitude))
+        && Number(latitude) >= -REDIS_MAX_LATITUDE
+        && Number(latitude) <= REDIS_MAX_LATITUDE
+        && Number(longitude) >= -180
+        && Number(longitude) <= 180);
+    if (validLocations.length === 0) return 0;
+
+    const arguments = validLocations.flatMap(({ tripId, latitude, longitude }) => [
+        String(tripId),
+        Number(longitude),
+        Number(latitude),
+    ]);
+
+    // Only refresh entries whose trip key still exists. This prevents a worker
+    // iteration racing with Redis expiry from recreating a stale GEO member.
+    return redis.eval(`
+        local updated = 0
+        for index = 1, #ARGV, 3 do
+            local member = ARGV[index]
+            if redis.call('EXISTS', 'TRIP:' .. member) == 1 then
+                redis.call('GEOADD', KEYS[1], ARGV[index + 1], ARGV[index + 2], member)
+                updated = updated + 1
+            end
+        end
+        return updated
+    `, 1, TRIPS_GEO_KEY, ...arguments);
+};
+
 const getTripValuesInBoundingBox = async (boundingBox) => {
     await cleanupExpiredTripLocations();
 
@@ -264,6 +296,7 @@ module.exports = {
     getValuesFromKeys,
     getIndexedTripValues,
     getTripValuesInBoundingBox,
+    updateTripLocations,
     calculateRateAndAverageResponseTimeAndReset,
     countStatusCodesByKey
 }

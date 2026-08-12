@@ -1,9 +1,9 @@
-const HyperExpress = require('hyper-express');
+const express = require('ultimate-express');
 const { limiter } = require('@middleware/limiter');
 const linesWithStops = require('@config/linesWithStops');
 const { statistics } = require('@lib/clickhouse');
 const Joi = require('joi');
-const router = new HyperExpress.Router();
+const router = new express.Router();
 
 const delayLineSchema = Joi.object({
     line: Joi.string().regex(/^[a-zA-Z0-9]+$/).required(),

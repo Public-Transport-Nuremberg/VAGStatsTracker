@@ -2,6 +2,7 @@ require('dotenv').config({quiet: true});
 require('module-alias/register')
 
 const port = process.env.PORT || 80;
+const bindip = process.env.BINDIP || '0.0.0.0';
 //This timeout is used to delay accepting connections until the server is fully loaded. 
 //It could come to a crash if a request comes in before the settings cache was fully laoded.
 
@@ -72,12 +73,12 @@ renderEJSToPublic(path.join(__dirname, 'views'), path.join(__dirname, 'public'),
             if (process.env.ExtraErrorWebDelay > 0) {
                 process.log.system(`Webserver was delayed by ${process.env.ExtraErrorWebDelay || 500}ms beause of a error.`);
             }
-            app.listen(port)
-                .then((socket) => process.log.system(`Listening on port: ${port}`))
-                .catch((error) => {
-                    process.log.error(`Failed to start webserver on: ${port}\nError: ${error}`);
-                    if (process.env.SENTRY_DSN) process.sentry.captureException(error, port);
-                });
+            try {
+                app.listen(port, bindip, () => process.log.system(`Listening on ${bindip}:${port}`));
+            } catch (error) {
+                process.log.error(`Failed to start webserver on: ${port}\nError: ${error}`);
+                if (process.env.SENTRY_DSN) process.sentry.captureException(error, port);
+            }
         }, 1500);
     }, process.env.GlobalWaitTime || 100);
 })();

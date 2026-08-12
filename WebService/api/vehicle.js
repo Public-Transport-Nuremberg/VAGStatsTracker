@@ -1,11 +1,11 @@
-const HyperExpress = require('hyper-express');
+const express = require('ultimate-express');
 const { limiter } = require('@middleware/limiter');
 const Joi = require('joi');
 const { vehicle } = require('@lib/clickhouse');
 const { openvgn } = require('oepnv-nuremberg');
 const { StopObjectStore } = require('@lib/haltestellen_cache');
 const { findAllTripKeys, getValuesFromKeys } = require('@lib/redis');
-const router = new HyperExpress.Router();
+const router = new express.Router();
 
 const vgn = new openvgn();
 

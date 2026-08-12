@@ -1,8 +1,8 @@
-const HyperExpress = require('hyper-express');
+const express = require('ultimate-express');
 const { limiter } = require('@middleware/limiter');
 const { findAllTripKeys, getValuesFromKeys } = require('@lib/redis');
 const { getLiveMapPayload, linequerySchema } = require('@lib/live_map');
-const router = new HyperExpress.Router();
+const router = new express.Router();
 
 /* Plugin info*/
 const PluginName = 'Live'; //This plugins name

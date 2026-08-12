@@ -1,9 +1,9 @@
-const HyperExpress = require('hyper-express');
+const express = require('ultimate-express');
 const { limiter } = require('@middleware/limiter');
 const Joi = require('joi');
 const crypto = require('crypto');
 const { observe } = require('@lib/clickhouse');
-const router = new HyperExpress.Router();
+const router = new express.Router();
 
 /* Plugin info*/
 const PluginName = 'Observe';
