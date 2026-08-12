@@ -47,6 +47,11 @@ app.get('/livemap', (req, res) => {
     res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'livemap.html')));
 });
 
+app.get('/livemap-test', (req, res) => {
+    res.header('Content-Type', 'text/html');
+    res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'livemap-test.html')));
+});
+
 app.get('/heatmap', (req, res) => {
     res.header('Content-Type', 'text/html');
     res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'heatmap.html')));
@@ -101,7 +106,13 @@ app.ws('/api/v1/live/map/ws', { idle_timeout: 60, message_type: 'String', max_pa
         try {
             const payload = JSON.parse(message);
             if (payload.type === 'subscribe') {
-                query = await linequerySchema.validateAsync({ Linie: payload.Linie, Line: payload.Line, line: payload.line });
+                query = await linequerySchema.validateAsync({
+                    Linie: payload.Linie,
+                    Line: payload.Line,
+                    line: payload.line,
+                    pos1: payload.pos1,
+                    pos2: payload.pos2,
+                });
                 await sendSnapshot();
             }
         } catch (error) {

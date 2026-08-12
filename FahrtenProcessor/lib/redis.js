@@ -2,6 +2,10 @@ const Redis = require('ioredis');
 const { Queue } = require('bullmq');
 const randomstring = require('randomstring');
 
+const TRIPS_GEO_KEY = 'TRIPS:GEO';
+const TRIPS_GEO_EXPIRY_KEY = 'TRIPS:GEO:EXPIRY';
+const REDIS_MAX_LATITUDE = 85.05112878;
+
 const redisData = {
     port: process.env.REDIS_PORT || 6379,
     host: process.env.REDIS_HOST || "127.0.0.1",
@@ -53,7 +57,11 @@ const checkTripKey = async (number) => {
  */
 const delTripKey = async (number) => {
     const key = `TRIP:${number}`;
-    await redis.del(key);
+    await redis.multi()
+        .del(key)
+        .zrem(TRIPS_GEO_KEY, number)
+        .zrem(TRIPS_GEO_EXPIRY_KEY, number)
+        .exec();
 }
 
 /**
@@ -74,22 +82,6 @@ const errorExporter = (errorMessage, errorData, jobData) => {
 }
 
 /**
- * Add a new tripId to the geo set
- * @param {Number} tripId 
- * @param {Number} latitude 
- * @param {Number} longitude 
- */
-const addTripLocation = async (tripId, latitude, longitude) => {
-    const geoKey = 'TRIPS_GEO'; // Key for the geo set
-    try {
-      await redis.geoadd(geoKey, longitude, latitude, tripId);
-    } catch (error) {
-        console.log(error);
-      process.log.error(error);
-    }
-  }
-
-/**
  * @typedef {Object} tripData
  * @property {Number} VGNKennung
  * @property {String} VAGKennung
@@ -104,6 +96,7 @@ const addTripLocation = async (tripId, latitude, longitude) => {
  * @property {String} AbfahrtszeitSoll
  * @property {String} AbfahrtszeitIst
  * @property {Number} PercentageToNextStop
+ * @property {{Latitude: Number, Longitude: Number}|null} EstimatedGPS
  * @property {Object} Fahrt
  */
 
@@ -117,16 +110,37 @@ const addTripLocation = async (tripId, latitude, longitude) => {
  * @param {String} runAtTimestamp 
  * @param {String} Startzeit
  * @param {String} Endzeit 
+ * @param {Number} latitude
+ * @param {Number} longitude
  * @returns 
  */
-const ScheduleJob = async (Fahrtnummer, Betriebstag, Produkt, keyData, AlreadyTrackedStops, runAtTimestamp, Startzeit, Endzeit) => {
+const ScheduleJob = async (Fahrtnummer, Betriebstag, Produkt, keyData, AlreadyTrackedStops, runAtTimestamp, Startzeit, Endzeit, latitude, longitude) => {
 
     const key = `TRIP:${Fahrtnummer}`;
 
     const ttl = parseInt(((Endzeit - new Date().getTime()) / 1000) + (60 * 60), 10);
     const delay = parseInt((runAtTimestamp - new Date().getTime()), 10);
 
-    redis.set(key, JSON.stringify(keyData), "EX", Math.max(ttl, 1));
+    const tripTtl = Math.max(ttl, 1);
+    const expiresAt = Date.now() + (tripTtl * 1000);
+    const validPosition = Number.isFinite(Number(latitude))
+        && Number.isFinite(Number(longitude))
+        && Number(latitude) >= -REDIS_MAX_LATITUDE
+        && Number(latitude) <= REDIS_MAX_LATITUDE
+        && Number(longitude) >= -180
+        && Number(longitude) <= 180;
+
+    const transaction = redis.multi().set(key, JSON.stringify(keyData), "EX", tripTtl);
+    if (validPosition) {
+        transaction
+            .geoadd(TRIPS_GEO_KEY, Number(longitude), Number(latitude), Fahrtnummer)
+            .zadd(TRIPS_GEO_EXPIRY_KEY, expiresAt, Fahrtnummer);
+    } else {
+        transaction
+            .zrem(TRIPS_GEO_KEY, Fahrtnummer)
+            .zrem(TRIPS_GEO_EXPIRY_KEY, Fahrtnummer);
+    }
+    await transaction.exec();
 
     await trips_q.add(`${Fahrtnummer}`, {
         Fahrtnummer: Fahrtnummer,
@@ -146,6 +160,5 @@ module.exports = {
     checkTripKey,
     delTripKey,
     errorExporter,
-    addTripLocation,
     ScheduleJob
 }

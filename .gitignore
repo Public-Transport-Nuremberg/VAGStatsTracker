@@ -132,4 +132,5 @@ global.json
 RabbitMQ/rabbitmq
 Redis/data
 *.html
+!WebService/public/livemap-test.html
 /.claude

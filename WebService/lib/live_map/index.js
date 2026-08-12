@@ -1,6 +1,6 @@
 const { openvgn } = require('oepnv-nuremberg');
 const { StopObjectStore } = require('@lib/haltestellen_cache');
-const { findAllTripKeys, getValuesFromKeys } = require('@lib/redis');
+const { getIndexedTripValues, getTripValuesInBoundingBox } = require('@lib/redis');
 const { live } = require('@lib/clickhouse');
 const { linequerySchema } = require('./query_schema');
 
@@ -38,8 +38,9 @@ const enrichTrip = (trip) => {
 const getLiveMapPayload = async (query = {}, options = {}) => {
     const values = options.validated ? query : await linequerySchema.validateAsync(query);
     const lineFilter = values.Linie ? new Set(values.Linie.split(',')) : null;
-    const allTripKeys = await findAllTripKeys();
-    const allTripValues = await getValuesFromKeys('TRIP:', allTripKeys);
+    const allTripValues = values.boundingBox
+        ? await getTripValuesInBoundingBox(values.boundingBox)
+        : await getIndexedTripValues();
     const payload = {};
 
     Object.entries(allTripValues).forEach(([key, trip]) => {

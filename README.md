@@ -166,8 +166,18 @@ Parameters:
 
 ### Live
 `/all` Returns all current trips   
-`/map` Parameters:      
-- Linie: String   
+`/map` Parameters:
+
+- Linie: String (optional)
+- pos1: WGS84 `longitude,latitude` (optional; requires pos2)
+- pos2: WGS84 `longitude,latitude` (optional; requires pos1)
+
+When both positions are supplied, only active trips inside the rectangle formed by
+the two points are returned. Example: `/map?pos1=10.9,49.4&pos2=11.2,49.6`.
+
+Trips on lines `4`, `5`, `6`, `7`, `8`, `10`, `11`, `U1`, `U2`, and `U3` include
+an `EstimatedGPS` object with `Longitude` and `Latitude`. It is interpolated along
+the line geometry using `PercentageToNextStop`; unsupported lines return `null`.
 
 ### Heatmap
 `/`:  
