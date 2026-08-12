@@ -2,8 +2,8 @@ const Redis = require('ioredis');
 const { Queue } = require('bullmq');
 const randomstring = require('randomstring');
 
-const TRIPS_GEO_KEY = 'TRIPS:GEO';
-const TRIPS_GEO_EXPIRY_KEY = 'TRIPS:GEO:EXPIRY';
+const TRIPS_GEO_KEY = 'TRIPS_GEO';
+const TRIPS_GEO_EXPIRY_KEY = 'TRIPS_GEO_EXPIRY';
 const REDIS_MAX_LATITUDE = 85.05112878;
 
 const redisData = {
