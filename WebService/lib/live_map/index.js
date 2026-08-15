@@ -32,7 +32,8 @@ const getTripLivePosition = async (trip, now = Date.now()) => {
         trip.Linienname,
         currentStop,
         nextStop,
-        progress
+        progress,
+        trip.Produkt
     );
 
     return { currentStop, nextStop, progress, EstimatedGPS };
@@ -40,6 +41,7 @@ const getTripLivePosition = async (trip, now = Date.now()) => {
 
 const enrichTrip = async (trip, now) => {
     const { currentStop, nextStop, progress, EstimatedGPS } = await getTripLivePosition(trip, now);
+    const displayPosition = EstimatedGPS || currentStop;
 
     return {
         ...trip,
@@ -47,8 +49,8 @@ const enrichTrip = async (trip, now) => {
         EstimatedGPS,
         Haltestellenname: currentStop.Haltestellenname,
         Produkte: currentStop.Produkte,
-        Latitude: currentStop.Latitude,
-        Longitude: currentStop.Longitude,
+        Latitude: displayPosition.Latitude,
+        Longitude: displayPosition.Longitude,
         StopLatitude: currentStop.Latitude,
         StopLongitude: currentStop.Longitude,
         nextHaltestellenname: nextStop.Haltestellenname,

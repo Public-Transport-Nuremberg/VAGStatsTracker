@@ -58,7 +58,7 @@ const distanceMeters = (point1, point2) => {
     return 2 * EARTH_RADIUS_METERS * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-const prepareGeometry = (coordinates) => {
+const prepareLineGeometry = (coordinates) => {
     if (!Array.isArray(coordinates) || coordinates.length < 2) return null;
 
     const points = coordinates.map((coordinate) => [Number(coordinate[0]), Number(coordinate[1])]);
@@ -81,30 +81,42 @@ const prepareGeometry = (coordinates) => {
     return { points, cumulativeDistances };
 };
 
-const getLineGeometry = async (vgn, line) => {
-    if (!VALID_LINES.has(line)) return null;
-    if ((lineGeometryRetryAfter.get(line) || 0) > Date.now()) return null;
+const prepareGeometry = (coordinates) => {
+    const lineStrings = Array.isArray(coordinates?.[0]?.[0])
+        ? coordinates
+        : [coordinates];
+    const geometries = lineStrings
+        .map(prepareLineGeometry)
+        .filter(Boolean);
+    return geometries.length > 0 ? geometries : null;
+};
 
-    if (!lineGeometryCache.has(line)) {
+const getLineGeometry = async (vgn, line, product) => {
+    if (!VALID_LINES.has(line) && product !== 'Bus') return null;
+
+    const cacheKey = `${product}:${line}`;
+    if ((lineGeometryRetryAfter.get(cacheKey) || 0) > Date.now()) return null;
+
+    if (!lineGeometryCache.has(cacheKey)) {
         const geometryPromise = Promise.resolve()
             .then(() => vgn.geoLines(line))
             .then((response) => {
                 if (response instanceof Error) throw response;
                 const geometry = prepareGeometry(response?.Cords ?? response);
                 if (!geometry) throw new Error('Invalid line geometry response');
-                lineGeometryRetryAfter.delete(line);
+                lineGeometryRetryAfter.delete(cacheKey);
                 return geometry;
             })
             .catch((error) => {
-                lineGeometryCache.delete(line);
-                lineGeometryRetryAfter.set(line, Date.now() + LINE_GEOMETRY_RETRY_MS);
-                process.log?.warn?.(`Failed to load geometry for line ${line}: ${error.message}`);
+                lineGeometryCache.delete(cacheKey);
+                lineGeometryRetryAfter.set(cacheKey, Date.now() + LINE_GEOMETRY_RETRY_MS);
+                process.log?.warn?.(`Failed to load geometry for ${product} line ${line}: ${error.message}`);
                 return null;
             });
-        lineGeometryCache.set(line, geometryPromise);
+        lineGeometryCache.set(cacheKey, geometryPromise);
     }
 
-    return lineGeometryCache.get(line);
+    return lineGeometryCache.get(cacheKey);
 };
 
 const projectOntoGeometry = (position, geometry) => {
@@ -143,8 +155,8 @@ const projectOntoGeometry = (position, geometry) => {
     return closest;
 };
 
-const getStopProjection = (line, position, geometry) => {
-    const cacheKey = `${line}:${position[0]}:${position[1]}`;
+const getStopProjection = (routeKey, routeIndex, position, geometry) => {
+    const cacheKey = `${routeKey}:${routeIndex}:${position[0]}:${position[1]}`;
     if (!stopProjectionCache.has(cacheKey)) {
         stopProjectionCache.set(cacheKey, projectOntoGeometry(position, geometry));
     }
@@ -175,26 +187,39 @@ const pointAtDistance = (geometry, distanceAlongLine) => {
     };
 };
 
-const estimateGpsPosition = async (vgn, line, currentStop, nextStop, progress) => {
+const estimateGpsPosition = async (vgn, line, currentStop, nextStop, progress, product) => {
     const normalizedLine = String(line).trim();
-    if (!VALID_LINES.has(normalizedLine)) return null;
+    if (!VALID_LINES.has(normalizedLine) && product !== 'Bus') return null;
 
     const currentPosition = [Number(currentStop?.Longitude), Number(currentStop?.Latitude)];
     const nextPosition = [Number(nextStop?.Longitude), Number(nextStop?.Latitude)];
     if (![...currentPosition, ...nextPosition].every(Number.isFinite)) return null;
 
-    const geometry = await getLineGeometry(vgn, normalizedLine);
-    if (!geometry) return null;
+    const geometries = await getLineGeometry(vgn, normalizedLine, product);
+    if (!geometries) return null;
+    const routeKey = `${product}:${normalizedLine}`;
 
-    const currentProjection = getStopProjection(normalizedLine, currentPosition, geometry);
-    const nextProjection = getStopProjection(normalizedLine, nextPosition, geometry);
-    if (!currentProjection || !nextProjection) return null;
+    const route = geometries
+        .map((geometry, routeIndex) => {
+            const currentProjection = getStopProjection(routeKey, routeIndex, currentPosition, geometry);
+            const nextProjection = getStopProjection(routeKey, routeIndex, nextPosition, geometry);
+            if (!currentProjection || !nextProjection) return null;
+            return {
+                geometry,
+                currentProjection,
+                nextProjection,
+                distanceToStops: currentProjection.squaredDistance + nextProjection.squaredDistance,
+            };
+        })
+        .filter(Boolean)
+        .sort((first, second) => first.distanceToStops - second.distanceToStops)[0];
+    if (!route) return null;
 
     const normalizedProgress = Math.max(0, Math.min(1, Number(progress) || 0));
-    const estimatedDistance = currentProjection.distanceAlongLine
-        + ((nextProjection.distanceAlongLine - currentProjection.distanceAlongLine) * normalizedProgress);
+    const estimatedDistance = route.currentProjection.distanceAlongLine
+        + ((route.nextProjection.distanceAlongLine - route.currentProjection.distanceAlongLine) * normalizedProgress);
 
-    return pointAtDistance(geometry, estimatedDistance);
+    return pointAtDistance(route.geometry, estimatedDistance);
 };
 
 module.exports = {
