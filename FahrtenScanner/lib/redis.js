@@ -84,7 +84,14 @@ const addJob = async (Fahrtnummer, Betriebstag, Produkt, runAtTimestamp, Endzeit
         Startzeit: runAtTimestamp,
         Endzeit: Endzeit,
         Fahrt,
-    }, { delay: delay, attempts: 2 });
+    }, {
+        delay: delay,
+        attempts: 5,
+        backoff: {
+            type: 'exponential',
+            delay: 1000,
+        },
+    });
 
     return delay
 }

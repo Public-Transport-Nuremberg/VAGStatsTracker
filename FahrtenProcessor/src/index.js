@@ -17,7 +17,7 @@ const queueData = {
     db: process.env.REDIS_DB + 1 || 1,
 }
 
-new Worker('q:trips', async (job) => {
+const worker = new Worker('q:trips', async (job) => {
     let currentTripResponse = null;
     try {
         const { Fahrtnummer, Betriebstag, Produkt, AlreadyTrackedStops, Startzeit, Endzeit, Fahrt: ScannerFahrt } = job.data;
@@ -111,16 +111,23 @@ new Worker('q:trips', async (job) => {
             Fahrt: ScannerFahrt ?? null,
         }
 
-        let nextRunAtTimestamp = 0
-        if (nextStopObject.AnkunftszeitIst) {
-            nextRunAtTimestamp = new Date(nextStopObject.AnkunftszeitIst).getTime();
-        } else if (nextStopObject.AbfahrtszeitIst) {
-            nextRunAtTimestamp = new Date(nextStopObject.AbfahrtszeitIst).getTime();
-        } else {
+        const nextRunAtTimestamp = [
+            nextStopObject.AnkunftszeitIst,
+            nextStopObject.AbfahrtszeitIst,
+            nextStopObject.AnkunftszeitSoll,
+            nextStopObject.AbfahrtszeitSoll,
+        ]
+            .map((timestamp) => new Date(timestamp).getTime())
+            .find(Number.isFinite);
+
+        if (!Number.isFinite(nextRunAtTimestamp)) {
             process.log.error(`Could not find next stop time for ${Fahrtnummer} (${Produkt})`);
         }
 
-        const nextRunAt = new Date().getTime() + 5000 // experimental
+        const nowTimestamp = Date.now();
+        const nextRunAt = Number.isFinite(nextRunAtTimestamp)
+            ? Math.max(nextRunAtTimestamp, nowTimestamp + 30000)
+            : nowTimestamp + (5 * 60 * 1000);
 
         await ScheduleJob(
             Fahrtnummer,
@@ -146,4 +153,25 @@ new Worker('q:trips', async (job) => {
     removeOnComplete: { count: 1 },
     removeOnFail: { count: 50 },
     concurrency: 5
+});
+
+worker.on('failed', (job, error) => {
+    if (!job) return;
+
+    const maxAttempts = Number(job.opts.attempts) || 1;
+    if (job.attemptsMade < maxAttempts) return;
+
+    const { Fahrtnummer } = job.data;
+    if (Fahrtnummer === undefined || Fahrtnummer === null) return;
+
+    void delTripKey(Fahrtnummer)
+        .then(() => process.log.warn(
+            `Removed stale trip key for ${Fahrtnummer} after ${maxAttempts} failed attempts: ${error.message}`
+        ))
+        .catch((cleanupError) => {
+            process.log.error(
+                `Failed to remove stale trip key for ${Fahrtnummer}: ${cleanupError.stack || cleanupError}`
+            );
+            if (process.env.SENTRY_DSN) process.sentry.captureException(cleanupError);
+        });
 });

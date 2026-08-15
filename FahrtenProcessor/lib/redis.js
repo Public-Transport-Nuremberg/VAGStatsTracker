@@ -149,7 +149,14 @@ const ScheduleJob = async (Fahrtnummer, Betriebstag, Produkt, keyData, AlreadyTr
         Startzeit: Startzeit,
         Endzeit: Endzeit,
         Fahrt: keyData.Fahrt ?? null,
-    }, { delay: Math.max(delay, 30000), attempts: 2 });
+    }, {
+        delay,
+        attempts: 5,
+        backoff: {
+            type: 'exponential',
+            delay: 1000,
+        },
+    });
 
     return delay
 }
