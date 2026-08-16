@@ -4,7 +4,7 @@ const vgn = new openvgn();
 
 const { Worker } = require('bullmq');
 
-const { getLastStopAndProgress, removeDuplicatesAndKeepOrder } = require('@lib/util');
+const { getLastStopAndProgress, getSegmentStartTimestamp, removeDuplicatesAndKeepOrder } = require('@lib/util');
 const { writeNewDatapoint, ScheduleJob, delTripKey, errorExporter } = require('@lib/redis');
 
 const { insertOrUpdateFahrtEntry, insertOrUpdateHaltestelle } = require('@lib/clickhouse');
@@ -111,23 +111,34 @@ const worker = new Worker('q:trips', async (job) => {
             Fahrt: ScannerFahrt ?? null,
         }
 
-        const nextRunAtTimestamp = [
+        const getFirstTimestamp = (timestamps) => timestamps
+            .map((timestamp) => new Date(timestamp).getTime())
+            .find(Number.isFinite);
+        const nextRunAtTimestamp = getFirstTimestamp([
             nextStopObject.AnkunftszeitIst,
             nextStopObject.AbfahrtszeitIst,
             nextStopObject.AnkunftszeitSoll,
             nextStopObject.AbfahrtszeitSoll,
-        ]
-            .map((timestamp) => new Date(timestamp).getTime())
-            .find(Number.isFinite);
+        ]);
+        const currentSegmentStartTimestamp = getSegmentStartTimestamp(lastStopObject, nextStopObject);
 
         if (!Number.isFinite(nextRunAtTimestamp)) {
             process.log.error(`Could not find next stop time for ${Fahrtnummer} (${Produkt})`);
         }
 
         const nowTimestamp = Date.now();
-        const nextRunAt = Number.isFinite(nextRunAtTimestamp)
-            ? Math.max(nextRunAtTimestamp, nowTimestamp + 30000)
-            : nowTimestamp + (5 * 60 * 1000);
+        const halfwayTimestamp = Number.isFinite(currentSegmentStartTimestamp)
+            && Number.isFinite(nextRunAtTimestamp)
+            && nextRunAtTimestamp > currentSegmentStartTimestamp
+            ? currentSegmentStartTimestamp + ((nextRunAtTimestamp - currentSegmentStartTimestamp) / 2)
+            : null;
+        const nextRunAt = Number.isFinite(halfwayTimestamp) && halfwayTimestamp > nowTimestamp
+            ? halfwayTimestamp
+            : Number.isFinite(nextRunAtTimestamp) && nextRunAtTimestamp > nowTimestamp
+                ? nextRunAtTimestamp
+                : Number.isFinite(nextRunAtTimestamp)
+                    ? nowTimestamp + 30000
+                    : nowTimestamp + (5 * 60 * 1000);
 
         await ScheduleJob(
             Fahrtnummer,

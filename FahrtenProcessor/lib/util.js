@@ -4,44 +4,92 @@
  * @param {String} currentTimestamp 
  * @returns 
  */
+const toTimestamp = (value) => {
+    if (value === null || value === undefined || value === '' || value === -1 || value === '-1') {
+        return null;
+    }
+    const timestamp = new Date(value).getTime();
+    return Number.isFinite(timestamp) ? timestamp : null;
+};
+
+const firstTimestamp = (...values) => {
+    for (const value of values) {
+        const timestamp = toTimestamp(value);
+        if (timestamp !== null) return timestamp;
+    }
+    return null;
+};
+
+const getArrivalTimestamp = (stop) => firstTimestamp(
+    stop.AnkunftszeitIst,
+    stop.AnkunftszeitSoll,
+    stop.AbfahrtszeitIst,
+    stop.AbfahrtszeitSoll
+);
+
+const getSegmentStartTimestamp = (currentStop, nextStop) => {
+    const departureTimestamp = firstTimestamp(
+        currentStop.AbfahrtszeitIst,
+        currentStop.AbfahrtszeitSoll
+    );
+    const currentArrivalTimestamp = firstTimestamp(
+        currentStop.AnkunftszeitIst,
+        currentStop.AnkunftszeitSoll
+    );
+    const nextActualArrivalTimestamp = toTimestamp(nextStop.AnkunftszeitIst);
+    const nextScheduledArrivalTimestamp = toTimestamp(nextStop.AnkunftszeitSoll);
+    const earlyArrival = nextActualArrivalTimestamp !== null && nextScheduledArrivalTimestamp !== null
+        ? Math.max(nextScheduledArrivalTimestamp - nextActualArrivalTimestamp, 0)
+        : 0;
+
+    if (departureTimestamp === null) return currentArrivalTimestamp;
+
+    // AbfahrtIst never reports early departures. Shift it by the early arrival
+    // reported for the next stop so the segment remains temporally consistent.
+    const effectiveDepartureTimestamp = departureTimestamp - earlyArrival;
+    return currentArrivalTimestamp === null
+        ? effectiveDepartureTimestamp
+        : Math.max(effectiveDepartureTimestamp, currentArrivalTimestamp);
+};
+
 const getLastStopAndProgress = (routeData, currentTimestamp) => {
-    const now = new Date(currentTimestamp);
-    let lastStopIndex = -1;
-    let vgnCodes = [];
-    let progress = 0;
-
-    // Check if the first stop's departure time is in the future
-    if (routeData.length > 0 && new Date(routeData[0].AbfahrtszeitIst) > now) {
-        lastStopIndex = 0; // Trip hasn't started
-    } else {
-        for (let i = 0; i < routeData.length; i++) {
-            const stop = routeData[i];
-            let departureTime = stop.AbfahrtszeitIst ? new Date(stop.AbfahrtszeitIst) : new Date(stop.AnkunftszeitIst);
-
-            if (departureTime && departureTime < now) {
-                lastStopIndex = i;
-                vgnCodes.push(stop.VGNKennung);
-            } else {
-                break; // Stop iteration if we found the last stop
-            }
-        }
+    const now = new Date(currentTimestamp).getTime();
+    if (!Array.isArray(routeData) || routeData.length === 0 || !Number.isFinite(now)) {
+        return { lastStopIndex: -1, vgnCodes: [], progress: 0 };
     }
 
-    if (lastStopIndex !== -1 && lastStopIndex < routeData.length - 1) {
-        const lastDepartureTime = lastStopIndex === 0 ? now : new Date(routeData[lastStopIndex].AbfahrtszeitIst);
-        const nextArrivalTime = new Date(routeData[lastStopIndex + 1].AnkunftszeitIst);
+    let lastStopIndex = 0;
+    const vgnCodes = [];
 
-        const totalTime = nextArrivalTime - lastDepartureTime;
-        const elapsedTime = now - lastDepartureTime;
+    for (let index = 0; index < routeData.length; index++) {
+        const stop = routeData[index];
+        const arrivalTimestamp = getArrivalTimestamp(stop);
+        if (arrivalTimestamp === null || arrivalTimestamp > now) continue;
 
-        progress = elapsedTime / totalTime;
-        progress = Math.max(0, Math.min(progress, 1));
+        // ArrivalIst can be earlier than the preceding AbfahrtIst. Do not stop
+        // at an apparently future departure: the furthest reached stop is the
+        // only reliable representation of the vehicle's actual position.
+        lastStopIndex = index;
+        vgnCodes.push(stop.VGNKennung);
+    }
+
+    if (lastStopIndex === routeData.length - 1) {
+        return { lastStopIndex, vgnCodes, progress: 0 };
+    }
+
+    const currentSegmentStartTimestamp = getSegmentStartTimestamp(
+        routeData[lastStopIndex],
+        routeData[lastStopIndex + 1]
+    );
+    const nextArrivalTimestamp = getArrivalTimestamp(routeData[lastStopIndex + 1]);
+    if (currentSegmentStartTimestamp === null || nextArrivalTimestamp === null || nextArrivalTimestamp <= currentSegmentStartTimestamp) {
+        return { lastStopIndex, vgnCodes, progress: 0 };
     }
 
     return {
         lastStopIndex,
         vgnCodes,
-        progress
+        progress: Math.max(0, Math.min((now - currentSegmentStartTimestamp) / (nextArrivalTimestamp - currentSegmentStartTimestamp), 1)),
     };
 }
 
@@ -59,5 +107,6 @@ const removeDuplicatesAndKeepOrder = (alreadyTrackedStops, fahrten) => {
 
 module.exports = {
     getLastStopAndProgress,
+    getSegmentStartTimestamp,
     removeDuplicatesAndKeepOrder
 }

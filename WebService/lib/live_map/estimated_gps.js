@@ -26,14 +26,26 @@ const firstTimestamp = (...values) => {
     return null;
 };
 
+const getSegmentStartTime = (trip) => {
+    const departureTime = firstTimestamp(trip.AbfahrtszeitIst, trip.AbfahrtszeitSoll);
+    const currentArrivalTime = firstTimestamp(trip.AnkunftszeitIst, trip.AnkunftszeitSoll);
+    const nextActualArrivalTime = toTimestamp(trip.nextAnkunftszeitIst);
+    const nextScheduledArrivalTime = toTimestamp(trip.nextAnkunftszeitSoll);
+    const earlyArrival = nextActualArrivalTime !== null && nextScheduledArrivalTime !== null
+        ? Math.max(nextScheduledArrivalTime - nextActualArrivalTime, 0)
+        : 0;
+
+    if (departureTime === null) return currentArrivalTime;
+
+    const effectiveDepartureTime = departureTime - earlyArrival;
+    return currentArrivalTime === null
+        ? effectiveDepartureTime
+        : Math.max(effectiveDepartureTime, currentArrivalTime);
+};
+
 const calculateTripProgress = (trip, now = Date.now()) => {
     const storedProgress = clampProgress(trip.PercentageToNextStop);
-    const departureTime = firstTimestamp(
-        trip.AbfahrtszeitIst,
-        trip.AbfahrtszeitSoll,
-        trip.AnkunftszeitIst,
-        trip.AnkunftszeitSoll
-    );
+    const segmentStartTime = getSegmentStartTime(trip);
     const nextArrivalTime = firstTimestamp(
         trip.nextAnkunftszeitIst,
         trip.nextAnkunftszeitSoll,
@@ -41,11 +53,11 @@ const calculateTripProgress = (trip, now = Date.now()) => {
         trip.nextAbfahrtszeitSoll
     );
 
-    if (departureTime === null || nextArrivalTime === null || nextArrivalTime <= departureTime) {
+    if (segmentStartTime === null || nextArrivalTime === null || nextArrivalTime <= segmentStartTime) {
         return storedProgress;
     }
 
-    return clampProgress((Number(now) - departureTime) / (nextArrivalTime - departureTime));
+    return clampProgress((Number(now) - segmentStartTime) / (nextArrivalTime - segmentStartTime));
 };
 
 const distanceMeters = (point1, point2) => {
