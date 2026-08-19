@@ -2,6 +2,7 @@ const Redis = require('ioredis');
 
 const TRIPS_GEO_KEY = 'TRIPS_GEO';
 const TRIPS_GEO_EXPIRY_KEY = 'TRIPS_GEO_EXPIRY';
+const LIVE_TRIP_INDEX_PREFIX = 'LIVE:TRIP:INDEX:';
 const EARTH_RADIUS_METERS = 6371008.8;
 const REDIS_MAX_LATITUDE = 85.05112878;
 const COORDINATE_EPSILON = 0.000001;
@@ -157,6 +158,54 @@ const getTripValuesByIds = async (tripIds) => {
     return result;
 };
 
+const getLiveTripIndexKey = (line, direction, nextStop) => [line, direction, nextStop]
+    .map((value) => encodeURIComponent(String(value)))
+    .join(':')
+    .replace(/^/, LIVE_TRIP_INDEX_PREFIX);
+
+const getTripNumbersByLineDirectionAndNextStop = async (line, direction, nextStop) => {
+    const indexKey = getLiveTripIndexKey(line, direction, nextStop);
+    const now = Date.now();
+
+    // The score is the trip-key expiry time. This keeps expired members out of
+    // the result even though Redis cannot expire individual sorted-set members.
+    await redis.zremrangebyscore(indexKey, '-inf', now);
+    const tripIds = await redis.zrangebyscore(indexKey, now, '+inf');
+    if (tripIds.length === 0) return [];
+
+    const values = await redis.mget(tripIds.map((tripId) => `TRIP:${tripId}`));
+    const staleTripIds = [];
+    const matchingTripIds = [];
+
+    values.forEach((value, index) => {
+        if (value === null) {
+            staleTripIds.push(tripIds[index]);
+            return;
+        }
+
+        try {
+            const trip = JSON.parse(value);
+            const isMatching = String(trip.Linienname) === String(line)
+                && String(trip.Richtung) === String(direction)
+                && String(trip.nextVGNKennung) === String(nextStop);
+
+            if (isMatching) {
+                matchingTripIds.push(tripIds[index]);
+            } else {
+                staleTripIds.push(tripIds[index]);
+            }
+        } catch {
+            staleTripIds.push(tripIds[index]);
+        }
+    });
+
+    if (staleTripIds.length > 0) {
+        await redis.zrem(indexKey, ...staleTripIds);
+    }
+
+    return matchingTripIds;
+};
+
 const getIndexedTripValues = async () => {
     await cleanupExpiredTripLocations();
     return getTripValuesByIds(await redis.zrange(TRIPS_GEO_KEY, 0, -1));
@@ -296,6 +345,7 @@ module.exports = {
     getValuesFromKeys,
     getIndexedTripValues,
     getTripValuesInBoundingBox,
+    getTripNumbersByLineDirectionAndNextStop,
     updateTripLocations,
     calculateRateAndAverageResponseTimeAndReset,
     countStatusCodesByKey

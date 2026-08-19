@@ -4,7 +4,16 @@ const randomstring = require('randomstring');
 
 const TRIPS_GEO_KEY = 'TRIPS_GEO';
 const TRIPS_GEO_EXPIRY_KEY = 'TRIPS_GEO_EXPIRY';
+const LIVE_TRIP_INDEX_PREFIX = 'LIVE:TRIP:INDEX:';
+const LIVE_TRIP_INDEX_BY_ID_PREFIX = 'LIVE:TRIP:INDEX:BY-ID:';
 const REDIS_MAX_LATITUDE = 85.05112878;
+
+const getLiveTripIndexKey = (line, direction, nextStop) => [line, direction, nextStop]
+    .map((value) => encodeURIComponent(String(value)))
+    .join(':')
+    .replace(/^/, LIVE_TRIP_INDEX_PREFIX);
+
+const getLiveTripReverseIndexKey = (tripId) => `${LIVE_TRIP_INDEX_BY_ID_PREFIX}${tripId}`;
 
 const redisData = {
     port: process.env.REDIS_PORT || 6379,
@@ -57,11 +66,16 @@ const checkTripKey = async (number) => {
  */
 const delTripKey = async (number) => {
     const key = `TRIP:${number}`;
-    await redis.multi()
+    const reverseIndexKey = getLiveTripReverseIndexKey(number);
+    const oldIndexKey = await redis.get(reverseIndexKey);
+    const transaction = redis.multi()
         .del(key)
+        .del(reverseIndexKey)
         .zrem(TRIPS_GEO_KEY, number)
-        .zrem(TRIPS_GEO_EXPIRY_KEY, number)
-        .exec();
+        .zrem(TRIPS_GEO_EXPIRY_KEY, number);
+
+    if (oldIndexKey) transaction.zrem(oldIndexKey, number);
+    await transaction.exec();
 }
 
 /**
@@ -93,6 +107,8 @@ const errorExporter = (errorMessage, errorData, jobData) => {
  * @property {String} Betriebstag
  * @property {Number} Besetzgrad
  * @property {String} Haltepunkt
+ * @property {Number} nextVGNKennung
+ * @property {String} nextVAGKennung
  * @property {String} AbfahrtszeitSoll
  * @property {String} AbfahrtszeitIst
  * @property {Number} PercentageToNextStop
@@ -116,6 +132,7 @@ const errorExporter = (errorMessage, errorData, jobData) => {
 const ScheduleJob = async (Fahrtnummer, Betriebstag, Produkt, keyData, AlreadyTrackedStops, runAtTimestamp, Startzeit, Endzeit, latitude, longitude) => {
 
     const key = `TRIP:${Fahrtnummer}`;
+    const reverseIndexKey = getLiveTripReverseIndexKey(Fahrtnummer);
 
     const ttl = parseInt(((Endzeit - new Date().getTime()) / 1000) + (60 * 60), 10);
     const delay = parseInt((runAtTimestamp - new Date().getTime()), 10);
@@ -129,7 +146,27 @@ const ScheduleJob = async (Fahrtnummer, Betriebstag, Produkt, keyData, AlreadyTr
         && Number(longitude) >= -180
         && Number(longitude) <= 180;
 
-    const transaction = redis.multi().set(key, JSON.stringify(keyData), "EX", tripTtl);
+    const indexKey = keyData.Linienname !== undefined
+        && keyData.Richtung !== undefined
+        && keyData.nextVGNKennung !== undefined
+        && keyData.nextVGNKennung !== null
+        ? getLiveTripIndexKey(keyData.Linienname, keyData.Richtung, keyData.nextVGNKennung)
+        : null;
+    const oldIndexKey = await redis.get(reverseIndexKey);
+    const transaction = redis.multi();
+
+    if (oldIndexKey && oldIndexKey !== indexKey) transaction.zrem(oldIndexKey, Fahrtnummer);
+
+    transaction
+        .set(key, JSON.stringify(keyData), "EX", tripTtl)
+        .del(reverseIndexKey);
+
+    if (indexKey) {
+        transaction
+            .zadd(indexKey, expiresAt, Fahrtnummer)
+            .set(reverseIndexKey, indexKey, "EX", tripTtl);
+    }
+
     if (validPosition) {
         transaction
             .geoadd(TRIPS_GEO_KEY, Number(longitude), Number(latitude), Fahrtnummer)
@@ -166,5 +203,7 @@ module.exports = {
     checkTripKey,
     delTripKey,
     errorExporter,
-    ScheduleJob
+    ScheduleJob,
+    getLiveTripIndexKey,
+    getLiveTripReverseIndexKey
 }
