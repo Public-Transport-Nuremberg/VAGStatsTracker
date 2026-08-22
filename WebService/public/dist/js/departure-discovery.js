@@ -21,13 +21,15 @@
 
   const colors = {
     candidate: '#2563eb', covered: '#059669', error: '#dc2626', discovered: '#7e22ce',
-    running: '#ea580c', unknown: '#64748b',
+    running: '#ea580c', emptyRetry: '#ca8a04', sparse: '#92400e', unknown: '#64748b',
   };
   const styles = new Map();
   const getColor = (stop) => {
     if (stop.lastRequest?.state === 'running') return colors.running;
     if (stop.lastRequest?.state === 'error') return colors.error;
     if (Number(stop.lastRequest?.newTrips) > 0) return colors.discovered;
+    if (stop.lastRequest?.schedulerMode === 'sparse') return colors.sparse;
+    if (stop.lastRequest?.schedulerMode === 'empty-retry') return colors.emptyRetry;
     if (stop.candidate) return colors.candidate;
     if (stop.mentioned) return colors.covered;
     return colors.unknown;
@@ -60,8 +62,22 @@
     if (query && !`${stop.Haltestellenname} ${stop.VGNKennung} ${stop.VAGKennung}`.toLowerCase().includes(query)) return false;
     if (filter === 'candidate') return stop.candidate;
     if (filter === 'scheduled') return Boolean(stop.scheduledAt);
+    if (filter === 'queried') return Boolean(stop.lastRequest);
+    if (filter === 'success') return stop.lastRequest?.state === 'success';
     if (filter === 'error') return stop.lastRequest?.state === 'error';
     if (filter === 'discovered') return Number(stop.lastRequest?.newTrips) > 0;
+    if (filter === 'normal-mode') return stop.candidate && stop.lastRequest?.schedulerMode === 'normal';
+    if (filter === 'empty-retry') return stop.candidate && stop.lastRequest?.schedulerMode === 'empty-retry';
+    if (filter === 'sparse') return stop.candidate && stop.lastRequest?.schedulerMode === 'sparse';
+    if (filter === 'recent') return stop.lastRequest
+      && new Date(stop.lastRequest.requestedAt).getTime() >= Date.now() - (10 * 60 * 1000);
+    if (filter === 'older') return stop.lastRequest
+      && new Date(stop.lastRequest.requestedAt).getTime() < Date.now() - (10 * 60 * 1000);
+    if (filter === 'overdue') return stop.candidate && stop.scheduledAt
+      && new Date(stop.scheduledAt).getTime() < Date.now();
+    if (filter === 'learned') return stop.known;
+    if (filter === 'covered') return stop.mentioned;
+    if (filter === 'product-filtered') return stop.eligibility === 'product-filtered';
     if (filter === 'never') return !stop.lastRequest;
     return true;
   };
@@ -77,7 +93,15 @@
       feature.setStyle(getStyle(stop));
       source.addFeature(feature);
     }
-    summary.textContent = `${visible.length}/${stops.length} Stops · ${state.candidates ?? 0} Kandidaten · ${state.tripsFound ?? 0} neue Fahrten · ${state.running ? 'Scan läuft' : 'Scan inaktiv'} · ${state.completedAt ? `Stand ${formatDate(state.completedAt)}` : 'noch kein Scan'}`;
+    const modeCounts = stops.reduce((counts, stop) => {
+      if (!stop.candidate) return counts;
+      const mode = stop.lastRequest?.schedulerMode;
+      if (mode) counts[mode] = (counts[mode] || 0) + 1;
+      return counts;
+    }, {});
+    summary.textContent = `${visible.length}/${stops.length} Stops · ${state.candidates ?? 0} Kandidaten · `
+      + `${modeCounts.normal || 0} normal · ${modeCounts['empty-retry'] || 0} im Leer-Retry · `
+      + `${modeCounts.sparse || 0} stündlich · Stand ${formatDate(state.updatedAt)}`;
   };
 
   const load = async () => {
@@ -113,6 +137,9 @@
         <dt>VGN / VAG</dt><dd>${escapeHtml(stop.VGNKennung)} / ${escapeHtml(stop.VAGKennung)}</dd>
         <dt>Status</dt><dd>${escapeHtml(eligibilityLabel[stop.eligibility] || stop.eligibility)}</dd>
         <dt>Nächster geplanter Request</dt><dd>${escapeHtml(formatDate(stop.scheduledAt))}</dd>
+        <dt>Scheduler-Modus</dt><dd>${escapeHtml(last.schedulerMode || 'Noch nicht initialisiert')}</dd>
+        <dt>Zeitfenster</dt><dd>zuletzt ${escapeHtml(last.requestedTimeSpan ?? '-')} Min · nächstes ${escapeHtml(last.nextTimeSpan ?? '-')} Min</dd>
+        <dt>Letzte gelieferte Abfahrt</dt><dd>${escapeHtml(formatDate(last.lastDepartureAt))}</dd>
         <dt>Letzter Request</dt><dd>${escapeHtml(formatDate(last.requestedAt))}</dd>
         <dt>Ergebnis</dt><dd>${escapeHtml(last.state || 'Noch nie')} · HTTP ${escapeHtml(last.statusCode)} · ${escapeHtml(last.durationMs)} ms</dd>
         <dt>Abfahrten / neue Fahrten</dt><dd>${escapeHtml(last.departures ?? '-')} / ${escapeHtml(last.newTrips ?? '-')}</dd>

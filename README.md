@@ -329,10 +329,10 @@ REDIS_DB=0
 
 SCANBEFORE=30 # Scan before x seconds
 SCAN_INTERVAL=5 # Scan every x minutes
-DEPARTURE_DISCOVERY_ENABLED=true # Supplement getTrips with rotating departure discovery
-DEPARTURE_DISCOVERY_BATCH_SIZE=20 # Uncovered stops queried per scanner iteration
+DEPARTURE_DISCOVERY_ENABLED=true # Supplement getTrips with per-stop departure discovery
 DEPARTURE_DISCOVERY_REQUEST_DELAY_MS=500 # Delay between API requests
-DEPARTURE_DISCOVERY_TIMESPAN_MINUTES=10
+DEPARTURE_DISCOVERY_TIMESPAN_MINUTES=10 # Normal request window; next request follows the last returned departure
+DEPARTURE_DISCOVERY_EMPTY_TIMESPAN_MINUTES=60 # Window for empty-stop retries and hourly sparse-stop scans
 ERROR_EXPIRE=600 # Expire errors after X seconds
 ```
 

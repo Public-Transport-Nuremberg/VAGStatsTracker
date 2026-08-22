@@ -16,7 +16,6 @@ queueData = redisData
 queueData.db = queueData.db + 1
 
 const trips_q = new Queue('q:trips', { connection: queueData });
-const departureDiscoveryCursorKey = 'SCANNER:DepartureDiscoveryCursor';
 const knownTripStopsKey = 'SCANNER:KnownTripStops';
 const departureDiscoveryRequestsKey = 'SCANNER:DepartureDiscovery:REQUESTS';
 const departureDiscoveryCandidatesKey = 'SCANNER:DepartureDiscovery:CANDIDATES';
@@ -49,21 +48,27 @@ const checkTripKey = async (number) => {
     return exists;
 }
 
-const getDepartureDiscoveryCursor = async () => {
-    const cursor = Number(await redis.get(departureDiscoveryCursorKey));
-    return Number.isInteger(cursor) && cursor >= 0 ? cursor : 0;
-}
-
-const setDepartureDiscoveryCursor = (cursor) => redis.set(departureDiscoveryCursorKey, cursor);
-
 const getKnownTripStopIds = async () => new Set(await redis.smembers(knownTripStopsKey));
 
-const updateDepartureDiscoveryPlan = async ({ candidates, mentionedStopIds, schedule, state }) => {
+const updateDepartureDiscoveryPlan = async ({ candidates, mentionedStopIds, state, initialSchedule = [] }) => {
+    const [previousCandidates, scheduledStops, rawPreviousState] = await Promise.all([
+        redis.smembers(departureDiscoveryCandidatesKey),
+        redis.zrange(departureDiscoveryScheduleKey, 0, -1),
+        redis.get(departureDiscoveryStateKey),
+    ]);
+    let previousState = {};
+    try { previousState = rawPreviousState ? JSON.parse(rawPreviousState) : {}; } catch { previousState = {}; }
+    const resetSchedule = state.enabled === false || previousState.scheduler !== 'per-stop';
+    const candidateSet = new Set(candidates.map(String));
+    const scheduledSet = resetSchedule ? new Set() : new Set(scheduledStops.map(String));
+    const removedCandidates = previousCandidates.filter((stopId) => !candidateSet.has(String(stopId)));
+    const missingSchedules = initialSchedule.filter(({ stopId }) => !scheduledSet.has(String(stopId)));
     const transaction = redis.multi()
         .del(departureDiscoveryCandidatesKey)
         .del(departureDiscoveryMentionedKey)
-        .del(departureDiscoveryScheduleKey)
         .set(departureDiscoveryStateKey, JSON.stringify(state));
+
+    if (resetSchedule) transaction.del(departureDiscoveryScheduleKey);
 
     if (candidates.length > 0) {
         transaction.sadd(departureDiscoveryCandidatesKey, ...candidates.map(String));
@@ -71,10 +76,13 @@ const updateDepartureDiscoveryPlan = async ({ candidates, mentionedStopIds, sche
     if (mentionedStopIds.length > 0) {
         transaction.sadd(departureDiscoveryMentionedKey, ...mentionedStopIds.map(String));
     }
-    if (schedule.length > 0) {
+    if (!resetSchedule && removedCandidates.length > 0) {
+        transaction.zrem(departureDiscoveryScheduleKey, ...removedCandidates);
+    }
+    if (missingSchedules.length > 0) {
         transaction.zadd(
             departureDiscoveryScheduleKey,
-            ...schedule.flatMap(({ stopId, timestamp }) => [Number(timestamp), String(stopId)])
+            ...missingSchedules.flatMap(({ stopId, timestamp }) => [Number(timestamp), String(stopId)])
         );
     }
 
@@ -86,6 +94,27 @@ const recordDepartureDiscoveryRequest = (stopId, data) => redis.hset(
     String(stopId),
     JSON.stringify(data)
 );
+
+const getDepartureDiscoveryRequest = async (stopId) => {
+    const value = await redis.hget(departureDiscoveryRequestsKey, String(stopId));
+    if (!value) return null;
+    try {
+        return JSON.parse(value);
+    } catch {
+        return null;
+    }
+};
+
+const claimDueDepartureDiscoveryStop = async (now, leaseUntil) => redis.eval(`
+    local stopId = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', ARGV[1], 'LIMIT', 0, 1)[1]
+    if not stopId then return nil end
+    if redis.call('SISMEMBER', KEYS[2], stopId) == 0 then
+        redis.call('ZREM', KEYS[1], stopId)
+        return ''
+    end
+    redis.call('ZADD', KEYS[1], ARGV[2], stopId)
+    return stopId
+`, 2, departureDiscoveryScheduleKey, departureDiscoveryCandidatesKey, Number(now), Number(leaseUntil));
 
 const setDepartureDiscoveryScheduledAt = (stopId, timestamp) => redis.zadd(
     departureDiscoveryScheduleKey,
@@ -153,11 +182,11 @@ module.exports = {
     writeNewDatapoint,
     writeNewDatapointKey,
     checkTripKey,
-    getDepartureDiscoveryCursor,
-    setDepartureDiscoveryCursor,
     getKnownTripStopIds,
     updateDepartureDiscoveryPlan,
     recordDepartureDiscoveryRequest,
+    getDepartureDiscoveryRequest,
+    claimDueDepartureDiscoveryStop,
     setDepartureDiscoveryScheduledAt,
     addJob
 }

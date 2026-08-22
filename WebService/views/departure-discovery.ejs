@@ -36,8 +36,19 @@
           <option value="all">Alle Haltestellen</option>
           <option value="candidate">Discovery-Kandidaten</option>
           <option value="scheduled">Geplant</option>
+          <option value="queried">Bereits abgefragt</option>
+          <option value="success">Letzter Request erfolgreich</option>
           <option value="error">Letzter Request fehlerhaft</option>
           <option value="discovered">Neue Fahrten gefunden</option>
+          <option value="normal-mode">Normaler 10-Minuten-Modus</option>
+          <option value="empty-retry">Leerer Stop: 60-Minuten-Retry geplant</option>
+          <option value="sparse">Leerer Stop: stündlicher Modus</option>
+          <option value="recent">In den letzten 10 Minuten abgefragt</option>
+          <option value="older">Letzter Request älter als 10 Minuten</option>
+          <option value="overdue">Geplanter Request überfällig</option>
+          <option value="learned">Bereits aus getTrip gelernt</option>
+          <option value="covered">Aktuell durch getTrips abgedeckt</option>
+          <option value="product-filtered">Produkt herausgefiltert</option>
           <option value="never">Noch nie abgefragt</option>
         </select>
       </div>
@@ -52,6 +63,8 @@
       <span class="rounded bg-white px-2 py-1 shadow">● <span class="text-emerald-700">Durch Fahrten abgedeckt</span></span>
       <span class="rounded bg-white px-2 py-1 shadow">● <span class="text-red-700">Fehler</span></span>
       <span class="rounded bg-white px-2 py-1 shadow">● <span class="text-purple-700">Neue Fahrt gefunden</span></span>
+      <span class="rounded bg-white px-2 py-1 shadow">● <span class="text-yellow-600">Leerer Stop: Retry</span></span>
+      <span class="rounded bg-white px-2 py-1 shadow">● <span class="text-amber-900">Leerer Stop: stündlich</span></span>
       <span class="rounded bg-white px-2 py-1 shadow">● <span class="text-slate-500">Nicht gelernt</span></span>
       <span id="summary" class="rounded bg-white px-2 py-1 shadow">Nicht verbunden</span>
     </section>
@@ -61,6 +74,6 @@
       <div id="popup" class="dd-popup" hidden></div>
     </section>
   </main>
-  <script src="/dist/js/departure-discovery.js?v=2"></script>
+  <script src="/dist/js/departure-discovery.js?v=4"></script>
 </body>
 </html>

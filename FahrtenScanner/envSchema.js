@@ -104,11 +104,6 @@ module.exports = {
         "validation": "custom_list:true,false",
         "default": "true"
     },
-    "DEPARTURE_DISCOVERY_BATCH_SIZE": {
-        "type": "number",
-        "validation": "min:1||max:200",
-        "default": 20
-    },
     "DEPARTURE_DISCOVERY_REQUEST_DELAY_MS": {
         "type": "number",
         "validation": "min:100||max:10000",
@@ -118,6 +113,11 @@ module.exports = {
         "type": "number",
         "validation": "min:1||max:60",
         "default": 10
+    },
+    "DEPARTURE_DISCOVERY_EMPTY_TIMESPAN_MINUTES": {
+        "type": "number",
+        "validation": "min:10||max:120",
+        "default": 60
     },
 }
 

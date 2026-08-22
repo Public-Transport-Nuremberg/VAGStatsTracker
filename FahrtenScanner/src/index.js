@@ -6,7 +6,12 @@ const {
     checkTripKey,
     addJob,
 } = require('@lib/redis');
-const { discoverDepartures, normalizeStopCode, waitForDiscoveryRateLimit } = require('@lib/departureDiscovery');
+const {
+    normalizeStopCode,
+    startDepartureDiscoveryWorker,
+    syncDepartureDiscoveryCandidates,
+    waitForDiscoveryRateLimit,
+} = require('@lib/departureDiscovery');
 const { filterDuplicates } = require('@lib/util');
 const { insertOrUpdateFahrt } = require('@lib/clickhouse');
 const { traceVgnClient } = require('@lib/apiTrace');
@@ -162,19 +167,12 @@ const MakeTripRequests = async () => {
             }
         }
 
-        const discoveredDepartures = await discoverDepartures(
-            vgn,
+        await syncDepartureDiscoveryCandidates(
             configuredProducts,
             mentionedStopCodes,
             primaryTripIds
         );
-        let resolvedTrips = 0;
-        for (const departure of discoveredDepartures) {
-            if (await resolveDiscoveredDeparture(departure)) resolvedTrips++;
-            await waitForDiscoveryRateLimit();
-        }
-        await writeNewDatapointKey('METRIC:DepartureDiscovery.TripsResolved', resolvedTrips);
-        process.log.info(`All requests completed; ${resolvedTrips} additional trips scheduled`);
+        process.log.info('All Fahrten requests completed; departure discovery candidates synced');
     } catch (error) {
         if (process.env.SENTRY_DSN) process.sentry.captureException(error);
         process.log.error(error.stack || error);
@@ -186,5 +184,14 @@ const MakeTripRequests = async () => {
 (async () => {
     process.log.system(`Starting FahrtenScanner, scanning every ${process.env.SCAN_INTERVAL} minutes`);
     await MakeTripRequests();
+    startDepartureDiscoveryWorker(vgn, async (departures) => {
+        let resolvedTrips = 0;
+        for (const departure of departures) {
+            if (await resolveDiscoveredDeparture(departure)) resolvedTrips++;
+            await waitForDiscoveryRateLimit();
+        }
+        await writeNewDatapointKey('METRIC:DepartureDiscovery.TripsResolved', resolvedTrips);
+        process.log.info(`Departure discovery resolved ${resolvedTrips}/${departures.length} additional trips`);
+    });
     setInterval(MakeTripRequests, parseInt(process.env.SCAN_INTERVAL, 10) * 60 * 1000);
 })();
