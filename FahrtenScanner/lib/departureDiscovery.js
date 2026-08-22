@@ -116,6 +116,7 @@ const syncDepartureDiscoveryCandidates = async (configuredProducts, mentionedSto
     );
     const seededAt = Date.now();
     const maximumScheduledAt = seededAt + (60 * MINUTE_MS);
+    const requestDelay = getConfiguredNumber('DEPARTURE_DISCOVERY_REQUEST_DELAY_MS', 500);
     const mentionedStopIds = allStops.filter((stop) => stopIsMentioned(stop, mentionedStopCodes))
         .map((stop) => stop.VGNKennung);
 
@@ -127,13 +128,15 @@ const syncDepartureDiscoveryCandidates = async (configuredProducts, mentionedSto
     await updateDepartureDiscoveryPlan({
         candidates: candidates.map((stop) => stop.VGNKennung),
         mentionedStopIds,
-        initialSchedule: candidates.map((stop) => ({
-            stopId: stop.VGNKennung, timestamp: seededAt,
+        initialSchedule: candidates.map((stop, index) => ({
+            stopId: stop.VGNKennung,
+            timestamp: Math.min(seededAt + (index * requestDelay), maximumScheduledAt),
         })),
         maximumScheduledAt,
         state: {
             enabled: true,
             scheduler: 'per-stop',
+            schedulerVersion: 2,
             updatedAt: new Date().toISOString(),
             candidateSource: 'unlearned-stops',
             configuredProducts,
@@ -253,8 +256,9 @@ const startDepartureDiscoveryWorker = (vgn, onDepartures) => {
                 const now = Date.now();
                 const stopId = await claimDueDepartureDiscoveryStop(now, now + (2 * MINUTE_MS));
                 if (stopId) {
+                    const requestStartedAt = Date.now();
                     await processDueStop(stopId);
-                    delayUntilNextRun = requestDelay;
+                    delayUntilNextRun = Math.max(0, requestDelay - (Date.now() - requestStartedAt));
                 }
             }
         } catch (error) {

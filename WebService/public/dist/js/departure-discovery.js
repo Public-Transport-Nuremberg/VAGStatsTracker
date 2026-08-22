@@ -48,6 +48,12 @@
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[character]));
   const formatDate = (value) => value ? new Date(value).toLocaleString() : 'Nie';
+  const formatSchedule = (value) => {
+    if (!value) return 'Nie';
+    const timestamp = new Date(value).getTime();
+    if (timestamp <= Date.now()) return `Fällig seit ${new Date(value).toLocaleString()} – wartet in der Queue`;
+    return new Date(value).toLocaleString();
+  };
   const eligibilityLabel = {
     candidate: 'Discovery-Kandidat',
     'covered-by-trips': 'In aktueller getTrips-Antwort erwähnt, aber noch nicht primär gelernt',
@@ -148,7 +154,7 @@
         <dt>Produkte am Stop</dt><dd>${escapeHtml(stop.stopProducts?.join(', ') || 'Keine angegeben')}</dd>
         <dt>Konfigurierte Scanner-Produkte</dt><dd>${escapeHtml(stop.configuredProducts?.join(', ') || 'Keine')}</dd>
         <dt>Produktüberschneidung</dt><dd>${escapeHtml(stop.matchingProducts?.join(', ') || 'Keine – Stop wird trotzdem abgefragt')}</dd>
-        <dt>Nächster geplanter Request</dt><dd>${escapeHtml(formatDate(stop.scheduledAt))}</dd>
+        <dt>Nächster geplanter Request</dt><dd>${escapeHtml(formatSchedule(stop.scheduledAt))}</dd>
         <dt>Scheduler-Modus</dt><dd>${escapeHtml(last.schedulerMode || 'Noch nicht initialisiert')}</dd>
         <dt>Zeitfenster</dt><dd>zuletzt ${escapeHtml(last.requestedTimeSpan ?? '-')} Min · nächstes ${escapeHtml(last.nextTimeSpan ?? '-')} Min</dd>
         <dt>Letzte gelieferte Abfahrt</dt><dd>${escapeHtml(formatDate(last.lastDepartureAt))}</dd>

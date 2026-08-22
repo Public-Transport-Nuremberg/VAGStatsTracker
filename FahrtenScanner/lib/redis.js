@@ -90,7 +90,9 @@ const updateDepartureDiscoveryPlan = async ({
     ]);
     let previousState = {};
     try { previousState = rawPreviousState ? JSON.parse(rawPreviousState) : {}; } catch { previousState = {}; }
-    const resetSchedule = state.enabled === false || previousState.scheduler !== 'per-stop';
+    const resetSchedule = state.enabled === false
+        || previousState.scheduler !== 'per-stop'
+        || previousState.schedulerVersion !== state.schedulerVersion;
     const candidateSet = new Set(candidates.map(String));
     const scheduledSet = resetSchedule ? new Set() : new Set(scheduledStops.map(String));
     const removedCandidates = previousCandidates.filter((stopId) => !candidateSet.has(String(stopId)));
