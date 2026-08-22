@@ -1,5 +1,3 @@
-const { webtoken, user } = require('@lib/clickhouse');
-const { mergePermissions } = require('@lib/permission');
 const Redis = require("ioredis");
 
 const redis = new Redis({
@@ -137,22 +135,14 @@ const addWebtoken = async (webtoken, user_id, puuid, username, avatar_url, permi
  */
 const getWebtokenSave = async (token) => {
     if (!token) throw new Error("No token provided");
-    const inCache = await redis.exists(`WT:${token}`);
-    if (inCache) {
-        process.log.debug(`Webtoken Cach Hit on ${token}`);
-        return JSON.parse(await redis.get(`WT:${token}`));
+    const value = await redis.get(`WT:${token}`);
+    if (!value) {
+        process.log.debug(`Webtoken Cache Miss on ${token}`);
+        return undefined;
     }
 
-    process.log.debug(`Webtoken Cach Miss on ${token}`);
-    const dbResult = await webtoken.get(token);
-    if (dbResult.length !== 1) return dbResult[0];
-
-    const PermissionsResponse = await user.permission.get(dbResult[0].user_id);
-    const Formated_Permissions = mergePermissions(PermissionsResponse.rows, dbResult[0].user_group);
-    await addWebtoken(token, dbResult[0].user_id, dbResult[0].puuid, dbResult[0].username,
-        dbResult[0].avatar_url, Formated_Permissions, dbResult[0].browser, dbResult[0].language,
-        dbResult[0].design, dbResult[0].time);
-    return { ...dbResult[0], permissions: Formated_Permissions };
+    process.log.debug(`Webtoken Cache Hit on ${token}`);
+    return JSON.parse(value);
 }
 
 /**

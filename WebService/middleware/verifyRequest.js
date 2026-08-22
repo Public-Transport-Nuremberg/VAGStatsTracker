@@ -2,7 +2,6 @@ const { checkPermission } = require('@lib/permission');
 const { checkWebToken } = require('@lib/token');
 const { delWebtoken, IPLimit, IPCheck } = require('@lib/cache');
 const { InvalidToken, TooManyRequests, PermissionsError } = require('@lib/errors');
-const { webtoken } = require('@lib/clickhouse');
 
 /**
  * Async function to verify the request based on the given permission. User data will be added to the request. (req.user)
@@ -42,9 +41,8 @@ const verifyRequest = (permission) => {
             const WebTokenResponse = await checkWebToken(UserToken, UserAgent.browser);
             if (!WebTokenResponse.State) {
                 if (WebTokenResponse.DidExist) {
-                    // The token existed, but was invalid for this request. Delete it from the database and cache
-                    process.log.debug(`Deleting Token ${UserToken} from database`);
-                    await webtoken.delete(UserToken)
+                    // The token existed, but was invalid for this request. Delete it from the KeyDB cache.
+                    process.log.debug(`Deleting invalid Token ${UserToken} from KeyDB`);
                     delWebtoken(UserToken);
                 } else {
                     // The token did not exist, lets add the reuqest IP to the cache to stop brute force attacks andreduce DB stress
