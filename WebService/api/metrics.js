@@ -13,6 +13,17 @@ const metricsScanTime = 2; // Scan for metrics every 5 seconds
 let metricsFirstScan = false;
 const metricsTempObject = {};
 
+const fallbackMetric = (...parts) => {
+    let name = parts.join('_').replace(/[^a-zA-Z0-9_:]/g, '_');
+    if (!/^[a-zA-Z_:]/.test(name)) name = `_${name}`;
+
+    return {
+        Metric: `VAGStats_${name}`,
+        Type: 'gauge',
+        Help: `Automatically exposed metric ${parts.join('.')}`
+    };
+};
+
 const updateMetrics = async () => {
     const allMetricKeys = await findAllMetricKeys();
     const allMetricListKeys = await findAllMetricListKeys();
@@ -39,12 +50,12 @@ setInterval(() => {
 
 router.get('/', limiter(), async (req, res) => {
     if(!metricsFirstScan) {
-        res.status(503).send('Metrics are not ready yet');
+        return res.status(503).send('Metrics are not ready yet');
     }
     let metrics = [];
 
     for (const [key, value] of Object.entries(metricsTempObject.keys)) {
-        const metric = Keys[key];
+        const metric = Keys[key] || fallbackMetric('Keys', key);
         metrics.push(`# HELP ${metric.Metric} ${metric.Help}`);
         metrics.push(`# TYPE ${metric.Metric} ${metric.Type}`);
 
@@ -52,7 +63,7 @@ router.get('/', limiter(), async (req, res) => {
     }
 
     for (const [key, value] of Object.entries(metricsTempObject.allMetricValues)) {
-        const metric = Metric[key];
+        const metric = Metric[key] || fallbackMetric('Metric', key);
         metrics.push(`# HELP ${metric.Metric} ${metric.Help}`);
         metrics.push(`# TYPE ${metric.Metric} ${metric.Type}`);
 
@@ -61,7 +72,7 @@ router.get('/', limiter(), async (req, res) => {
 
     for (const [key, value] of Object.entries(metricsTempObject.ratesAndAverages)) {
         for (const [sub_key, sub_value] of Object.entries(value)) {
-            const metric = MetricList[key][sub_key];
+            const metric = MetricList[key]?.[sub_key] || fallbackMetric('MetricList', key, sub_key);
             metrics.push(`# HELP ${metric.Metric} ${metric.Help}`);
             metrics.push(`# TYPE ${metric.Metric} ${metric.Type}`);
 
@@ -72,7 +83,7 @@ router.get('/', limiter(), async (req, res) => {
     for (const [key, value] of Object.entries(metricsTempObject.statusCodeCounts)) {
         for (const [sub_key, sub_value] of Object.entries(value)) {
             
-            const metric = ErrorList[key][sub_key];
+            const metric = ErrorList[key]?.[sub_key] || fallbackMetric('ErrorList', key, sub_key);
             metrics.push(`# HELP ${metric.Metric} ${metric.Help}`);
             metrics.push(`# TYPE ${metric.Metric} ${metric.Type}`);
 
@@ -83,7 +94,7 @@ router.get('/', limiter(), async (req, res) => {
     for (const [key, value] of Object.entries(metricsTempObject.RedisInfo)) {
         for (const [sub_key, sub_value] of Object.entries(value)) {
             
-            const metric = RedisInfo[key][sub_key];
+            const metric = RedisInfo[key]?.[sub_key] || fallbackMetric('RedisInfo', key, sub_key);
             metrics.push(`# HELP ${metric.Metric} ${metric.Help}`);
             metrics.push(`# TYPE ${metric.Metric} ${metric.Type}`);
 

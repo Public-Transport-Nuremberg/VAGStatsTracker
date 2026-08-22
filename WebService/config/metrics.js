@@ -71,6 +71,26 @@ module.exports = {
             "Metric": "QueuedTotalTrips_Completed",
             "Type": "gauge",
             "Help": "The current number of completed trips in queue",
+        },
+        "DepartureDiscovery.TripsResolved": {
+            "Metric": "DepartureDiscovery_TripsResolved",
+            "Type": "gauge",
+            "Help": "The number of trips resolved by departure discovery",
+        },
+        "DepartureDiscovery.Candidates": {
+            "Metric": "DepartureDiscovery_Candidates",
+            "Type": "gauge",
+            "Help": "The number of stops eligible for departure discovery",
+        },
+        "DepartureDiscovery.KnownTripStops": {
+            "Metric": "DepartureDiscovery_KnownTripStops",
+            "Type": "gauge",
+            "Help": "The number of stops learned from the primary trips API",
+        },
+        "DepartureDiscovery.TripsFound": {
+            "Metric": "DepartureDiscovery_TripsFound",
+            "Type": "gauge",
+            "Help": "The number of trips found by departure discovery",
         }
     },
     "MetricList": {
@@ -108,6 +128,30 @@ module.exports = {
                 "Metric": "DepartureRequestTimeAverage",
                 "Type": "gauge",
                 "Help": "The average response time of requests",
+            }
+        },
+        "DepartureDiscovery.RequestTime": {
+            "rate": {
+                "Metric": "DepartureDiscoveryRequestTimeRate",
+                "Type": "gauge",
+                "Help": "The rate of departure discovery requests per second",
+            },
+            "averageResponseTime": {
+                "Metric": "DepartureDiscoveryRequestTimeAverage",
+                "Type": "gauge",
+                "Help": "The average response time of departure discovery requests",
+            }
+        },
+        "DepartureDiscovery.Trip.RequestTime": {
+            "rate": {
+                "Metric": "DepartureDiscoveryTripRequestTimeRate",
+                "Type": "gauge",
+                "Help": "The rate of trip requests made by departure discovery per second",
+            },
+            "averageResponseTime": {
+                "Metric": "DepartureDiscoveryTripRequestTimeAverage",
+                "Type": "gauge",
+                "Help": "The average response time of trip requests made by departure discovery",
             }
         },
     },
