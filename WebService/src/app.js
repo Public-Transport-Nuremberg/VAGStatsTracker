@@ -135,6 +135,7 @@ app.get('/linestats', (req, res) => sendHtml(res, 'linestats.html'));
 app.get('/departures', (req, res) => sendHtml(res, 'departures.html'));
 app.get('/vehicleHistory/*', (req, res) => sendHtml(res, 'vehicleHistory.html'));
 app.get('/ontimelinechart', (req, res) => sendHtml(res, 'ontimelinechart.html'));
+app.get('/api-logs', (req, res) => sendHtml(res, 'api-logs.html'));
 
 app.get('/legal/legal', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'public', 'legal', 'legal.html'));

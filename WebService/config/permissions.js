@@ -7,7 +7,9 @@
 module.exports = {
     "app_permissions": [
         "app.web.login",
-        "app.web.logout"
+        "app.web.logout",
+        "api.apiTrace.read",
+        "api.apiTrace.write"
     ],
     "default_group": "user",
     "groups": {

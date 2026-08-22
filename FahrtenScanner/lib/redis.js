@@ -16,6 +16,8 @@ queueData = redisData
 queueData.db = queueData.db + 1
 
 const trips_q = new Queue('q:trips', { connection: queueData });
+const departureDiscoveryCursorKey = 'SCANNER:DepartureDiscoveryCursor';
+const knownTripStopsKey = 'SCANNER:KnownTripStops';
 
 /**
  * Write a new datapoint to the Redis list, specified by the listKey, to avrage out later
@@ -42,6 +44,15 @@ const checkTripKey = async (number) => {
     return exists;
 }
 
+const getDepartureDiscoveryCursor = async () => {
+    const cursor = Number(await redis.get(departureDiscoveryCursorKey));
+    return Number.isInteger(cursor) && cursor >= 0 ? cursor : 0;
+}
+
+const setDepartureDiscoveryCursor = (cursor) => redis.set(departureDiscoveryCursorKey, cursor);
+
+const getKnownTripStopIds = async () => new Set(await redis.smembers(knownTripStopsKey));
+
 /**
  * Add a new fahrten job to the queue
  * @param {Number} Fahrtnummer 
@@ -50,8 +61,9 @@ const checkTripKey = async (number) => {
  * @param {Number} runAtTimestamp 
  * @param {Number} Endzeit 
  * @param {Object} Fahrt
+ * @param {Boolean} RecordKnownStops
  */
-const addJob = async (Fahrtnummer, Betriebstag, Produkt, runAtTimestamp, Endzeit, Fahrt = null) => {
+const addJob = async (Fahrtnummer, Betriebstag, Produkt, runAtTimestamp, Endzeit, Fahrt = null, RecordKnownStops = true) => {
     const key = `TRIP:${Fahrtnummer}`;
 
     const ttl = parseInt(((Endzeit - new Date().getTime()) / 1000) + (60 * 60), 10);
@@ -84,6 +96,7 @@ const addJob = async (Fahrtnummer, Betriebstag, Produkt, runAtTimestamp, Endzeit
         Startzeit: runAtTimestamp,
         Endzeit: Endzeit,
         Fahrt,
+        RecordKnownStops,
     }, {
         delay: delay,
         attempts: 5,
@@ -100,5 +113,8 @@ module.exports = {
     writeNewDatapoint,
     writeNewDatapointKey,
     checkTripKey,
+    getDepartureDiscoveryCursor,
+    setDepartureDiscoveryCursor,
+    getKnownTripStopIds,
     addJob
 }

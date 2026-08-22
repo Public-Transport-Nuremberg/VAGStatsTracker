@@ -3,11 +3,12 @@ const { limiter } = require('@middleware/limiter');
 const Joi = require('joi');
 const { vehicle } = require('@lib/clickhouse');
 const { openvgn } = require('oepnv-nuremberg');
+const { traceVgnClient } = require('@lib/api_trace');
 const { StopObjectStore } = require('@lib/haltestellen_cache');
 const { findAllTripKeys, getValuesFromKeys } = require('@lib/redis');
 const router = new express.Router();
 
-const vgn = new openvgn();
+const vgn = traceVgnClient(new openvgn());
 
 const datePattern = /^(\d{4})\-(\d{2})\-(\d{2})$/;
 

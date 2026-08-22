@@ -1,11 +1,12 @@
 const { openvgn } = require('oepnv-nuremberg');
+const { traceVgnClient } = require('@lib/apiTrace');
 
-const vgn = new openvgn();
+const vgn = traceVgnClient(new openvgn(), 'FahrtenProcessor');
 
 const { Worker } = require('bullmq');
 
 const { getLastStopAndProgress, getSegmentStartTimestamp, removeDuplicatesAndKeepOrder } = require('@lib/util');
-const { writeNewDatapoint, ScheduleJob, delTripKey, errorExporter } = require('@lib/redis');
+const { writeNewDatapoint, recordKnownTripStops, ScheduleJob, delTripKey, errorExporter } = require('@lib/redis');
 
 const { insertOrUpdateFahrtEntry, insertOrUpdateHaltestelle } = require('@lib/clickhouse');
 
@@ -20,7 +21,16 @@ const queueData = {
 const worker = new Worker('q:trips', async (job) => {
     let currentTripResponse = null;
     try {
-        const { Fahrtnummer, Betriebstag, Produkt, AlreadyTrackedStops, Startzeit, Endzeit, Fahrt: ScannerFahrt } = job.data;
+        const {
+            Fahrtnummer,
+            Betriebstag,
+            Produkt,
+            AlreadyTrackedStops,
+            Startzeit,
+            Endzeit,
+            Fahrt: ScannerFahrt,
+            RecordKnownStops = true,
+        } = job.data;
 
         const tripData = await vgn.getTrip(Fahrtnummer, { product: Produkt, date: Betriebstag })
 
@@ -29,6 +39,7 @@ const worker = new Worker('q:trips', async (job) => {
         const { Linienname, Fahrzeugnummer, Besetzgrad, Richtung, Richtungstext, Fahrtverlauf } = Fahrt;
 
         writeNewDatapoint('METRICLIST:Trip.RequestTime', Meta.RequestTime); // Store the request time for later analysis
+        if (RecordKnownStops) await recordKnownTripStops(Fahrtverlauf);
 
         const currentTime = new Date();
         const Fahrtverlauf_result = getLastStopAndProgress(Fahrtverlauf, currentTime);
@@ -150,7 +161,8 @@ const worker = new Worker('q:trips', async (job) => {
             Startzeit,
             Endzeit,
             lastStopObject.Latitude,
-            lastStopObject.Longitude
+            lastStopObject.Longitude,
+            false
         );
         process.log.info(`Processed [${Fahrtnummer}] ${Produkt} (${Linienname}) [${new Date(lastStopObject.AbfahrtszeitIst).toLocaleTimeString()}] ${lastStopObject.Haltestellenname} Next stop: ${nextStopObject.Haltestellenname} [${new Date(nextStopObject.AnkunftszeitIst).toLocaleTimeString()}] Progress: ${Fahrtverlauf_result.progress.toFixed(0)}`);
 

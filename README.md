@@ -328,9 +328,24 @@ REDIS_PORT=6379
 REDIS_DB=0
 
 SCANBEFORE=30 # Scan before x seconds
-SCAN_INTERVAL=5 # Scan every x seconds
+SCAN_INTERVAL=5 # Scan every x minutes
+DEPARTURE_DISCOVERY_ENABLED=true # Supplement getTrips with rotating departure discovery
+DEPARTURE_DISCOVERY_BATCH_SIZE=20 # Uncovered stops queried per scanner iteration
+DEPARTURE_DISCOVERY_REQUEST_DELAY_MS=500 # Delay between API requests
+DEPARTURE_DISCOVERY_TIMESPAN_MINUTES=10
 ERROR_EXPIRE=600 # Expire errors after X seconds
 ```
+
+### Upstream API trace
+
+The API trace is disabled by default and can be controlled while all services are running:
+
+```text
+SET API_TRACE:ENABLED 1  # enable
+SET API_TRACE:ENABLED 0  # disable
+```
+
+Admins can also control and inspect it at `/api-logs`. Trace entries are stored in KeyDB database 0 for at most 24 hours and are evicted oldest-first when their serialized payload reaches 1 GiB. Access to the WebUI API uses `api.apiTrace.read` and `api.apiTrace.write` permissions.
 
 ### Project (Deliverd Nov 2024) - Just no longer got time to play with it :/
 Unlike my other projects this project will be built around my learning curve to cloud like software architecture.  

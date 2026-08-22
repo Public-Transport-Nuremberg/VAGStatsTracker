@@ -3,9 +3,10 @@ const { limiter } = require('@middleware/limiter');
 const Joi = require('joi');
 const { openvgn } = require('oepnv-nuremberg');
 const { StopObjectStore } = require('@lib/haltestellen_cache');
+const { traceVgnClient } = require('@lib/api_trace');
 const router = new express.Router();
 
-const vgn = new openvgn();
+const vgn = traceVgnClient(new openvgn());
 
 /* Plugin info*/
 const PluginName = 'Departures';

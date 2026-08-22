@@ -8,8 +8,9 @@ const {
 const { live } = require('@lib/clickhouse');
 const { calculateTripProgress, estimateGpsPosition } = require('./estimated_gps');
 const { linequerySchema } = require('./query_schema');
+const { traceVgnClient } = require('@lib/api_trace');
 
-const vgn = new openvgn();
+const vgn = traceVgnClient(new openvgn());
 let positionWorkerTimer = null;
 let positionWorkerRunning = false;
 

@@ -6,6 +6,7 @@ const TRIPS_GEO_KEY = 'TRIPS_GEO';
 const TRIPS_GEO_EXPIRY_KEY = 'TRIPS_GEO_EXPIRY';
 const LIVE_TRIP_INDEX_PREFIX = 'LIVE:TRIP:INDEX:';
 const LIVE_TRIP_INDEX_BY_ID_PREFIX = 'LIVE:TRIP:INDEX:BY-ID:';
+const KNOWN_TRIP_STOPS_KEY = 'SCANNER:KnownTripStops';
 const REDIS_MAX_LATITUDE = 85.05112878;
 
 const getLiveTripIndexKey = (line, direction, nextStop) => [line, direction, nextStop]
@@ -47,6 +48,15 @@ setInterval(async () => {
  */
 const writeNewDatapoint = (listKey, datapoint) => {
     redis.rpush(listKey, datapoint);
+}
+
+const recordKnownTripStops = async (routeData) => {
+    const stopIds = routeData
+        .map((stop) => stop.VGNKennung)
+        .filter((stopId) => stopId !== undefined && stopId !== null)
+        .map(String);
+    if (stopIds.length === 0) return 0;
+    return redis.sadd(KNOWN_TRIP_STOPS_KEY, ...stopIds);
 }
 
 /**
@@ -129,7 +139,7 @@ const errorExporter = (errorMessage, errorData, jobData) => {
  * @param {Number} longitude
  * @returns 
  */
-const ScheduleJob = async (Fahrtnummer, Betriebstag, Produkt, keyData, AlreadyTrackedStops, runAtTimestamp, Startzeit, Endzeit, latitude, longitude) => {
+const ScheduleJob = async (Fahrtnummer, Betriebstag, Produkt, keyData, AlreadyTrackedStops, runAtTimestamp, Startzeit, Endzeit, latitude, longitude, RecordKnownStops = true) => {
 
     const key = `TRIP:${Fahrtnummer}`;
     const reverseIndexKey = getLiveTripReverseIndexKey(Fahrtnummer);
@@ -186,6 +196,7 @@ const ScheduleJob = async (Fahrtnummer, Betriebstag, Produkt, keyData, AlreadyTr
         Startzeit: Startzeit,
         Endzeit: Endzeit,
         Fahrt: keyData.Fahrt ?? null,
+        RecordKnownStops,
     }, {
         delay,
         attempts: 5,
@@ -200,6 +211,7 @@ const ScheduleJob = async (Fahrtnummer, Betriebstag, Produkt, keyData, AlreadyTr
 
 module.exports = {
     writeNewDatapoint,
+    recordKnownTripStops,
     checkTripKey,
     delTripKey,
     errorExporter,

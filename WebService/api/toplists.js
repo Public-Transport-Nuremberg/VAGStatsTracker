@@ -8,7 +8,8 @@ const Joi = require('joi');
 const router = new express.Router();
 const { StopObjectStore } = require('@lib/haltestellen_cache');
 const { openvgn } = require('oepnv-nuremberg');
-const vgn = new openvgn();
+const { traceVgnClient } = require('@lib/api_trace');
+const vgn = traceVgnClient(new openvgn());
 
 /* Plugin info*/
 const PluginName = 'Toplist'; //This plugins name

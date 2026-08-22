@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Trace - VAG Stats</title>
+  <link rel="stylesheet" href="/dist/css/tailwind.css" />
+  <style>
+    .trace-grid { display:grid; grid-template-columns: 12rem 8rem 10rem 10rem minmax(20rem,1fr); gap:.75rem; }
+    .trace-row { border-top:1px solid #e2e8f0; padding:.75rem 1rem; align-items:start; }
+    .trace-json { white-space:pre-wrap; word-break:break-word; max-height:24rem; overflow:auto; }
+    @media (max-width:900px) { .trace-grid { grid-template-columns:1fr; } .trace-head { display:none; } }
+  </style>
+</head>
+<body class="vag-page">
+  <main class="vag-shell">
+    <header class="vag-header">
+      <div>
+        <h1 class="vag-title">Upstream API Trace</h1>
+        <p class="vag-subtitle">Requests und Antworten aus Scanner, Processor und WebService.</p>
+      </div>
+      <a href="/" class="vag-button-secondary">Zurück</a>
+    </header>
+
+    <section class="vag-panel">
+      <div class="flex flex-wrap items-end gap-3">
+        <div class="vag-field min-w-72 flex-1">
+          <label class="vag-label" for="token">Admin Webtoken</label>
+          <input id="token" class="vag-input" type="password" autocomplete="off" placeholder="Bearer-Token" />
+        </div>
+        <button id="connect" class="vag-button-secondary" type="button">Verbinden</button>
+        <button id="toggle" class="vag-button" type="button" disabled>Logging einschalten</button>
+      </div>
+      <div class="mt-4 flex flex-wrap gap-4 text-sm">
+        <span>Status: <strong id="status">Nicht verbunden</strong></span>
+        <span>Einträge: <strong id="count">-</strong></span>
+        <span>Speicher: <strong id="bytes">-</strong></span>
+        <span>Aufbewahrung: <strong>24 h / max. 1 GB</strong></span>
+        <span id="liveState">Live: aus</span>
+      </div>
+    </section>
+
+    <section class="vag-control-bar mt-4">
+      <div class="vag-field flex-1 min-w-56">
+        <label class="vag-label" for="filter">Filter</label>
+        <input id="filter" class="vag-input" type="search" placeholder="Service, Methode, Request-ID oder Inhalt" />
+      </div>
+      <div class="vag-field">
+        <label class="vag-label" for="limit">Anzahl</label>
+        <select id="limit" class="vag-input">
+          <option>100</option><option selected>250</option><option>500</option><option>1000</option>
+        </select>
+      </div>
+      <button id="refresh" class="vag-button-secondary" type="button" disabled>Aktualisieren</button>
+    </section>
+
+    <section class="vag-card mt-4 overflow-hidden">
+      <div class="trace-grid trace-head bg-slate-100 px-4 py-3 text-xs font-semibold uppercase text-slate-500">
+        <span>Zeit</span><span>Phase</span><span>Service</span><span>Operation</span><span>Daten</span>
+      </div>
+      <div id="logs"><p class="p-6 text-center text-slate-500">Webtoken eingeben und verbinden.</p></div>
+    </section>
+  </main>
+  <script src="/dist/js/api-logs.js?v=1"></script>
+</body>
+</html>
+

@@ -1,5 +1,6 @@
 const { haltestellen } = require('@lib/clickhouse');
 const { formatDBHaltestellenToPULSFormat } = require('@lib/haltestellen_utils');
+const { traceFetch } = require('@lib/api_trace');
 
 class DB_Store {
     constructor() {
@@ -27,7 +28,7 @@ class DB_Store {
 
         try {
             process.log.system('Fetching Haltestellen Data from API');
-            const response = await fetch('https://start.vag.de/dm/api/v1/haltestellen/vgn?name=');
+            const response = await traceFetch('WebService', 'https://start.vag.de/dm/api/v1/haltestellen/vgn?name=');
             const jsonData = await response.json();
             process.log.system('Haltestellen Data fetched');
 
