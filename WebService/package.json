@@ -6,6 +6,7 @@
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
         "build:css": "tailwindcss -i ./src/tailwind.css -o ./public/dist/css/tailwind.css --minify",
+        "create-admin-token": "node ./tools/createAdminToken.js",
         "update": "npx npm-check-updates -u",
         "start": "node index.js"
     },

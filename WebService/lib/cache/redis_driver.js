@@ -3,11 +3,11 @@ const { mergePermissions } = require('@lib/permission');
 const Redis = require("ioredis");
 
 const redis = new Redis({
-    port: process.env.Redis_Port || 6379,
-    host: process.env.Redis_Host || "127.0.0.1",
-    username: process.env.Redis_User || "default",
-    password: process.env.Redis_Password || "default",
-    db: process.env.Redis_DB || 0,
+    port: process.env.REDIS_PORT || process.env.Redis_Port || 6379,
+    host: process.env.REDIS_HOST || process.env.Redis_Host || "127.0.0.1",
+    username: process.env.REDIS_USER || process.env.Redis_User || "default",
+    password: process.env.REDIS_PASSWORD || process.env.Redis_Password || "default",
+    db: process.env.REDIS_DB || process.env.Redis_DB || 0,
 });
 
 redis.on("error", (err) => {

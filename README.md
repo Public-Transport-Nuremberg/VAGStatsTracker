@@ -347,6 +347,14 @@ SET API_TRACE:ENABLED 0  # disable
 
 Admins can also control and inspect it at `/api-logs`. Trace entries are stored in KeyDB database 0 for at most 24 hours and are evicted oldest-first when their serialized payload reaches 1 GiB. Access to the WebUI API uses `api.apiTrace.read` and `api.apiTrace.write` permissions.
 
+Create an unrestricted admin Webtoken from the WebService directory:
+
+```bash
+npm run create-admin-token -- --username admin --hours 96
+```
+
+The command requires `CACHEDRIVER=redis`, writes the token to KeyDB, and prints it once. Use it as `Authorization: Bearer <token>` or enter it in the API Trace WebUI.
+
 ### Project (Deliverd Nov 2024) - Just no longer got time to play with it :/
 Unlike my other projects this project will be built around my learning curve to cloud like software architecture.  
 Target Hardware:
