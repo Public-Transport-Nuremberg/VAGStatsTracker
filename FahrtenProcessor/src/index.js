@@ -25,7 +25,7 @@ const worker = new Worker('q:trips', async (job) => {
             Fahrtnummer,
             Betriebstag,
             Produkt,
-            AlreadyTrackedStops,
+            AlreadyTrackedStops = [],
             Startzeit,
             Endzeit,
             Fahrt: ScannerFahrt,
@@ -35,10 +35,21 @@ const worker = new Worker('q:trips', async (job) => {
         const tripData = await vgn.getTrip(Fahrtnummer, { product: Produkt, date: Betriebstag })
 
         currentTripResponse = tripData;
+        if (!tripData?.Fahrt
+            || !Array.isArray(tripData.Fahrt.Fahrtverlauf)
+            || tripData.Fahrt.Fahrtverlauf.length === 0) {
+            const statusCode = tripData?.code || tripData?.statusCode || 500;
+            const upstreamMessage = tripData?.message || tripData?.error || 'response contains no Fahrt';
+            writeNewDatapoint('ERRORLIST:Trip.Statuscode', statusCode);
+            throw new Error(
+                `getTrip returned no usable Fahrt for ${Fahrtnummer} `
+                + `(${Produkt}, ${Betriebstag}): ${upstreamMessage}`
+            );
+        }
         const { Fahrt, Meta } = tripData;
         const { Linienname, Fahrzeugnummer, Besetzgrad, Richtung, Richtungstext, Fahrtverlauf } = Fahrt;
 
-        writeNewDatapoint('METRICLIST:Trip.RequestTime', Meta.RequestTime); // Store the request time for later analysis
+        writeNewDatapoint('METRICLIST:Trip.RequestTime', Meta?.RequestTime || 0); // Store the request time for later analysis
         if (RecordKnownStops) await recordKnownTripStops(Fahrtverlauf);
 
         const currentTime = new Date();

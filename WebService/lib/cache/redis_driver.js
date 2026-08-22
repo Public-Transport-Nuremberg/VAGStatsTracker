@@ -99,22 +99,22 @@ const ClearCache = (time) => {
  * @param {String} design
  * @param {Object} time 
  */
-const addWebtoken = (webtoken, user_id, puuid, username, avatar_url, permissions, browser, language, design, time) => {
-    return new Promise(async (resolve, reject) => {
-        await redis.set(`WT:${webtoken}`, JSON.stringify({
-            user_id,
-            puuid,
-            username,
-            avatar_url,
-            permissions,
-            browser,
-            language,
-            design,
-            time
-        }), "EX", process.env.WebTokenDurationH * 60 * 60);
-        resolve();
-    })
-}
+const addWebtoken = async (webtoken, user_id, puuid, username, avatar_url, permissions, browser, language, design, time) => redis.set(
+    `WT:${webtoken}`,
+    JSON.stringify({
+        user_id,
+        puuid,
+        username,
+        avatar_url,
+        permissions,
+        browser,
+        language,
+        design,
+        time
+    }),
+    "EX",
+    process.env.WebTokenDurationH * 60 * 60
+)
 
 /**
  * @typedef {Object} WebtokenCacheResult
@@ -135,27 +135,24 @@ const addWebtoken = (webtoken, user_id, puuid, username, avatar_url, permissions
  * @param {String} webtoken 
  * @returns {WebtokenCacheResult|Undefined}
  */
-const getWebtokenSave = (token) => {
-    return new Promise(async (resolve, reject) => {
-        if (!token) return reject("No token provided");
-        const inCache = await redis.exists(`WT:${token}`)
-        if (inCache) {
-            process.log.debug(`Webtoken Cach Hit on ${token}`)
-            resolve(JSON.parse(await redis.get(`WT:${token}`)));
-        } else {
-            process.log.debug(`Webtoken Cach Miss on ${token}`)
-            const dbResult = await webtoken.get(token) // Get the tokendata from the DB
-            // To prevent the same cache miss, we add it to the cache
-            if (dbResult.length === 1) {
-                const PermissionsResponse = await user.permission.get(dbResult[0].user_id)
-                const Formated_Permissions = mergePermissions(PermissionsResponse.rows, dbResult[0].user_group); // Format the permissions to a array
-                addWebtoken(token, dbResult[0].user_id, dbResult[0].puuid, dbResult[0].username, dbResult[0].avatar_url, Formated_Permissions, dbResult[0].browser, dbResult[0].language, dbResult[0].design, dbResult[0].time);
-                resolve({ ...dbResult[0], permissions: Formated_Permissions })
-            } else {
-                resolve(dbResult[0])
-            }
-        }
-    })
+const getWebtokenSave = async (token) => {
+    if (!token) throw new Error("No token provided");
+    const inCache = await redis.exists(`WT:${token}`);
+    if (inCache) {
+        process.log.debug(`Webtoken Cach Hit on ${token}`);
+        return JSON.parse(await redis.get(`WT:${token}`));
+    }
+
+    process.log.debug(`Webtoken Cach Miss on ${token}`);
+    const dbResult = await webtoken.get(token);
+    if (dbResult.length !== 1) return dbResult[0];
+
+    const PermissionsResponse = await user.permission.get(dbResult[0].user_id);
+    const Formated_Permissions = mergePermissions(PermissionsResponse.rows, dbResult[0].user_group);
+    await addWebtoken(token, dbResult[0].user_id, dbResult[0].puuid, dbResult[0].username,
+        dbResult[0].avatar_url, Formated_Permissions, dbResult[0].browser, dbResult[0].language,
+        dbResult[0].design, dbResult[0].time);
+    return { ...dbResult[0], permissions: Formated_Permissions };
 }
 
 /**
@@ -247,34 +244,25 @@ const getPrivateStaticResponseSave = (routeID, webtoken, maxtime) => {
  * @param {String} ip 
  * @param {Number} cost 
  */
-const IPLimit = (ip, cost = 1) => {
-    return new Promise(async (resolve, reject) => {
-        if (typeof cost !== 'number') throw new Error('Cost must be a number');
-        if (cost < 0) throw new Error('Cost must be a positive number');
-        // Check if the IP is in the cache
-        if (!await redis.exists(`IPL:${ip}`)) {
-            await redis.set(`IPL:${ip}`, JSON.stringify({ r: 0 + cost, t: new Date().getTime() }));
-            resolve({result: false});
-        } else {
-            // IP is in the cache, increase the request count
-            const current = JSON.parse(await redis.get(`IPL:${ip}`));
-            if (current.r + cost < Number(process.env.DECREASEPERMIN)) {
-                const reduced = ((new Date().getTime() - current.t) / (1000 * 60)) * Number(process.env.DECREASEPERMIN);
-                // Reduce requests by the time passed but make sure its not below 0 and add the cost
-                const newCount = Math.max(0, current.r - reduced) + cost;
-                await redis.set(`IPL:${ip}`, JSON.stringify({ r: newCount, t: new Date().getTime() }));
-                resolve({result: false});
-            } else {
-                const reduced = ((new Date().getTime() - current.t) / (1000 * 60)) * Number(process.env.DECREASEPERMIN);
-                // Reduce requests by the time passed but make sure its not below 0 and add the cost
-                const newCount = Math.max(0, current.r - reduced);
-                await redis.set(`IPL:${ip}`, JSON.stringify({ r: newCount, t: new Date().getTime() }));
-                // Calculate the time when the next request is possible
-                const time = (((newCount - (Number(process.env.DECREASEPERMIN) - 1)) / Number(process.env.DECREASEPERMIN) * 60) * 1000).toFixed(0);
-                resolve({ result: true, retryIn: time });
-            }
-        }
-    });
+const IPLimit = async (ip, cost = 1) => {
+    if (typeof cost !== 'number') throw new Error('Cost must be a number');
+    if (cost < 0) throw new Error('Cost must be a positive number');
+    if (!await redis.exists(`IPL:${ip}`)) {
+        await redis.set(`IPL:${ip}`, JSON.stringify({ r: cost, t: new Date().getTime() }));
+        return { result: false };
+    }
+
+    const current = JSON.parse(await redis.get(`IPL:${ip}`));
+    const reduced = ((new Date().getTime() - current.t) / (1000 * 60)) * Number(process.env.DECREASEPERMIN);
+    const newCount = current.r + cost < Number(process.env.DECREASEPERMIN)
+        ? Math.max(0, current.r - reduced) + cost
+        : Math.max(0, current.r - reduced);
+    await redis.set(`IPL:${ip}`, JSON.stringify({ r: newCount, t: new Date().getTime() }));
+    if (current.r + cost < Number(process.env.DECREASEPERMIN)) return { result: false };
+
+    const time = (((newCount - (Number(process.env.DECREASEPERMIN) - 1))
+        / Number(process.env.DECREASEPERMIN) * 60) * 1000).toFixed(0);
+    return { result: true, retryIn: time };
 }
 
 /**
@@ -282,24 +270,18 @@ const IPLimit = (ip, cost = 1) => {
  * @param {String} ip 
  * @returns 
  */
-const IPCheck = (ip) => {
-    return new Promise(async (resolve, reject) => {
-        if (!await redis.exists(`IPL:${ip}`)) {
-            resolve({result: false});
-        } else {
-            const current = JSON.parse(await redis.get(`IPL:${ip}`));
-            const reduced = ((new Date().getTime() - current.t) / (1000 * 60)) * Number(process.env.DECREASEPERMIN);
-            const newCount = Math.max(0, current.r - reduced);
-            await redis.set(`IPL:${ip}`, JSON.stringify({ r: newCount, t: new Date().getTime() }));
-            if (newCount < Number(process.env.DECREASEPERMIN) - 1) {
-                resolve({result: false});
-            } else {
-                // Calculate the time when the next request is possible
-                const time = (((newCount - (Number(process.env.DECREASEPERMIN) - 1)) / Number(process.env.DECREASEPERMIN) * 60) * 1000).toFixed(0);
-                resolve({ result: true, retryIn: time });
-            }
-        }
-    });
+const IPCheck = async (ip) => {
+    if (!await redis.exists(`IPL:${ip}`)) return { result: false };
+
+    const current = JSON.parse(await redis.get(`IPL:${ip}`));
+    const reduced = ((new Date().getTime() - current.t) / (1000 * 60)) * Number(process.env.DECREASEPERMIN);
+    const newCount = Math.max(0, current.r - reduced);
+    await redis.set(`IPL:${ip}`, JSON.stringify({ r: newCount, t: new Date().getTime() }));
+    if (newCount < Number(process.env.DECREASEPERMIN) - 1) return { result: false };
+
+    const time = (((newCount - (Number(process.env.DECREASEPERMIN) - 1))
+        / Number(process.env.DECREASEPERMIN) * 60) * 1000).toFixed(0);
+    return { result: true, retryIn: time };
 }
 
 /**
