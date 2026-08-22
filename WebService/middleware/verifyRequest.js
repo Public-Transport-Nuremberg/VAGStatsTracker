@@ -3,7 +3,6 @@ const { checkWebToken } = require('@lib/token');
 const { delWebtoken, IPLimit, IPCheck } = require('@lib/cache');
 const { InvalidToken, TooManyRequests, PermissionsError } = require('@lib/errors');
 const { webtoken } = require('@lib/clickhouse');
-const useragent = require('express-useragent');
 
 /**
  * Async function to verify the request based on the given permission. User data will be added to the request. (req.user)
@@ -15,8 +14,7 @@ const verifyRequest = (permission) => {
         try {
             let IP;
             let UserToken;
-            const source = req.headers['user-agent']
-            const UserAgent = useragent.parse(source)
+            const UserAgent = req.useragent || { browser: 'unknown' }
             if (process.env.CLOUDFLARE_PROXY === 'true' || process.env.CLOUDFLARE_PROXY == true) {
                 if(req.headers['x-forwarded-for']) process.log.warn('Requests are comming from a normal proxy but cloudflare proxy is set in the env file')
                 if(!req.headers['cf-connecting-ip']) process.log.warn('Cloudflare proxy is set in the env file but requests are not comming from a cloudflare proxy')
