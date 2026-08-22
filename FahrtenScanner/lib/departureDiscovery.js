@@ -63,9 +63,8 @@ const selectRotatingBatch = (stops, cursor, batchSize) => {
 };
 
 const selectDiscoveryCandidates = (allStops, configuredProducts, mentionedStopCodes, knownTripStopIds) => {
-    const hasKnownStopUniverse = knownTripStopIds.size > 0;
     return allStops.filter((stop) => stopMatchesProducts(stop, configuredProducts)
-        && (!hasKnownStopUniverse || knownTripStopIds.has(String(stop.VGNKennung)))
+        && !knownTripStopIds.has(String(stop.VGNKennung))
         && !stopIsMentioned(stop, mentionedStopCodes));
 };
 
@@ -82,7 +81,6 @@ const discoverDepartures = async (vgn, configuredProducts, mentionedStopCodes, k
 
     const allStops = await getAllStops();
     const knownTripStopIds = await getKnownTripStopIds();
-    const hasKnownStopUniverse = knownTripStopIds.size > 0;
     const candidates = selectDiscoveryCandidates(
         allStops,
         configuredProducts,
@@ -121,7 +119,8 @@ const discoverDepartures = async (vgn, configuredProducts, mentionedStopCodes, k
             enabled: true,
             running: true,
             scanStartedAt: new Date(scanStartedAt).toISOString(),
-            candidateSource: hasKnownStopUniverse ? 'known-trip-stops' : 'all-stops-bootstrap',
+            candidateSource: 'unlearned-stops',
+            configuredProducts,
             totalStops: allStops.length,
             knownTripStops: knownTripStopIds.size,
             mentionedStops: mentionedStopIds.length,
@@ -200,7 +199,8 @@ const discoverDepartures = async (vgn, configuredProducts, mentionedStopCodes, k
         running: false,
         scanStartedAt: new Date(scanStartedAt).toISOString(),
         completedAt: new Date().toISOString(),
-        candidateSource: hasKnownStopUniverse ? 'known-trip-stops' : 'all-stops-bootstrap',
+        candidateSource: 'unlearned-stops',
+        configuredProducts,
         totalStops: allStops.length,
         knownTripStops: knownTripStopIds.size,
         mentionedStops: mentionedStopIds.length,

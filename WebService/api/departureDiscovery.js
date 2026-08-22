@@ -7,18 +7,24 @@ const router = new express.Router();
 const PluginName = 'Departure Discovery Diagnostics';
 const PluginRequirements = [];
 const PluginVersion = '1.0.0';
+const normalizeProduct = (product) => String(product || '').replace(/[\s-]/g, '').toLowerCase();
 
 router.get('/stops', verifyRequest('api.departureDiscovery.read'), async (req, res) => {
     const diagnostics = await getDepartureDiscoveryDiagnostics();
+    const configuredProducts = new Set((diagnostics.state.configuredProducts || []).map(normalizeProduct));
     const stops = StopObjectStore.filterByQuery({}).map((stop) => {
         const stopId = String(stop.VGNKennung);
         const candidate = diagnostics.candidates.has(stopId);
         const mentioned = diagnostics.mentioned.has(stopId);
         const known = diagnostics.known.has(stopId);
+        const stopProducts = String(stop.Produkte || '').split(',').map(normalizeProduct);
+        const productMatches = configuredProducts.size === 0
+            || stopProducts.some((product) => configuredProducts.has(product));
         let eligibility = 'not-learned';
         if (candidate) eligibility = 'candidate';
         else if (mentioned) eligibility = 'covered-by-trips';
         else if (known) eligibility = 'known-not-candidate';
+        else if (!productMatches) eligibility = 'product-filtered';
 
         return {
             VGNKennung: stop.VGNKennung,
@@ -30,6 +36,7 @@ router.get('/stops', verifyRequest('api.departureDiscovery.read'), async (req, r
             known,
             mentioned,
             candidate,
+            productMatches,
             eligibility,
             scheduledAt: diagnostics.schedule[stopId]
                 ? new Date(diagnostics.schedule[stopId]).toISOString()

@@ -107,7 +107,7 @@ const resolveDiscoveredDeparture = async (departure) => {
     };
 
     if (await checkTripKey(fahrt.Fahrtnummer)) return false;
-    return storeAndScheduleFahrt(fahrt, fahrt.Produkt || departure.Produkt, true, false);
+    return storeAndScheduleFahrt(fahrt, fahrt.Produkt || departure.Produkt, true, true);
 };
 
 const MakeTripRequests = async () => {

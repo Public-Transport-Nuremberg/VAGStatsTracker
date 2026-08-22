@@ -50,6 +50,7 @@
     candidate: 'Discovery-Kandidat',
     'covered-by-trips': 'In aktueller Fahrten-Antwort erwähnt',
     'known-not-candidate': 'Gelernte Haltestelle, aktuell kein Kandidat',
+    'product-filtered': 'Produkt nicht im Scanner konfiguriert',
     'not-learned': 'Noch nicht aus getTrip gelernt',
   };
 
