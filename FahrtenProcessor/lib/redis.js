@@ -6,7 +6,7 @@ const TRIPS_GEO_KEY = 'TRIPS_GEO';
 const TRIPS_GEO_EXPIRY_KEY = 'TRIPS_GEO_EXPIRY';
 const LIVE_TRIP_INDEX_PREFIX = 'LIVE:TRIP:INDEX:';
 const LIVE_TRIP_INDEX_BY_ID_PREFIX = 'LIVE:TRIP:INDEX:BY-ID:';
-const KNOWN_TRIP_STOPS_KEY = 'SCANNER:KnownTripStops';
+const KNOWN_TRIP_STOPS_KEY = 'SCANNER:PrimaryTripStops';
 const REDIS_MAX_LATITUDE = 85.05112878;
 
 const getLiveTripIndexKey = (line, direction, nextStop) => [line, direction, nextStop]
@@ -139,7 +139,20 @@ const errorExporter = (errorMessage, errorData, jobData) => {
  * @param {Number} longitude
  * @returns 
  */
-const ScheduleJob = async (Fahrtnummer, Betriebstag, Produkt, keyData, AlreadyTrackedStops, runAtTimestamp, Startzeit, Endzeit, latitude, longitude, RecordKnownStops = true) => {
+const ScheduleJob = async (
+    Fahrtnummer,
+    Betriebstag,
+    Produkt,
+    keyData,
+    AlreadyTrackedStops,
+    runAtTimestamp,
+    Startzeit,
+    Endzeit,
+    latitude,
+    longitude,
+    RecordKnownStops = true,
+    StopLearningSource = null
+) => {
 
     const key = `TRIP:${Fahrtnummer}`;
     const reverseIndexKey = getLiveTripReverseIndexKey(Fahrtnummer);
@@ -197,6 +210,7 @@ const ScheduleJob = async (Fahrtnummer, Betriebstag, Produkt, keyData, AlreadyTr
         Endzeit: Endzeit,
         Fahrt: keyData.Fahrt ?? null,
         RecordKnownStops,
+        StopLearningSource,
     }, {
         delay,
         attempts: 5,

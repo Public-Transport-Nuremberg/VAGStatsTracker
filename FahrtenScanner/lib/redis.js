@@ -16,12 +16,13 @@ queueData = redisData
 queueData.db = queueData.db + 1
 
 const trips_q = new Queue('q:trips', { connection: queueData });
-const knownTripStopsKey = 'SCANNER:KnownTripStops';
+const knownTripStopsKey = 'SCANNER:PrimaryTripStops';
 const departureDiscoveryRequestsKey = 'SCANNER:DepartureDiscovery:REQUESTS';
 const departureDiscoveryCandidatesKey = 'SCANNER:DepartureDiscovery:CANDIDATES';
 const departureDiscoveryMentionedKey = 'SCANNER:DepartureDiscovery:MENTIONED';
 const departureDiscoveryScheduleKey = 'SCANNER:DepartureDiscovery:SCHEDULE';
 const departureDiscoveryStateKey = 'SCANNER:DepartureDiscovery:STATE';
+const departureDiscoveryRequiredKey = 'SCANNER:DepartureDiscovery:REQUIRED';
 
 /**
  * Write a new datapoint to the Redis list, specified by the listKey, to avrage out later
@@ -50,11 +51,42 @@ const checkTripKey = async (number) => {
 
 const getKnownTripStopIds = async () => new Set(await redis.smembers(knownTripStopsKey));
 
-const updateDepartureDiscoveryPlan = async ({ candidates, mentionedStopIds, state, initialSchedule = [] }) => {
-    const [previousCandidates, scheduledStops, rawPreviousState] = await Promise.all([
+const getDepartureDiscoveryRequiredStopIds = async () => {
+    const [requiredStopIds, requestEntries] = await Promise.all([
+        redis.smembers(departureDiscoveryRequiredKey),
+        redis.hgetall(departureDiscoveryRequestsKey),
+    ]);
+    const required = new Set(requiredStopIds.map(String));
+    for (const [stopId, value] of Object.entries(requestEntries)) {
+        try {
+            if (Number(JSON.parse(value).newTrips) > 0) required.add(String(stopId));
+        } catch {}
+    }
+    if (required.size > requiredStopIds.length) {
+        await redis.sadd(departureDiscoveryRequiredKey, ...required);
+    }
+    return required;
+};
+
+const markDepartureDiscoveryRequired = (stopId) => redis.sadd(
+    departureDiscoveryRequiredKey,
+    String(stopId)
+);
+
+const updateDepartureDiscoveryPlan = async ({
+    candidates,
+    mentionedStopIds,
+    state,
+    initialSchedule = [],
+    maximumScheduledAt = null,
+}) => {
+    const [previousCandidates, scheduledStops, rawPreviousState, schedulesPastMaximum] = await Promise.all([
         redis.smembers(departureDiscoveryCandidatesKey),
         redis.zrange(departureDiscoveryScheduleKey, 0, -1),
         redis.get(departureDiscoveryStateKey),
+        Number.isFinite(maximumScheduledAt)
+            ? redis.zrangebyscore(departureDiscoveryScheduleKey, `(${maximumScheduledAt}`, '+inf')
+            : Promise.resolve([]),
     ]);
     let previousState = {};
     try { previousState = rawPreviousState ? JSON.parse(rawPreviousState) : {}; } catch { previousState = {}; }
@@ -63,6 +95,7 @@ const updateDepartureDiscoveryPlan = async ({ candidates, mentionedStopIds, stat
     const scheduledSet = resetSchedule ? new Set() : new Set(scheduledStops.map(String));
     const removedCandidates = previousCandidates.filter((stopId) => !candidateSet.has(String(stopId)));
     const missingSchedules = initialSchedule.filter(({ stopId }) => !scheduledSet.has(String(stopId)));
+    const schedulesToClamp = schedulesPastMaximum.filter((stopId) => candidateSet.has(String(stopId)));
     const transaction = redis.multi()
         .del(departureDiscoveryCandidatesKey)
         .del(departureDiscoveryMentionedKey)
@@ -83,6 +116,12 @@ const updateDepartureDiscoveryPlan = async ({ candidates, mentionedStopIds, stat
         transaction.zadd(
             departureDiscoveryScheduleKey,
             ...missingSchedules.flatMap(({ stopId, timestamp }) => [Number(timestamp), String(stopId)])
+        );
+    }
+    if (!resetSchedule && schedulesToClamp.length > 0) {
+        transaction.zadd(
+            departureDiscoveryScheduleKey,
+            ...schedulesToClamp.flatMap((stopId) => [Number(maximumScheduledAt), String(stopId)])
         );
     }
 
@@ -166,6 +205,7 @@ const addJob = async (Fahrtnummer, Betriebstag, Produkt, runAtTimestamp, Endzeit
         Endzeit: Endzeit,
         Fahrt,
         RecordKnownStops,
+        StopLearningSource: RecordKnownStops ? 'getTrips' : 'departures',
     }, {
         delay: delay,
         attempts: 5,
@@ -183,6 +223,8 @@ module.exports = {
     writeNewDatapointKey,
     checkTripKey,
     getKnownTripStopIds,
+    getDepartureDiscoveryRequiredStopIds,
+    markDepartureDiscoveryRequired,
     updateDepartureDiscoveryPlan,
     recordDepartureDiscoveryRequest,
     getDepartureDiscoveryRequest,

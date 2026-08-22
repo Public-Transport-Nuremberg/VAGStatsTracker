@@ -46,10 +46,11 @@
           <option value="recent">In den letzten 10 Minuten abgefragt</option>
           <option value="older">Letzter Request älter als 10 Minuten</option>
           <option value="overdue">Geplanter Request überfällig</option>
-          <option value="learned">Bereits aus getTrip gelernt</option>
+          <option value="learned">Durch primäres getTrips → getTrip gelernt</option>
+          <option value="required">Dauerhaft durch Abfahrten zu prüfen</option>
           <option value="covered">Aktuell durch getTrips abgedeckt</option>
-          <option value="product-filtered">Produkt herausgefiltert</option>
-          <option value="never">Noch nie abgefragt</option>
+          <option value="product-filtered">Keine Produktüberschneidung (wird trotzdem abgefragt)</option>
+          <option value="never">Kandidat noch nie abgefragt</option>
         </select>
       </div>
       <div class="vag-field min-w-52">
@@ -74,6 +75,6 @@
       <div id="popup" class="dd-popup" hidden></div>
     </section>
   </main>
-  <script src="/dist/js/departure-discovery.js?v=4"></script>
+  <script src="/dist/js/departure-discovery.js?v=5"></script>
 </body>
 </html>

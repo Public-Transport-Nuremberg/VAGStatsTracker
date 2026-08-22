@@ -8,7 +8,8 @@ const DEPARTURE_DISCOVERY_CANDIDATES_KEY = 'SCANNER:DepartureDiscovery:CANDIDATE
 const DEPARTURE_DISCOVERY_MENTIONED_KEY = 'SCANNER:DepartureDiscovery:MENTIONED';
 const DEPARTURE_DISCOVERY_SCHEDULE_KEY = 'SCANNER:DepartureDiscovery:SCHEDULE';
 const DEPARTURE_DISCOVERY_STATE_KEY = 'SCANNER:DepartureDiscovery:STATE';
-const KNOWN_TRIP_STOPS_KEY = 'SCANNER:KnownTripStops';
+const DEPARTURE_DISCOVERY_REQUIRED_KEY = 'SCANNER:DepartureDiscovery:REQUIRED';
+const KNOWN_TRIP_STOPS_KEY = 'SCANNER:PrimaryTripStops';
 const EARTH_RADIUS_METERS = 6371008.8;
 const REDIS_MAX_LATITUDE = 85.05112878;
 const COORDINATE_EPSILON = 0.000001;
@@ -94,11 +95,12 @@ const findAllTripKeys = async () => {
 }
 
 const getDepartureDiscoveryDiagnostics = async () => {
-    const [requestEntries, candidateIds, mentionedIds, knownIds, scheduleEntries, rawState] = await Promise.all([
+    const [requestEntries, candidateIds, mentionedIds, knownIds, requiredIds, scheduleEntries, rawState] = await Promise.all([
         redis.hgetall(DEPARTURE_DISCOVERY_REQUESTS_KEY),
         redis.smembers(DEPARTURE_DISCOVERY_CANDIDATES_KEY),
         redis.smembers(DEPARTURE_DISCOVERY_MENTIONED_KEY),
         redis.smembers(KNOWN_TRIP_STOPS_KEY),
+        redis.smembers(DEPARTURE_DISCOVERY_REQUIRED_KEY),
         redis.zrange(DEPARTURE_DISCOVERY_SCHEDULE_KEY, 0, -1, 'WITHSCORES'),
         redis.get(DEPARTURE_DISCOVERY_STATE_KEY),
     ]);
@@ -122,6 +124,7 @@ const getDepartureDiscoveryDiagnostics = async () => {
         candidates: new Set(candidateIds),
         mentioned: new Set(mentionedIds),
         known: new Set(knownIds),
+        required: new Set(requiredIds),
         state,
     };
 };

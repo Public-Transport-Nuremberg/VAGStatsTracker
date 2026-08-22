@@ -30,6 +30,7 @@ const worker = new Worker('q:trips', async (job) => {
             Endzeit,
             Fahrt: ScannerFahrt,
             RecordKnownStops = true,
+            StopLearningSource = null,
         } = job.data;
 
         const tripData = await vgn.getTrip(Fahrtnummer, { product: Produkt, date: Betriebstag })
@@ -50,7 +51,7 @@ const worker = new Worker('q:trips', async (job) => {
         const { Linienname, Fahrzeugnummer, Besetzgrad, Richtung, Richtungstext, Fahrtverlauf } = Fahrt;
 
         writeNewDatapoint('METRICLIST:Trip.RequestTime', Meta?.RequestTime || 0); // Store the request time for later analysis
-        if (RecordKnownStops) await recordKnownTripStops(Fahrtverlauf);
+        if (StopLearningSource === 'getTrips') await recordKnownTripStops(Fahrtverlauf);
 
         const currentTime = new Date();
         const Fahrtverlauf_result = getLastStopAndProgress(Fahrtverlauf, currentTime);
@@ -173,7 +174,8 @@ const worker = new Worker('q:trips', async (job) => {
             Endzeit,
             lastStopObject.Latitude,
             lastStopObject.Longitude,
-            false
+            false,
+            StopLearningSource
         );
         process.log.info(`Processed [${Fahrtnummer}] ${Produkt} (${Linienname}) [${new Date(lastStopObject.AbfahrtszeitIst).toLocaleTimeString()}] ${lastStopObject.Haltestellenname} Next stop: ${nextStopObject.Haltestellenname} [${new Date(nextStopObject.AnkunftszeitIst).toLocaleTimeString()}] Progress: ${Fahrtverlauf_result.progress.toFixed(0)}`);
 

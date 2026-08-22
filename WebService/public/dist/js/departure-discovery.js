@@ -50,10 +50,13 @@
   const formatDate = (value) => value ? new Date(value).toLocaleString() : 'Nie';
   const eligibilityLabel = {
     candidate: 'Discovery-Kandidat',
-    'covered-by-trips': 'In aktueller Fahrten-Antwort erwähnt',
-    'known-not-candidate': 'Gelernte Haltestelle, aktuell kein Kandidat',
-    'product-filtered': 'Produkt nicht im Scanner konfiguriert',
-    'not-learned': 'Noch nicht aus getTrip gelernt',
+    'covered-by-trips': 'In aktueller getTrips-Antwort erwähnt, aber noch nicht primär gelernt',
+    'known-not-candidate': 'Durch getTrips → getTrip gelernt',
+    'not-learned': 'Noch nicht durch getTrips → getTrip gelernt',
+  };
+  const candidateReasonLabel = {
+    'previously-discovered-additional-trip': 'Hat mindestens eine zusätzliche Fahrt über Abfahrten gefunden',
+    'not-primary-learned': 'Noch nicht über getTrips → getTrip gelernt',
   };
 
   const matchesFilter = (stop) => {
@@ -76,9 +79,10 @@
     if (filter === 'overdue') return stop.candidate && stop.scheduledAt
       && new Date(stop.scheduledAt).getTime() < Date.now();
     if (filter === 'learned') return stop.known;
+    if (filter === 'required') return stop.required;
     if (filter === 'covered') return stop.mentioned;
-    if (filter === 'product-filtered') return stop.eligibility === 'product-filtered';
-    if (filter === 'never') return !stop.lastRequest;
+    if (filter === 'product-filtered') return !stop.productMatches;
+    if (filter === 'never') return stop.candidate && !stop.lastRequest;
     return true;
   };
 
@@ -101,7 +105,8 @@
     }, {});
     summary.textContent = `${visible.length}/${stops.length} Stops · ${state.candidates ?? 0} Kandidaten · `
       + `${modeCounts.normal || 0} normal · ${modeCounts['empty-retry'] || 0} im Leer-Retry · `
-      + `${modeCounts.sparse || 0} stündlich · Stand ${formatDate(state.updatedAt)}`;
+      + `${modeCounts.sparse || 0} stündlich · ${state.unscheduledCandidates || 0} Kandidaten ohne Termin · `
+      + `Stand ${formatDate(state.updatedAt)}`;
   };
 
   const load = async () => {
@@ -136,6 +141,13 @@
       <dl class="mt-3">
         <dt>VGN / VAG</dt><dd>${escapeHtml(stop.VGNKennung)} / ${escapeHtml(stop.VAGKennung)}</dd>
         <dt>Status</dt><dd>${escapeHtml(eligibilityLabel[stop.eligibility] || stop.eligibility)}</dd>
+        <dt>Kandidatengrund</dt><dd>${escapeHtml(candidateReasonLabel[stop.candidateReason] || stop.candidateReason || 'Kein Kandidat')}</dd>
+        <dt>Durch primäres getTrips → getTrip gelernt</dt><dd>${stop.known ? 'Ja' : 'Nein'}</dd>
+        <dt>Durch aktuelle getTrips erwähnt</dt><dd>${stop.mentioned ? 'Ja' : 'Nein'}</dd>
+        <dt>Dauerhafte Abfahrten-Discovery</dt><dd>${stop.required ? 'Ja – hat zusätzliche Fahrt gefunden' : 'Nein'}</dd>
+        <dt>Produkte am Stop</dt><dd>${escapeHtml(stop.stopProducts?.join(', ') || 'Keine angegeben')}</dd>
+        <dt>Konfigurierte Scanner-Produkte</dt><dd>${escapeHtml(stop.configuredProducts?.join(', ') || 'Keine')}</dd>
+        <dt>Produktüberschneidung</dt><dd>${escapeHtml(stop.matchingProducts?.join(', ') || 'Keine – Stop wird trotzdem abgefragt')}</dd>
         <dt>Nächster geplanter Request</dt><dd>${escapeHtml(formatDate(stop.scheduledAt))}</dd>
         <dt>Scheduler-Modus</dt><dd>${escapeHtml(last.schedulerMode || 'Noch nicht initialisiert')}</dd>
         <dt>Zeitfenster</dt><dd>zuletzt ${escapeHtml(last.requestedTimeSpan ?? '-')} Min · nächstes ${escapeHtml(last.nextTimeSpan ?? '-')} Min</dd>

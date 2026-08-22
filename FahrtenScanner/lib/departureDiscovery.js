@@ -1,7 +1,9 @@
 const {
     claimDueDepartureDiscoveryStop,
     getDepartureDiscoveryRequest,
+    getDepartureDiscoveryRequiredStopIds,
     getKnownTripStopIds,
+    markDepartureDiscoveryRequired,
     recordDepartureDiscoveryRequest,
     setDepartureDiscoveryScheduledAt,
     updateDepartureDiscoveryPlan,
@@ -46,10 +48,14 @@ const stopMatchesProducts = (stop, configuredProducts) => {
 const stopIsMentioned = (stop, mentionedStopCodes) => String(stop.VAGKennung || '')
     .split(',').map(normalizeStopCode).some((stopCode) => mentionedStopCodes.has(stopCode));
 
-const selectDiscoveryCandidates = (allStops, configuredProducts, mentionedStopCodes, knownTripStopIds) => allStops
-    .filter((stop) => stopMatchesProducts(stop, configuredProducts)
-        && !knownTripStopIds.has(String(stop.VGNKennung))
-        && !stopIsMentioned(stop, mentionedStopCodes));
+const selectDiscoveryCandidates = (
+    allStops,
+    configuredProducts,
+    mentionedStopCodes,
+    knownTripStopIds,
+    requiredStopIds = new Set()
+) => allStops.filter((stop) => requiredStopIds.has(String(stop.VGNKennung))
+    || !knownTripStopIds.has(String(stop.VGNKennung)));
 
 const getLastDepartureTimestamp = (departures) => departures.reduce((latest, departure) => {
     // The API's TimeSpan is timetable-based. Prefer Soll so a delayed vehicle cannot create a polling gap.
@@ -97,9 +103,19 @@ const syncDepartureDiscoveryCandidates = async (configuredProducts, mentionedSto
     }
 
     const allStops = await getAllStops();
-    const knownTripStopIds = await getKnownTripStopIds();
-    const candidates = selectDiscoveryCandidates(allStops, configuredProducts, mentionedStopCodes, knownTripStopIds);
+    const [knownTripStopIds, requiredStopIds] = await Promise.all([
+        getKnownTripStopIds(),
+        getDepartureDiscoveryRequiredStopIds(),
+    ]);
+    const candidates = selectDiscoveryCandidates(
+        allStops,
+        configuredProducts,
+        mentionedStopCodes,
+        knownTripStopIds,
+        requiredStopIds
+    );
     const seededAt = Date.now();
+    const maximumScheduledAt = seededAt + (60 * MINUTE_MS);
     const mentionedStopIds = allStops.filter((stop) => stopIsMentioned(stop, mentionedStopCodes))
         .map((stop) => stop.VGNKennung);
 
@@ -114,6 +130,7 @@ const syncDepartureDiscoveryCandidates = async (configuredProducts, mentionedSto
         initialSchedule: candidates.map((stop) => ({
             stopId: stop.VGNKennung, timestamp: seededAt,
         })),
+        maximumScheduledAt,
         state: {
             enabled: true,
             scheduler: 'per-stop',
@@ -126,6 +143,9 @@ const syncDepartureDiscoveryCandidates = async (configuredProducts, mentionedSto
             knownTripStops: knownTripStopIds.size,
             mentionedStops: mentionedStopIds.length,
             candidates: candidates.length,
+            requiredDiscoveryStops: requiredStopIds.size,
+            candidatesWithoutConfiguredProducts: candidates
+                .filter((stop) => !stopMatchesProducts(stop, configuredProducts)).length,
         },
     });
     await writeNewDatapointKey('METRIC:DepartureDiscovery.Candidates', candidates.length);
@@ -209,6 +229,7 @@ const processDueStop = async (stopId) => {
         nextScheduledAt: new Date(next.nextScheduledAt).toISOString(),
     });
     await setDepartureDiscoveryScheduledAt(stopId, next.nextScheduledAt);
+    if (discoveredById.size > 0) await markDepartureDiscoveryRequired(stopId);
     await writeNewDatapointKey('METRIC:DepartureDiscovery.TripsFound', discoveredById.size);
     process.log.debug(
         `Departure discovery stop ${stopId}: ${response.Departures.length} departures, `

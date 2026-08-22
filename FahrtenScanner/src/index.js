@@ -112,7 +112,9 @@ const resolveDiscoveredDeparture = async (departure) => {
     };
 
     if (await checkTripKey(fahrt.Fahrtnummer)) return false;
-    return storeAndScheduleFahrt(fahrt, fahrt.Produkt || departure.Produkt, true, true);
+    // A route discovered through getDepartures must stay in departure discovery.
+    // Only the primary getTrips -> getTrip path may mark its stops as learned.
+    return storeAndScheduleFahrt(fahrt, fahrt.Produkt || departure.Produkt, true, false);
 };
 
 const MakeTripRequests = async () => {
@@ -187,6 +189,7 @@ const MakeTripRequests = async () => {
     startDepartureDiscoveryWorker(vgn, async (departures) => {
         let resolvedTrips = 0;
         for (const departure of departures) {
+            if (await checkTripKey(departure.Fahrtnummer)) continue;
             if (await resolveDiscoveredDeparture(departure)) resolvedTrips++;
             await waitForDiscoveryRateLimit();
         }

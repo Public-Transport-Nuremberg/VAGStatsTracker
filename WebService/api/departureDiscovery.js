@@ -11,20 +11,34 @@ const normalizeProduct = (product) => String(product || '').replace(/[\s-]/g, ''
 
 router.get('/stops', verifyRequest('api.departureDiscovery.read'), async (req, res) => {
     const diagnostics = await getDepartureDiscoveryDiagnostics();
-    const configuredProducts = new Set((diagnostics.state.configuredProducts || []).map(normalizeProduct));
+    const configuredProductNames = diagnostics.state.configuredProducts || [];
+    const configuredProducts = new Set(configuredProductNames.map(normalizeProduct));
+    let unscheduledCandidates = 0;
     const stops = StopObjectStore.filterByQuery({}).map((stop) => {
         const stopId = String(stop.VGNKennung);
         const candidate = diagnostics.candidates.has(stopId);
         const mentioned = diagnostics.mentioned.has(stopId);
         const known = diagnostics.known.has(stopId);
-        const stopProducts = String(stop.Produkte || '').split(',').map(normalizeProduct);
+        const required = diagnostics.required.has(stopId);
+        const stopProductNames = String(stop.Produkte || '').split(',').map((product) => product.trim()).filter(Boolean);
+        const stopProducts = stopProductNames.map(normalizeProduct);
+        const matchingProducts = stopProductNames.filter((product) => configuredProducts.has(normalizeProduct(product)));
         const productMatches = configuredProducts.size === 0
             || stopProducts.some((product) => configuredProducts.has(product));
         let eligibility = 'not-learned';
         if (candidate) eligibility = 'candidate';
-        else if (mentioned) eligibility = 'covered-by-trips';
         else if (known) eligibility = 'known-not-candidate';
-        else if (!productMatches) eligibility = 'product-filtered';
+        else if (mentioned) eligibility = 'covered-by-trips';
+
+        const scheduledAt = diagnostics.schedule[stopId]
+            ? new Date(diagnostics.schedule[stopId]).toISOString()
+            : null;
+        if (candidate && !scheduledAt) unscheduledCandidates++;
+        const candidateReason = required
+            ? 'previously-discovered-additional-trip'
+            : candidate && !known
+                ? 'not-primary-learned'
+                : null;
 
         return {
             VGNKennung: stop.VGNKennung,
@@ -34,18 +48,21 @@ router.get('/stops', verifyRequest('api.departureDiscovery.read'), async (req, r
             Longitude: stop.Longitude,
             Produkte: stop.Produkte,
             known,
+            required,
             mentioned,
             candidate,
+            candidateReason,
             productMatches,
+            stopProducts: stopProductNames,
+            configuredProducts: configuredProductNames,
+            matchingProducts,
             eligibility,
-            scheduledAt: diagnostics.schedule[stopId]
-                ? new Date(diagnostics.schedule[stopId]).toISOString()
-                : null,
+            scheduledAt,
             lastRequest: diagnostics.requests[stopId] || null,
         };
     });
 
-    res.json({ state: diagnostics.state, stops });
+    res.json({ state: { ...diagnostics.state, unscheduledCandidates }, stops });
 });
 
 module.exports = { router, PluginName, PluginRequirements, PluginVersion };
