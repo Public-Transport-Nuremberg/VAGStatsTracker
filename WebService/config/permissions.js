@@ -9,7 +9,8 @@ module.exports = {
         "app.web.login",
         "app.web.logout",
         "api.apiTrace.read",
-        "api.apiTrace.write"
+        "api.apiTrace.write",
+        "api.departureDiscovery.read"
     ],
     "default_group": "user",
     "groups": {

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Departure Discovery - VAG Stats</title>
+  <script src="/dist/js/ol.js"></script>
+  <link rel="stylesheet" href="/dist/css/tailwind.css" />
+  <link rel="stylesheet" href="/dist/css/ol.css" />
+  <style>
+    #discoveryMap { height:calc(100vh - 18rem); min-height:32rem; }
+    .dd-popup { min-width:18rem; max-width:26rem; border:1px solid #cbd5e1; border-radius:.5rem; background:white; padding:1rem; box-shadow:0 10px 30px rgba(15,23,42,.2); }
+    .dd-popup dt { color:#64748b; font-size:.7rem; font-weight:700; text-transform:uppercase; }
+    .dd-popup dd { margin:0 0 .55rem; overflow-wrap:anywhere; }
+  </style>
+</head>
+<body class="vag-page">
+  <main class="vag-shell">
+    <header class="vag-header">
+      <div>
+        <h1 class="vag-title">Departure Discovery</h1>
+        <p class="vag-subtitle">Abfahrten-Requests, Kandidaten und Scanplanung pro Haltestelle.</p>
+      </div>
+      <a href="/" class="vag-button-secondary">Zurück</a>
+    </header>
+
+    <section class="vag-control-bar">
+      <div class="vag-field min-w-64 flex-1">
+        <label class="vag-label" for="token">Admin Webtoken</label>
+        <input id="token" class="vag-input" type="password" autocomplete="off" placeholder="Bearer-Token" />
+      </div>
+      <button id="connect" class="vag-button" type="button">Verbinden</button>
+      <div class="vag-field min-w-52">
+        <label class="vag-label" for="filter">Anzeige</label>
+        <select id="filter" class="vag-input">
+          <option value="all">Alle Haltestellen</option>
+          <option value="candidate">Discovery-Kandidaten</option>
+          <option value="scheduled">Geplant</option>
+          <option value="error">Letzter Request fehlerhaft</option>
+          <option value="discovered">Neue Fahrten gefunden</option>
+          <option value="never">Noch nie abgefragt</option>
+        </select>
+      </div>
+      <div class="vag-field min-w-52">
+        <label class="vag-label" for="search">Haltestelle</label>
+        <input id="search" class="vag-input" type="search" placeholder="Name oder Kennung" />
+      </div>
+    </section>
+
+    <section class="mt-3 flex flex-wrap gap-2 text-xs">
+      <span class="rounded bg-white px-2 py-1 shadow">● <span class="text-blue-700">Kandidat</span></span>
+      <span class="rounded bg-white px-2 py-1 shadow">● <span class="text-emerald-700">Durch Fahrten abgedeckt</span></span>
+      <span class="rounded bg-white px-2 py-1 shadow">● <span class="text-red-700">Fehler</span></span>
+      <span class="rounded bg-white px-2 py-1 shadow">● <span class="text-purple-700">Neue Fahrt gefunden</span></span>
+      <span class="rounded bg-white px-2 py-1 shadow">● <span class="text-slate-500">Nicht gelernt</span></span>
+      <span id="summary" class="rounded bg-white px-2 py-1 shadow">Nicht verbunden</span>
+    </section>
+
+    <section class="vag-card mt-3 overflow-hidden">
+      <div id="discoveryMap"></div>
+      <div id="popup" class="dd-popup" hidden></div>
+    </section>
+  </main>
+  <script src="/dist/js/departure-discovery.js?v=1"></script>
+</body>
+</html>

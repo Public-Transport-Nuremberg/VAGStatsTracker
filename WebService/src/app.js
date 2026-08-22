@@ -138,6 +138,7 @@ app.get('/departures', (req, res) => sendHtml(res, 'departures.html'));
 app.get('/vehicleHistory/*', (req, res) => sendHtml(res, 'vehicleHistory.html'));
 app.get('/ontimelinechart', (req, res) => sendHtml(res, 'ontimelinechart.html'));
 app.get('/api-logs', (req, res) => sendHtml(res, 'api-logs.html'));
+app.get('/departure-discovery', (req, res) => sendHtml(res, 'departure-discovery.html'));
 
 app.get('/legal/legal', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'public', 'legal', 'legal.html'));

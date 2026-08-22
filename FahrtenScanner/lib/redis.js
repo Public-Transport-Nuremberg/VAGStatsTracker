@@ -18,6 +18,11 @@ queueData.db = queueData.db + 1
 const trips_q = new Queue('q:trips', { connection: queueData });
 const departureDiscoveryCursorKey = 'SCANNER:DepartureDiscoveryCursor';
 const knownTripStopsKey = 'SCANNER:KnownTripStops';
+const departureDiscoveryRequestsKey = 'SCANNER:DepartureDiscovery:REQUESTS';
+const departureDiscoveryCandidatesKey = 'SCANNER:DepartureDiscovery:CANDIDATES';
+const departureDiscoveryMentionedKey = 'SCANNER:DepartureDiscovery:MENTIONED';
+const departureDiscoveryScheduleKey = 'SCANNER:DepartureDiscovery:SCHEDULE';
+const departureDiscoveryStateKey = 'SCANNER:DepartureDiscovery:STATE';
 
 /**
  * Write a new datapoint to the Redis list, specified by the listKey, to avrage out later
@@ -52,6 +57,41 @@ const getDepartureDiscoveryCursor = async () => {
 const setDepartureDiscoveryCursor = (cursor) => redis.set(departureDiscoveryCursorKey, cursor);
 
 const getKnownTripStopIds = async () => new Set(await redis.smembers(knownTripStopsKey));
+
+const updateDepartureDiscoveryPlan = async ({ candidates, mentionedStopIds, schedule, state }) => {
+    const transaction = redis.multi()
+        .del(departureDiscoveryCandidatesKey)
+        .del(departureDiscoveryMentionedKey)
+        .del(departureDiscoveryScheduleKey)
+        .set(departureDiscoveryStateKey, JSON.stringify(state));
+
+    if (candidates.length > 0) {
+        transaction.sadd(departureDiscoveryCandidatesKey, ...candidates.map(String));
+    }
+    if (mentionedStopIds.length > 0) {
+        transaction.sadd(departureDiscoveryMentionedKey, ...mentionedStopIds.map(String));
+    }
+    if (schedule.length > 0) {
+        transaction.zadd(
+            departureDiscoveryScheduleKey,
+            ...schedule.flatMap(({ stopId, timestamp }) => [Number(timestamp), String(stopId)])
+        );
+    }
+
+    await transaction.exec();
+};
+
+const recordDepartureDiscoveryRequest = (stopId, data) => redis.hset(
+    departureDiscoveryRequestsKey,
+    String(stopId),
+    JSON.stringify(data)
+);
+
+const setDepartureDiscoveryScheduledAt = (stopId, timestamp) => redis.zadd(
+    departureDiscoveryScheduleKey,
+    Number(timestamp),
+    String(stopId)
+);
 
 /**
  * Add a new fahrten job to the queue
@@ -116,5 +156,8 @@ module.exports = {
     getDepartureDiscoveryCursor,
     setDepartureDiscoveryCursor,
     getKnownTripStopIds,
+    updateDepartureDiscoveryPlan,
+    recordDepartureDiscoveryRequest,
+    setDepartureDiscoveryScheduledAt,
     addJob
 }

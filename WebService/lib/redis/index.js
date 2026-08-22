@@ -3,6 +3,12 @@ const Redis = require('ioredis');
 const TRIPS_GEO_KEY = 'TRIPS_GEO';
 const TRIPS_GEO_EXPIRY_KEY = 'TRIPS_GEO_EXPIRY';
 const LIVE_TRIP_INDEX_PREFIX = 'LIVE:TRIP:INDEX:';
+const DEPARTURE_DISCOVERY_REQUESTS_KEY = 'SCANNER:DepartureDiscovery:REQUESTS';
+const DEPARTURE_DISCOVERY_CANDIDATES_KEY = 'SCANNER:DepartureDiscovery:CANDIDATES';
+const DEPARTURE_DISCOVERY_MENTIONED_KEY = 'SCANNER:DepartureDiscovery:MENTIONED';
+const DEPARTURE_DISCOVERY_SCHEDULE_KEY = 'SCANNER:DepartureDiscovery:SCHEDULE';
+const DEPARTURE_DISCOVERY_STATE_KEY = 'SCANNER:DepartureDiscovery:STATE';
+const KNOWN_TRIP_STOPS_KEY = 'SCANNER:KnownTripStops';
 const EARTH_RADIUS_METERS = 6371008.8;
 const REDIS_MAX_LATITUDE = 85.05112878;
 const COORDINATE_EPSILON = 0.000001;
@@ -86,6 +92,39 @@ const findAllTripKeys = async () => {
     const keys = await redis.keys('TRIP:*');
     return keys;
 }
+
+const getDepartureDiscoveryDiagnostics = async () => {
+    const [requestEntries, candidateIds, mentionedIds, knownIds, scheduleEntries, rawState] = await Promise.all([
+        redis.hgetall(DEPARTURE_DISCOVERY_REQUESTS_KEY),
+        redis.smembers(DEPARTURE_DISCOVERY_CANDIDATES_KEY),
+        redis.smembers(DEPARTURE_DISCOVERY_MENTIONED_KEY),
+        redis.smembers(KNOWN_TRIP_STOPS_KEY),
+        redis.zrange(DEPARTURE_DISCOVERY_SCHEDULE_KEY, 0, -1, 'WITHSCORES'),
+        redis.get(DEPARTURE_DISCOVERY_STATE_KEY),
+    ]);
+
+    const requests = {};
+    for (const [stopId, value] of Object.entries(requestEntries)) {
+        try { requests[stopId] = JSON.parse(value); } catch { requests[stopId] = { state: 'invalid' }; }
+    }
+
+    const schedule = {};
+    for (let index = 0; index < scheduleEntries.length; index += 2) {
+        schedule[scheduleEntries[index]] = Number(scheduleEntries[index + 1]);
+    }
+
+    let state = {};
+    try { state = rawState ? JSON.parse(rawState) : {}; } catch { state = { invalid: true }; }
+
+    return {
+        requests,
+        schedule,
+        candidates: new Set(candidateIds),
+        mentioned: new Set(mentionedIds),
+        known: new Set(knownIds),
+        state,
+    };
+};
 
 const getValuesFromKeys = async (keyName, keys) => {
     if(keys.length === 0) return {};
@@ -342,6 +381,7 @@ module.exports = {
     findAllErrorListKeys,
     findAllErrorIDKeys,
     findAllTripKeys,
+    getDepartureDiscoveryDiagnostics,
     getValuesFromKeys,
     getIndexedTripValues,
     getTripValuesInBoundingBox,

@@ -1,12 +1,15 @@
 (() => {
   const elements = Object.fromEntries([
-    'token', 'connect', 'toggle', 'status', 'count', 'bytes', 'liveState',
+    'token', 'connect', 'toggle', 'pause', 'status', 'count', 'bytes', 'liveState',
     'filter', 'limit', 'refresh', 'logs',
   ].map((id) => [id, document.getElementById(id)]));
   let status = null;
   let logs = [];
   let timer = null;
   let pollCount = 0;
+  let paused = false;
+  let bufferedLogs = new Map();
+  let lastSeenTimestamp = 0;
 
   const formatBytes = (bytes) => {
     if (!Number.isFinite(bytes)) return '-';
@@ -38,6 +41,7 @@
     elements.bytes.textContent = status ? `${formatBytes(status.bytes)} / ${formatBytes(status.maxBytes)}` : '-';
     elements.toggle.textContent = status?.enabled ? 'Logging ausschalten' : 'Logging einschalten';
     elements.toggle.disabled = !status;
+    elements.pause.disabled = !status;
     elements.refresh.disabled = !status;
   };
 
@@ -86,20 +90,28 @@
     ]);
     status = newStatus;
     logs = payload.logs;
+    lastSeenTimestamp = logs.length > 0 ? Math.max(...logs.map((entry) => new Date(entry.timestamp).getTime())) : 0;
+    bufferedLogs.clear();
     renderStatus();
     renderLogs();
   };
 
   const pollLive = async () => {
-    const newestTimestamp = logs.length > 0 ? new Date(logs[0].timestamp).getTime() : 0;
-    const payload = await request(`/logs?limit=1000&after=${newestTimestamp}`);
+    const payload = await request(`/logs?limit=1000&after=${lastSeenTimestamp}`);
     if (payload.logs.length > 0) {
-      const byId = new Map(logs.map((entry) => [entry.id, entry]));
-      for (const entry of payload.logs) byId.set(entry.id, entry);
-      logs = [...byId.values()]
-        .sort((left, right) => new Date(right.timestamp) - new Date(left.timestamp))
-        .slice(0, Number(elements.limit.value));
-      renderLogs();
+      lastSeenTimestamp = Math.max(lastSeenTimestamp, ...payload.logs.map((entry) => new Date(entry.timestamp).getTime()));
+      if (paused) {
+        for (const entry of payload.logs) bufferedLogs.set(entry.id, entry);
+        elements.pause.textContent = `Fortsetzen (${bufferedLogs.size})`;
+        elements.liveState.textContent = `Live: pausiert · ${bufferedLogs.size} gepuffert`;
+      } else {
+        const byId = new Map(logs.map((entry) => [entry.id, entry]));
+        for (const entry of payload.logs) byId.set(entry.id, entry);
+        logs = [...byId.values()]
+          .sort((left, right) => new Date(right.timestamp) - new Date(left.timestamp))
+          .slice(0, Number(elements.limit.value));
+        renderLogs();
+      }
     }
     pollCount++;
     if (pollCount % 5 === 0) {
@@ -114,6 +126,9 @@
       await refresh();
       sessionStorage.setItem('apiTraceToken', elements.token.value.trim());
       elements.liveState.textContent = 'Live: verbunden (1 s)';
+      paused = false;
+      bufferedLogs.clear();
+      elements.pause.textContent = 'Live pausieren';
       pollCount = 0;
       timer = setInterval(() => pollLive().catch((error) => {
         elements.liveState.textContent = `Live: Fehler (${error.message})`;
@@ -134,6 +149,24 @@
   elements.toggle.addEventListener('click', async () => {
     status = await request('/status', { method: 'POST', body: JSON.stringify({ enabled: !status.enabled }) });
     renderStatus();
+  });
+  elements.pause.addEventListener('click', () => {
+    paused = !paused;
+    if (paused) {
+      elements.pause.textContent = 'Fortsetzen';
+      elements.liveState.textContent = 'Live: pausiert';
+      return;
+    }
+
+    const byId = new Map(logs.map((entry) => [entry.id, entry]));
+    for (const entry of bufferedLogs.values()) byId.set(entry.id, entry);
+    logs = [...byId.values()]
+      .sort((left, right) => new Date(right.timestamp) - new Date(left.timestamp))
+      .slice(0, Number(elements.limit.value));
+    bufferedLogs.clear();
+    elements.pause.textContent = 'Live pausieren';
+    elements.liveState.textContent = 'Live: verbunden (1 s)';
+    renderLogs();
   });
   if (elements.token.value) connect();
 })();

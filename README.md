@@ -355,6 +355,8 @@ npm run create-admin-token -- --username admin --hours 96
 
 The command requires `CACHEDRIVER=redis`, writes the token to KeyDB, and prints it once. Use it as `Authorization: Bearer <token>` or enter it in the API Trace WebUI.
 
+The admin-only departure discovery diagnostics are available at `/departure-discovery`. The map shows all stops, their current candidate/coverage state, the last departure request and result, and the estimated next request. Scanner diagnostics are stored below `SCANNER:DepartureDiscovery:*` in KeyDB.
+
 ### Project (Deliverd Nov 2024) - Just no longer got time to play with it :/
 Unlike my other projects this project will be built around my learning curve to cloud like software architecture.  
 Target Hardware:

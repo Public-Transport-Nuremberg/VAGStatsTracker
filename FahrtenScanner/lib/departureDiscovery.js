@@ -1,7 +1,10 @@
 const {
     getDepartureDiscoveryCursor,
     getKnownTripStopIds,
+    recordDepartureDiscoveryRequest,
     setDepartureDiscoveryCursor,
+    setDepartureDiscoveryScheduledAt,
+    updateDepartureDiscoveryPlan,
     writeNewDatapoint,
     writeNewDatapointKey,
 } = require('@lib/redis');
@@ -59,16 +62,33 @@ const selectRotatingBatch = (stops, cursor, batchSize) => {
     };
 };
 
+const selectDiscoveryCandidates = (allStops, configuredProducts, mentionedStopCodes, knownTripStopIds) => {
+    const hasKnownStopUniverse = knownTripStopIds.size > 0;
+    return allStops.filter((stop) => stopMatchesProducts(stop, configuredProducts)
+        && (!hasKnownStopUniverse || knownTripStopIds.has(String(stop.VGNKennung)))
+        && !stopIsMentioned(stop, mentionedStopCodes));
+};
+
 const discoverDepartures = async (vgn, configuredProducts, mentionedStopCodes, knownTripIds) => {
     if (String(process.env.DEPARTURE_DISCOVERY_ENABLED || 'true').toLowerCase() !== 'true') {
+        await updateDepartureDiscoveryPlan({
+            candidates: [],
+            mentionedStopIds: [],
+            schedule: [],
+            state: { enabled: false, updatedAt: new Date().toISOString() },
+        });
         return [];
     }
 
     const allStops = await getAllStops();
     const knownTripStopIds = await getKnownTripStopIds();
-    const candidates = allStops.filter((stop) => stopMatchesProducts(stop, configuredProducts)
-        && !knownTripStopIds.has(String(stop.VGNKennung))
-        && !stopIsMentioned(stop, mentionedStopCodes));
+    const hasKnownStopUniverse = knownTripStopIds.size > 0;
+    const candidates = selectDiscoveryCandidates(
+        allStops,
+        configuredProducts,
+        mentionedStopCodes,
+        knownTripStopIds
+    );
     const cursor = await getDepartureDiscoveryCursor();
     const batchSize = getConfiguredNumber('DEPARTURE_DISCOVERY_BATCH_SIZE', 20);
     const requestDelay = getConfiguredNumber('DEPARTURE_DISCOVERY_REQUEST_DELAY_MS', 500);
@@ -76,9 +96,49 @@ const discoverDepartures = async (vgn, configuredProducts, mentionedStopCodes, k
     const { batch, nextCursor } = selectRotatingBatch(candidates, cursor, batchSize);
     const discoveredById = new Map();
     const normalizedConfiguredProducts = new Set(configuredProducts.map(normalizeProduct));
+    const scanStartedAt = Date.now();
+    const normalizedCursor = candidates.length > 0 ? cursor % candidates.length : 0;
+    const scanIntervalMs = getConfiguredNumber('SCAN_INTERVAL', 5) * 60 * 1000;
+    const fullRotationMs = Math.max(scanIntervalMs, Math.ceil(candidates.length / batchSize) * scanIntervalMs);
+    const schedule = candidates.map((_, offset) => {
+        const stop = candidates[(normalizedCursor + offset) % candidates.length];
+        return {
+            stopId: stop.VGNKennung,
+            timestamp: scanStartedAt
+                + (Math.floor(offset / batchSize) * scanIntervalMs)
+                + ((offset % batchSize) * requestDelay),
+        };
+    });
+    const mentionedStopIds = allStops
+        .filter((stop) => stopIsMentioned(stop, mentionedStopCodes))
+        .map((stop) => stop.VGNKennung);
+
+    await updateDepartureDiscoveryPlan({
+        candidates: candidates.map((stop) => stop.VGNKennung),
+        mentionedStopIds,
+        schedule,
+        state: {
+            enabled: true,
+            running: true,
+            scanStartedAt: new Date(scanStartedAt).toISOString(),
+            candidateSource: hasKnownStopUniverse ? 'known-trip-stops' : 'all-stops-bootstrap',
+            totalStops: allStops.length,
+            knownTripStops: knownTripStopIds.size,
+            mentionedStops: mentionedStopIds.length,
+            candidates: candidates.length,
+            batchSize: batch.length,
+            cursor: normalizedCursor,
+            nextCursor,
+        },
+    });
 
     for (const [index, stop] of batch.entries()) {
         let response;
+        const requestedAt = Date.now();
+        await recordDepartureDiscoveryRequest(stop.VGNKennung, {
+            state: 'running',
+            requestedAt: new Date(requestedAt).toISOString(),
+        });
         try {
             response = await vgn.getDepartures(stop.VGNKennung, {
                 Product: configuredProducts.join(','),
@@ -92,8 +152,17 @@ const discoverDepartures = async (vgn, configuredProducts, mentionedStopCodes, k
             const statusCode = response?.code || 500;
             writeNewDatapoint('ERRORLIST:DepartureDiscovery.Statuscode', statusCode);
             process.log.warn(`Departure discovery failed for stop ${stop.VGNKennung} (${statusCode})`);
+            await recordDepartureDiscoveryRequest(stop.VGNKennung, {
+                state: 'error',
+                requestedAt: new Date(requestedAt).toISOString(),
+                completedAt: new Date().toISOString(),
+                durationMs: Date.now() - requestedAt,
+                statusCode,
+                error: response?.message || response?.stack || String(response || 'Empty response'),
+            });
         } else {
             writeNewDatapoint('METRICLIST:DepartureDiscovery.RequestTime', response.Meta?.RequestTime || 0);
+            let newTripsAtStop = 0;
             for (const departure of response.Departures) {
                 const tripId = String(departure.Fahrtnummer);
                 if (!departure.Fahrtnummer
@@ -101,9 +170,22 @@ const discoverDepartures = async (vgn, configuredProducts, mentionedStopCodes, k
                     || !normalizedConfiguredProducts.has(normalizeProduct(departure.Produkt))) {
                     continue;
                 }
+                if (!discoveredById.has(tripId)) newTripsAtStop++;
                 discoveredById.set(tripId, departure);
             }
+            await recordDepartureDiscoveryRequest(stop.VGNKennung, {
+                state: 'success',
+                requestedAt: new Date(requestedAt).toISOString(),
+                completedAt: new Date().toISOString(),
+                durationMs: Date.now() - requestedAt,
+                statusCode: 200,
+                requestTimeMs: response.Meta?.RequestTime || 0,
+                departures: response.Departures.length,
+                newTrips: newTripsAtStop,
+            });
         }
+
+        await setDepartureDiscoveryScheduledAt(stop.VGNKennung, Date.now() + fullRotationMs);
 
         if (index < batch.length - 1) await wait(requestDelay);
     }
@@ -113,6 +195,21 @@ const discoverDepartures = async (vgn, configuredProducts, mentionedStopCodes, k
     await writeNewDatapointKey('METRIC:DepartureDiscovery.Candidates', candidates.length);
     await writeNewDatapointKey('METRIC:DepartureDiscovery.KnownTripStops', knownTripStopIds.size);
     await writeNewDatapointKey('METRIC:DepartureDiscovery.TripsFound', discoveredById.size);
+    await writeNewDatapointKey('SCANNER:DepartureDiscovery:STATE', JSON.stringify({
+        enabled: true,
+        running: false,
+        scanStartedAt: new Date(scanStartedAt).toISOString(),
+        completedAt: new Date().toISOString(),
+        candidateSource: hasKnownStopUniverse ? 'known-trip-stops' : 'all-stops-bootstrap',
+        totalStops: allStops.length,
+        knownTripStops: knownTripStopIds.size,
+        mentionedStops: mentionedStopIds.length,
+        candidates: candidates.length,
+        batchSize: batch.length,
+        cursor: normalizedCursor,
+        nextCursor,
+        tripsFound: discoveredById.size,
+    }));
     process.log.info(`Departure discovery scanned ${batch.length}/${candidates.length} stops and found ${discoveredById.size} additional trip IDs`);
 
     return [...discoveredById.values()];
@@ -121,6 +218,7 @@ const discoverDepartures = async (vgn, configuredProducts, mentionedStopCodes, k
 module.exports = {
     discoverDepartures,
     normalizeStopCode,
+    selectDiscoveryCandidates,
     selectRotatingBatch,
     waitForDiscoveryRateLimit: () => wait(getConfiguredNumber('DEPARTURE_DISCOVERY_REQUEST_DELAY_MS', 500)),
 };
