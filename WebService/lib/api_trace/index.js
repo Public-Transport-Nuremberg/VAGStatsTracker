@@ -2,6 +2,7 @@ const Redis = require('ioredis');
 const crypto = require('crypto');
 
 const ENABLED_KEY = 'API_TRACE:ENABLED';
+const ACTIVE_RECORDING_KEY = 'API_TRACE:ACTIVE_RECORDING';
 const LOG_KEY = 'API_TRACE:LOGS';
 const BYTES_KEY = 'API_TRACE:BYTES';
 const RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -16,6 +17,7 @@ const redisOptions = {
 };
 const redis = new Redis(redisOptions);
 let enabledCache = false;
+let recordingIdCache = null;
 let enabledCacheExpiresAt = 0;
 let enabledCheckPromise = null;
 
@@ -77,9 +79,13 @@ const cleanup = async () => redis.eval(cleanupScript, 2, LOG_KEY, BYTES_KEY, Dat
 const isEnabled = async (force = false) => {
     if (!force && Date.now() < enabledCacheExpiresAt) return enabledCache;
     if (!enabledCheckPromise) {
-        enabledCheckPromise = redis.get(ENABLED_KEY)
-            .then((value) => {
-                enabledCache = value === '1';
+        enabledCheckPromise = redis.mget(ENABLED_KEY, ACTIVE_RECORDING_KEY)
+            .then(([value, activeValue]) => {
+                let active = null;
+                try { active = activeValue ? JSON.parse(activeValue) : null; } catch {}
+                const activeIsValid = active && new Date(active.endsAt).getTime() > Date.now();
+                enabledCache = value === '1' && (!active || activeIsValid);
+                recordingIdCache = activeIsValid ? active.id : null;
                 enabledCacheExpiresAt = Date.now() + 1000;
                 return enabledCache;
             })
@@ -92,6 +98,35 @@ const setEnabled = async (enabled) => {
     enabledCache = enabled;
     enabledCacheExpiresAt = Date.now() + 1000;
     return getStatus();
+};
+
+const setActiveRecording = async (recording) => {
+    const transaction = redis.multi();
+    transaction.set(ACTIVE_RECORDING_KEY, JSON.stringify(recording));
+    transaction.set(ENABLED_KEY, '1');
+    await transaction.exec();
+    enabledCache = true;
+    recordingIdCache = recording.id;
+    enabledCacheExpiresAt = Date.now() + 1000;
+};
+
+const clearActiveRecording = async (recordingId) => {
+    const active = await getActiveRecording();
+    if (recordingId && active?.id !== recordingId) return false;
+    const transaction = redis.multi();
+    transaction.del(ACTIVE_RECORDING_KEY);
+    transaction.set(ENABLED_KEY, '0');
+    await transaction.exec();
+    enabledCache = false;
+    recordingIdCache = null;
+    enabledCacheExpiresAt = Date.now() + 1000;
+    return true;
+};
+
+const getActiveRecording = async () => {
+    const value = await redis.get(ACTIVE_RECORDING_KEY);
+    if (!value) return null;
+    try { return JSON.parse(value); } catch { return null; }
 };
 
 const getStatus = async () => {
@@ -107,7 +142,14 @@ const getStatus = async () => {
         maxBytes: MAX_BYTES,
         count,
         retentionHours: 24,
+        recording: await getActiveRecording(),
     };
+};
+
+const getRecordingLogs = async (recordingId) => {
+    await cleanup();
+    const members = await redis.zrange(LOG_KEY, 0, -1);
+    return members.map(memberValue).filter((entry) => entry.recordingId === recordingId);
 };
 
 const getLogs = async ({ limit = 250, after } = {}) => {
@@ -145,15 +187,16 @@ const traceCall = async (service, operation, args, callback) => {
     try { enabled = await isEnabled(); } catch (error) { process.log?.warn?.(`API trace status check failed: ${error.message}`); }
     if (!enabled) return callback();
 
+    const recordingId = recordingIdCache;
     const requestId = crypto.randomUUID();
     const startedAt = Date.now();
-    await record({ requestId, phase: 'request', service, operation, request: { args } }).catch(() => {});
+    await record({ requestId, recordingId, phase: 'request', service, operation, request: { args } }).catch(() => {});
     try {
         const response = await callback();
-        await record({ requestId, phase: 'response', service, operation, durationMs: Date.now() - startedAt, response }).catch(() => {});
+        await record({ requestId, recordingId, phase: 'response', service, operation, durationMs: Date.now() - startedAt, response }).catch(() => {});
         return response;
     } catch (error) {
-        await record({ requestId, phase: 'response', service, operation, durationMs: Date.now() - startedAt, error }).catch(() => {});
+        await record({ requestId, recordingId, phase: 'response', service, operation, durationMs: Date.now() - startedAt, error }).catch(() => {});
         throw error;
     }
 };
@@ -175,14 +218,16 @@ const traceFetch = async (service, url, options) => {
     let enabled = false;
     try { enabled = await isEnabled(); } catch {}
     if (!enabled) return fetch(url, options);
+    const recordingId = recordingIdCache;
     const requestId = crypto.randomUUID();
     const startedAt = Date.now();
-    await record({ requestId, phase: 'request', service, operation: 'fetch', request: { url: String(url), options } }).catch(() => {});
+    await record({ requestId, recordingId, phase: 'request', service, operation: 'fetch', request: { url: String(url), options } }).catch(() => {});
     try {
         const response = await fetch(url, options);
         const body = await response.clone().text();
         await record({
             requestId,
+            recordingId,
             phase: 'response',
             service,
             operation: 'fetch',
@@ -191,7 +236,7 @@ const traceFetch = async (service, url, options) => {
         }).catch(() => {});
         return response;
     } catch (error) {
-        await record({ requestId, phase: 'response', service, operation: 'fetch', durationMs: Date.now() - startedAt, error }).catch(() => {});
+        await record({ requestId, recordingId, phase: 'response', service, operation: 'fetch', durationMs: Date.now() - startedAt, error }).catch(() => {});
         throw error;
     }
 };
@@ -199,4 +244,14 @@ const traceFetch = async (service, url, options) => {
 const cleanupTimer = setInterval(() => cleanup().catch(() => {}), 60 * 1000);
 cleanupTimer.unref();
 
-module.exports = { getLogs, getStatus, setEnabled, traceVgnClient, traceFetch };
+module.exports = {
+    clearActiveRecording,
+    getActiveRecording,
+    getLogs,
+    getRecordingLogs,
+    getStatus,
+    setActiveRecording,
+    setEnabled,
+    traceVgnClient,
+    traceFetch,
+};

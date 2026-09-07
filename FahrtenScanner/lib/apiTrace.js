@@ -2,6 +2,7 @@ const Redis = require('ioredis');
 const crypto = require('crypto');
 
 const ENABLED_KEY = 'API_TRACE:ENABLED';
+const ACTIVE_RECORDING_KEY = 'API_TRACE:ACTIVE_RECORDING';
 const LOG_KEY = 'API_TRACE:LOGS';
 const BYTES_KEY = 'API_TRACE:BYTES';
 const RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -15,6 +16,7 @@ const redis = new Redis({
     db: process.env.REDIS_DB || 0,
 });
 let enabledCache = false;
+let recordingIdCache = null;
 let enabledCacheExpiresAt = 0;
 let enabledCheckPromise = null;
 
@@ -79,9 +81,13 @@ const safeStringify = (value) => {
 const isEnabled = async () => {
     if (Date.now() < enabledCacheExpiresAt) return enabledCache;
     if (!enabledCheckPromise) {
-        enabledCheckPromise = redis.get(ENABLED_KEY)
-            .then((value) => {
-                enabledCache = value === '1';
+        enabledCheckPromise = redis.mget(ENABLED_KEY, ACTIVE_RECORDING_KEY)
+            .then(([value, activeValue]) => {
+                let active = null;
+                try { active = activeValue ? JSON.parse(activeValue) : null; } catch {}
+                const activeIsValid = active && new Date(active.endsAt).getTime() > Date.now();
+                enabledCache = value === '1' && (!active || activeIsValid);
+                recordingIdCache = activeIsValid ? active.id : null;
                 enabledCacheExpiresAt = Date.now() + 1000;
                 return enabledCache;
             })
@@ -107,13 +113,15 @@ const traceCall = async (service, operation, args, callback) => {
     try { enabled = await isEnabled(); } catch (error) { process.log?.warn?.(`API trace status check failed: ${error.message}`); }
     if (!enabled) return callback();
 
+    const recordingId = recordingIdCache;
     const requestId = crypto.randomUUID();
     const startedAt = Date.now();
-    await record({ requestId, phase: 'request', service, operation, request: { args } }).catch(() => {});
+    await record({ requestId, recordingId, phase: 'request', service, operation, request: { args } }).catch(() => {});
     try {
         const response = await callback();
         await record({
             requestId,
+            recordingId,
             phase: 'response',
             service,
             operation,
@@ -124,6 +132,7 @@ const traceCall = async (service, operation, args, callback) => {
     } catch (error) {
         await record({
             requestId,
+            recordingId,
             phase: 'response',
             service,
             operation,
@@ -152,14 +161,16 @@ const traceFetch = async (service, url, options) => {
     try { enabled = await isEnabled(); } catch {}
     if (!enabled) return fetch(url, options);
 
+    const recordingId = recordingIdCache;
     const requestId = crypto.randomUUID();
     const startedAt = Date.now();
-    await record({ requestId, phase: 'request', service, operation: 'fetch', request: { url: String(url), options } }).catch(() => {});
+    await record({ requestId, recordingId, phase: 'request', service, operation: 'fetch', request: { url: String(url), options } }).catch(() => {});
     try {
         const response = await fetch(url, options);
         const body = await response.clone().text();
         await record({
             requestId,
+            recordingId,
             phase: 'response',
             service,
             operation: 'fetch',
@@ -173,7 +184,7 @@ const traceFetch = async (service, url, options) => {
         }).catch(() => {});
         return response;
     } catch (error) {
-        await record({ requestId, phase: 'response', service, operation: 'fetch', durationMs: Date.now() - startedAt, error }).catch(() => {});
+        await record({ requestId, recordingId, phase: 'response', service, operation: 'fetch', durationMs: Date.now() - startedAt, error }).catch(() => {});
         throw error;
     }
 };

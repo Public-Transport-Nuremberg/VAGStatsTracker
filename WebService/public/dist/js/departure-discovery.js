@@ -1,6 +1,4 @@
 (() => {
-  const tokenInput = document.getElementById('token');
-  const connectButton = document.getElementById('connect');
   const filterInput = document.getElementById('filter');
   const searchInput = document.getElementById('search');
   const summary = document.getElementById('summary');
@@ -116,9 +114,7 @@
   };
 
   const load = async () => {
-    const response = await fetch('/api/v1/departureDiscovery/stops', {
-      headers: { Authorization: `Bearer ${tokenInput.value.trim()}` },
-    });
+    const response = await fetch('/api/v1/departureDiscovery/stops');
     if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
     const payload = await response.json();
     stops = payload.stops;
@@ -130,7 +126,6 @@
     clearInterval(timer);
     try {
       await load();
-      sessionStorage.setItem('apiTraceToken', tokenInput.value.trim());
       timer = setInterval(() => load().catch((error) => { summary.textContent = `Live-Fehler: ${error.message}`; }), 5000);
     } catch (error) {
       summary.textContent = `Verbindung fehlgeschlagen: ${error.message}`;
@@ -169,7 +164,5 @@
 
   filterInput.addEventListener('change', render);
   searchInput.addEventListener('input', render);
-  connectButton.addEventListener('click', connect);
-  tokenInput.value = sessionStorage.getItem('apiTraceToken') || '';
-  if (tokenInput.value) connect();
+  connect();
 })();

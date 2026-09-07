@@ -1,5 +1,4 @@
 const express = require('ultimate-express');
-const { verifyRequest } = require('@middleware/verifyRequest');
 const { StopObjectStore } = require('@lib/haltestellen_cache');
 const { getDepartureDiscoveryDiagnostics } = require('@lib/redis');
 
@@ -9,7 +8,7 @@ const PluginRequirements = [];
 const PluginVersion = '1.0.0';
 const normalizeProduct = (product) => String(product || '').replace(/[\s-]/g, '').toLowerCase();
 
-router.get('/stops', verifyRequest('api.departureDiscovery.read'), async (req, res) => {
+router.get('/stops', async (req, res) => {
     const diagnostics = await getDepartureDiscoveryDiagnostics();
     const configuredProductNames = diagnostics.state.configuredProducts || [];
     const configuredProducts = new Set(configuredProductNames.map(normalizeProduct));

@@ -25,11 +25,6 @@
     </header>
 
     <section class="vag-control-bar">
-      <div class="vag-field min-w-64 flex-1">
-        <label class="vag-label" for="token">Admin Webtoken</label>
-        <input id="token" class="vag-input" type="password" autocomplete="off" placeholder="Bearer-Token" />
-      </div>
-      <button id="connect" class="vag-button" type="button">Verbinden</button>
       <div class="vag-field min-w-52">
         <label class="vag-label" for="filter">Anzeige</label>
         <select id="filter" class="vag-input">
@@ -67,7 +62,7 @@
       <span class="rounded bg-white px-2 py-1 shadow">● <span class="text-yellow-600">Leerer Stop: Retry</span></span>
       <span class="rounded bg-white px-2 py-1 shadow">● <span class="text-amber-900">Leerer Stop: stündlich</span></span>
       <span class="rounded bg-white px-2 py-1 shadow">● <span class="text-slate-500">Nicht gelernt</span></span>
-      <span id="summary" class="rounded bg-white px-2 py-1 shadow">Nicht verbunden</span>
+      <span id="summary" class="rounded bg-white px-2 py-1 shadow">Wird geladen</span>
     </section>
 
     <section class="vag-card mt-3 overflow-hidden">
@@ -75,6 +70,6 @@
       <div id="popup" class="dd-popup" hidden></div>
     </section>
   </main>
-  <script src="/dist/js/departure-discovery.js?v=6"></script>
+  <script src="/dist/js/departure-discovery.js?v=7"></script>
 </body>
 </html>

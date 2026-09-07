@@ -1,6 +1,7 @@
 # Logs
 logs
 *.log
+WebService/data/api-traces/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
