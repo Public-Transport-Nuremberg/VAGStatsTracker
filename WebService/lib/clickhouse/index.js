@@ -503,6 +503,96 @@ const getCancelledTripsToday = async () => {
   return Number(rows[0]?.cancelled_today || 0);
 }
 
+const getDatabaseStats = async () => {
+  const [tableResult, dailyResult, busiestLineResult] = await Promise.all([
+    client.query({
+      query: `
+        SELECT
+          tables.name AS table,
+          tables.engine AS engine,
+          tables.total_rows AS rows,
+          tables.total_bytes AS compressed_bytes,
+          columns.uncompressed_bytes AS uncompressed_bytes
+        FROM system.tables AS tables
+        LEFT JOIN (
+          SELECT table, sum(data_uncompressed_bytes) AS uncompressed_bytes
+          FROM system.columns
+          WHERE database = currentDatabase()
+          GROUP BY table
+        ) AS columns ON columns.table = tables.name
+        WHERE tables.database = currentDatabase()
+        ORDER BY compressed_bytes DESC, table
+      `,
+      format: 'JSONEachRow',
+    }),
+    client.query({
+      query: `
+        SELECT
+          (SELECT count() FROM fahrten FINAL WHERE Betriebstag = today()) AS trips,
+          (SELECT uniqExactIf(Fahrzeugnummer, Fahrzeugnummer NOT IN (0, -1)) FROM fahrten FINAL WHERE Betriebstag = today()) AS vehicles,
+          (SELECT uniqExact(Linienname) FROM fahrten FINAL WHERE Betriebstag = today()) AS lines,
+          (SELECT count() FROM fahrten_halte FINAL WHERE Betriebstag = today()) AS stop_observations,
+          (SELECT uniqExact(VGNKennung) FROM fahrten_halte FINAL WHERE Betriebstag = today()) AS stops,
+          (SELECT round(avg(\`AbfahrtszeitVerspätung\`), 1) FROM fahrten_halte FINAL WHERE Betriebstag = today() AND isNotNull(\`AbfahrtszeitVerspätung\`)) AS average_delay_seconds,
+          (SELECT round(countIf(\`AbfahrtszeitVerspätung\` BETWEEN -60 AND 180) * 100.0 / nullIf(count(\`AbfahrtszeitVerspätung\`), 0), 1) FROM fahrten_halte FINAL WHERE Betriebstag = today()) AS on_time_percent,
+          (SELECT round(sum(greatest(\`AbfahrtszeitVerspätung\`, 0)) / 60.0) FROM fahrten_halte FINAL WHERE Betriebstag = today() AND isNotNull(\`AbfahrtszeitVerspätung\`)) AS delay_minutes
+      `,
+      format: 'JSONEachRow',
+    }),
+    client.query({
+      query: `
+        SELECT Linienname AS line, count() AS trips
+        FROM fahrten FINAL
+        WHERE Betriebstag = today()
+        GROUP BY Linienname
+        ORDER BY trips DESC, line
+        LIMIT 1
+      `,
+      format: 'JSONEachRow',
+    }),
+  ]);
+
+  const [tableRows, dailyRows, busiestLineRows] = await Promise.all([
+    tableResult.json(),
+    dailyResult.json(),
+    busiestLineResult.json(),
+  ]);
+  const asNumber = (value) => Number(value || 0);
+  const tables = tableRows.map((table) => ({
+    name: table.table,
+    engine: table.engine,
+    rows: asNumber(table.rows),
+    compressedBytes: asNumber(table.compressed_bytes),
+    uncompressedBytes: asNumber(table.uncompressed_bytes),
+  }));
+  const daily = dailyRows[0] || {};
+  const busiestLine = busiestLineRows[0] || {};
+
+  return {
+    generatedAt: new Date().toISOString(),
+    database: process.env.CH_DATABASE || '',
+    totals: tables.reduce((totals, table) => ({
+      rows: totals.rows + table.rows,
+      compressedBytes: totals.compressedBytes + table.compressedBytes,
+      uncompressedBytes: totals.uncompressedBytes + table.uncompressedBytes,
+    }), { rows: 0, compressedBytes: 0, uncompressedBytes: 0 }),
+    tables,
+    today: {
+      trips: asNumber(daily.trips),
+      vehicles: asNumber(daily.vehicles),
+      lines: asNumber(daily.lines),
+      stopObservations: asNumber(daily.stop_observations),
+      stops: asNumber(daily.stops),
+      averageDelaySeconds: asNumber(daily.average_delay_seconds),
+      onTimePercent: asNumber(daily.on_time_percent),
+      delayMinutes: asNumber(daily.delay_minutes),
+      cancelledTrips: await getCancelledTripsToday(),
+      busiestLine: busiestLine.line || null,
+      busiestLineTrips: asNumber(busiestLine.trips),
+    },
+  };
+}
+
 /* --- --- --- ConnAct Observe --- --- --- */
 
 const toClickHouseDateTime64 = (value) => {
@@ -593,6 +683,10 @@ const live = {
   getCancelledTripsToday: getCancelledTripsToday,
 }
 
+const database = {
+  getStats: getDatabaseStats,
+}
+
 const observe = {
   insertTemperature: insertConnActTemperatureObservation,
   getLatestTemperature: getLatestConnActTemperatureObservation,
@@ -605,6 +699,7 @@ module.exports = {
   statistics,
   vehicle,
   live,
+  database,
   observe,
 }
 

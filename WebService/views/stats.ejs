@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stats - VAG Stats</title>
+  <link rel="stylesheet" href="/dist/css/tailwind.css" />
+</head>
+<body class="vag-page">
+  <main class="vag-shell">
+    <header class="vag-header">
+      <div>
+        <h1 class="vag-title">Stats</h1>
+        <p class="vag-subtitle">Ein Blick unter die Haube und auf den heutigen Nahverkehr.</p>
+      </div>
+      <div class="flex gap-2">
+        <button id="refresh" class="vag-button" type="button">Aktualisieren</button>
+        <a href="/" class="vag-button-secondary">Zurück</a>
+      </div>
+    </header>
+
+    <p id="status" class="mb-4 text-sm text-slate-500" role="status">Statistiken werden geladen …</p>
+
+    <section>
+      <h2 class="mb-3 text-lg font-semibold text-slate-950">Heute unterwegs</h2>
+      <div id="dailyStats" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"></div>
+    </section>
+
+    <section class="mt-7">
+      <div class="mb-3 flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-950">ClickHouse-Speicher</h2>
+          <p id="databaseName" class="text-sm text-slate-500"></p>
+        </div>
+        <div id="storageTotals" class="text-sm text-slate-600"></div>
+      </div>
+      <div class="vag-table-wrap">
+        <table class="w-full min-w-[58rem] text-left text-sm">
+          <thead class="bg-slate-100 text-xs uppercase text-slate-500">
+            <tr>
+              <th class="px-4 py-3">Tabelle</th>
+              <th class="px-4 py-3">Engine</th>
+              <th class="px-4 py-3 text-right">Zeilen</th>
+              <th class="px-4 py-3 text-right">Komprimiert / Disk</th>
+              <th class="px-4 py-3 text-right">Unkomprimiert</th>
+              <th class="px-4 py-3 text-right">Faktor</th>
+            </tr>
+          </thead>
+          <tbody id="tableStats" class="divide-y divide-slate-200"></tbody>
+        </table>
+      </div>
+      <p class="mt-2 text-xs text-slate-500">Zeilen und Größen stammen aus ClickHouse-Systemmetadaten und werden zwei Minuten zwischengespeichert. Bei Compact-Parts kann die unkomprimierte Größe fehlen.</p>
+    </section>
+  </main>
+  <script src="/dist/js/stats.js?v=1"></script>
+</body>
+</html>
