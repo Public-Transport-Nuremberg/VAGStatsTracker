@@ -1,0 +1,10 @@
+[Unit]
+Description=Check daily VGN GTFS update
+
+[Timer]
+OnCalendar=*-*-* 04:45:00 Europe/Berlin
+Persistent=true
+Unit=router-builder@gtfs.service
+
+[Install]
+WantedBy=timers.target

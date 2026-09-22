@@ -135,6 +135,7 @@ app.get('/heatmap', (req, res) => sendHtml(res, 'heatmap.html'));
 app.get('/histogram', (req, res) => sendHtml(res, 'histogram.html'));
 app.get('/linestats', (req, res) => sendHtml(res, 'linestats.html'));
 app.get('/departures', (req, res) => sendHtml(res, 'departures.html'));
+app.get('/router', (req, res) => sendHtml(res, 'router.html'));
 app.get('/vehicleHistory/*', (req, res) => sendHtml(res, 'vehicleHistory.html'));
 app.get('/ontimelinechart', (req, res) => sendHtml(res, 'ontimelinechart.html'));
 app.get('/api-logs', (req, res) => sendHtml(res, 'api-logs.html'));

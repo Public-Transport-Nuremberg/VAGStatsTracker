@@ -1,0 +1,11 @@
+[Unit]
+Description=VGN snapshot builder (%i)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=vgnrouter
+WorkingDirectory=/opt/vgn-router
+EnvironmentFile=-/etc/vgn-router.env
+ExecStart=/opt/vgn-router/target/release/router-builder %i --config config/default.toml
+NoNewPrivileges=true

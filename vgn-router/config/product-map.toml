@@ -1,0 +1,32 @@
+# GTFS route types and historical codes are independent; product names are shared.
+[route_type]
+"0" = "tram"
+"1" = "ubahn"
+"2" = "rbahn"
+"3" = "bus"
+"100" = "rbahn"
+"109" = "sbahn"
+"400" = "ubahn"
+"700" = "bus"
+"900" = "tram"
+
+[line_override."S1"]
+product = "sbahn"
+[line_override."S2"]
+product = "sbahn"
+[line_override."S3"]
+product = "sbahn"
+[line_override."S4"]
+product = "sbahn"
+[line_override."S5"]
+product = "sbahn"
+[line_override."S6"]
+product = "sbahn"
+
+# Existing FahrtenProcessor/lib/clickhouse.js source encoding.
+[history_product]
+"1" = "bus"
+"2" = "ubahn"
+"3" = "tram"
+"4" = "sbahn"
+"5" = "rbahn"

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Verbindungen - VAG Stats</title>
+    <link rel="stylesheet" href="/dist/css/tailwind.css?v=20260922-2" />
+  </head>
+  <body class="vag-page flex min-h-screen flex-col !pb-0">
+    <main class="vag-shell flex-1">
+      <header class="vag-header">
+        <div>
+          <h1 class="vag-title">Verbindungen</h1>
+          <p class="vag-subtitle">Verbindungssuche über alle passenden Steige einer Haltestelle – mit historischen Verspätungs- und Zuverlässigkeitswerten.</p>
+        </div>
+        <a href="/" class="vag-button-secondary">Zurück</a>
+      </header>
+
+      <form id="journeyForm" class="vag-card p-4" novalidate>
+        <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-end">
+          <div class="station-picker relative min-w-0" data-picker="from">
+            <label class="vag-label" for="fromStation">Von</label>
+            <input id="fromStation" class="vag-input mt-1 w-full" type="search" role="combobox" autocomplete="off" placeholder="Haltestelle suchen" aria-autocomplete="list" aria-controls="fromSuggestions" aria-expanded="false" required />
+            <div id="fromSuggestions" class="absolute left-0 right-0 top-full z-30 mt-1 hidden max-h-72 overflow-auto rounded-md border border-slate-200 bg-white shadow-panel" role="listbox"></div>
+            <p id="fromSelection" class="mt-1 min-h-5 text-xs text-slate-500">Haltestelle auswählen – der passende Steig wird automatisch ermittelt.</p>
+          </div>
+
+          <button id="swapStations" class="vag-button-secondary w-full" type="button" title="Start und Ziel tauschen">Tauschen</button>
+
+          <div class="station-picker relative min-w-0" data-picker="to">
+            <label class="vag-label" for="toStation">Nach</label>
+            <input id="toStation" class="vag-input mt-1 w-full" type="search" role="combobox" autocomplete="off" placeholder="Haltestelle suchen" aria-autocomplete="list" aria-controls="toSuggestions" aria-expanded="false" required />
+            <div id="toSuggestions" class="absolute left-0 right-0 top-full z-30 mt-1 hidden max-h-72 overflow-auto rounded-md border border-slate-200 bg-white shadow-panel" role="listbox"></div>
+            <p id="toSelection" class="mt-1 min-h-5 text-xs text-slate-500">Haltestelle auswählen – der passende Steig wird automatisch ermittelt.</p>
+          </div>
+        </div>
+
+        <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="vag-field">
+            <label class="vag-label" for="departureTime">Abfahrt</label>
+            <input id="departureTime" class="vag-input" type="datetime-local" required />
+          </div>
+          <label class="vag-field">
+            <span class="vag-label">Max. Fußweg</span>
+            <select id="maxWalk" class="vag-input">
+              <option value="300">5 Minuten</option>
+              <option value="600">10 Minuten</option>
+              <option value="900" selected>15 Minuten</option>
+              <option value="1800">30 Minuten</option>
+            </select>
+          </label>
+          <label class="vag-field">
+            <span class="vag-label">Max. Umstiege</span>
+            <select id="maxTransfers" class="vag-input">
+              <option value="0">Direkt</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3" selected>3</option>
+              <option value="5">5</option>
+            </select>
+          </label>
+          <div class="flex items-end">
+            <button id="searchButton" class="vag-button w-full" type="submit">Verbindung suchen</button>
+          </div>
+        </div>
+
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+          <div class="grid grid-cols-3 gap-1" role="group" aria-label="Reisetag ändern">
+            <button id="previousDay" class="vag-button-secondary h-8 px-2 text-xs" type="button">−1 Tag</button>
+            <button id="today" class="vag-button-secondary h-8 px-2 text-xs" type="button">Heute</button>
+            <button id="nextDay" class="vag-button-secondary h-8 px-2 text-xs" type="button">+1 Tag</button>
+          </div>
+          <span id="availableDates" class="text-xs text-slate-500"></span>
+        </div>
+
+        <fieldset class="mt-4 border-t border-slate-200 pt-4">
+          <legend class="vag-label px-1">Verkehrsmittel</legend>
+          <div class="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-700">
+            <label class="flex items-center gap-2"><input class="h-4 w-4 accent-vag-blue" type="checkbox" name="product" value="ubahn" checked /><span class="route-symbol" style="--route-color:#005CA9;--route-text:#fff">U</span> U-Bahn</label>
+            <label class="flex items-center gap-2"><input class="h-4 w-4 accent-vag-blue" type="checkbox" name="product" value="tram" checked /><span class="route-symbol" style="--route-color:#7A1E78;--route-text:#fff">T</span> Tram</label>
+            <label class="flex items-center gap-2"><input class="h-4 w-4 accent-vag-blue" type="checkbox" name="product" value="bus" checked /><span class="route-symbol" style="--route-color:#E3000B;--route-text:#fff">B</span> Bus</label>
+            <label class="flex items-center gap-2"><input class="h-4 w-4 accent-vag-blue" type="checkbox" name="product" value="sbahn" checked /><span class="route-symbol" style="--route-color:#78BE20;--route-text:#173300">S</span> S-Bahn</label>
+            <label class="flex items-center gap-2"><input class="h-4 w-4 accent-vag-blue" type="checkbox" name="product" value="rbahn" checked /><span class="route-symbol route-symbol-wide" style="--route-color:#78BE20;--route-text:#173300">RE</span> Regionalbahn</label>
+          </div>
+          <p class="mt-2 text-xs text-slate-500">Abgewählte Verkehrsmittel werden bereits bei der Auswahl der möglichen Start- und Zielsteige ausgeschlossen.</p>
+          <label class="mt-3 flex w-fit items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <input id="allowTightTransfers" class="mt-0.5 h-4 w-4 accent-vag-blue" type="checkbox" />
+            <span><strong class="font-semibold text-slate-900">Knappe Umstiege zulassen</strong><span class="mt-0.5 block text-xs text-slate-500">Ohne Auswahl werden weniger Umstiege und zuverlässigere Anschlüsse bevorzugt.</span></span>
+          </label>
+        </fieldset>
+      </form>
+
+      <section class="mt-4" aria-live="polite" aria-busy="false">
+        <div id="searchStatus" class="vag-panel text-center text-sm text-slate-500">Start, Ziel und Abfahrtszeit auswählen.</div>
+        <p id="historyMeta" class="mb-3 hidden text-xs text-slate-500"></p>
+        <div id="journeyResults" class="hidden space-y-4"></div>
+      </section>
+    </main>
+
+    <footer class="vag-footer !static mt-6">
+      <p><%= appName %>@<%= commitId %> <a href="https://github.com/Public-Transport-Nuremberg/VAGStatsTracker">Source</a> <a href="/legal/legal">Imprint</a></p>
+    </footer>
+    <script src="/dist/js/router.js?v=20260922-3"></script>
+  </body>
+</html>
