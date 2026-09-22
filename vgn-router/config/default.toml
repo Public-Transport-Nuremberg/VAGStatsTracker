@@ -1,6 +1,6 @@
 [router]
 redis_url = "redis://192.168.120.3:6379/0"
-listen = "127.0.0.1:8088"
+listen = "0.0.0.0:8088"
 gtfs_path = "https://www.vgn.de/opendata/GTFS.zip"
 product_map = "config/product-map.toml"
 stop_overrides = "config/stop-overrides.csv"
@@ -19,7 +19,6 @@ walking_speed_mps = 1.3
 url = "http://192.168.120.3:8123"
 database = "vag_stats"
 user = "vag_stats"
-# Supply passwords through CH_PASSWORD, not version control.
 delay_unit = "seconds"
 timezone = "Europe/Berlin"
 min_samples = 20
