@@ -1,0 +1,14 @@
+[Unit]
+Description=VGN in-memory CSA routing API
+After=network-online.target
+
+[Service]
+User=vgnrouter
+WorkingDirectory=/opt/vgn-router
+EnvironmentFile=-/etc/vgn-router.env
+ExecStart=/opt/vgn-router/target/release/router-api --config config/default.toml
+Restart=on-failure
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

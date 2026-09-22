@@ -1,0 +1,20 @@
+[package]
+name = "snapshot"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+redis.workspace = true
+sha2.workspace = true
+zstd.workspace = true
+bincode.workspace = true
+url.workspace = true
+tokio.workspace = true
+toml.workspace = true
+router-model.workspace = true
+history.workspace = true

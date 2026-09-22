@@ -9,6 +9,11 @@ const PluginName = 'Stops'; //This plugins name
 const PluginRequirements = []; //Put your Requirements and version here <Name, not file name>|Version
 const PluginVersion = '0.0.1'; //This plugins version
 
+const sendUtf8Json = (res, value) => {
+    res.set('Content-Type', 'application/json; charset=utf-8');
+    return res.send(Buffer.from(JSON.stringify(value), 'utf8'));
+};
+
 const stopquerySchema = Joi.object({
     Haltestellenname: Joi.string().optional(),
     VGNKennung: Joi.number().integer().optional(),
@@ -28,14 +33,14 @@ router.get('/search', async (req, res) => {
     const value = await stopquerySchema.validateAsync(req.query);
     const filteredResults = StopObjectStore.filterByQuery(value);
 
-    res.json(filteredResults);
+    sendUtf8Json(res, filteredResults);
 });
 
 router.get('/location', async (req, res) => {
     const { Latitude, Longitude, Radius } = await locationquerySchema.validateAsync(req.query);
     const results = StopObjectStore.findNearbyStations({Latitude, Longitude}, Radius);
 
-    res.json(results);
+    sendUtf8Json(res, results);
 });
 
 module.exports = {

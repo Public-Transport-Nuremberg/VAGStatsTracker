@@ -1,0 +1,12 @@
+[package]
+name = "reliability"
+version = "0.1.0"
+edition = "2021"
+[dependencies]
+history = { path = "../history" }
+chrono = { version="0.4", features=["serde"] }
+serde = { version="1", features=["derive"] }
+chrono-tz = "0.10"
+serde_json = "1"
+anyhow = "1"
+csv = "1"

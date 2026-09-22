@@ -1,0 +1,10 @@
+[Unit]
+Description=Build daily VGN history snapshot after completed service day
+
+[Timer]
+OnCalendar=*-*-* 04:15:00 Europe/Berlin
+Persistent=true
+Unit=router-builder@stats.service
+
+[Install]
+WantedBy=timers.target

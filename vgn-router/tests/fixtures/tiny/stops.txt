@@ -1,0 +1,5 @@
+stop_id,stop_name,stop_lat,stop_lon
+A,Nürnberg Hauptbahnhof,49.445,11.083
+B,Umstieg Bus,49.45,11.09
+C,Umstieg Bahn,49.4501,11.0901
+D,Ziel,49.46,11.1

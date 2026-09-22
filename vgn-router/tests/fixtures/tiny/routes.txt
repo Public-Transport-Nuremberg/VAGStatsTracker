@@ -1,0 +1,4 @@
+route_id,route_short_name,route_long_name,route_type
+bus,36,Testbus,3
+rail,U1,Testbahn,1
+direct,99,Direktbus,3

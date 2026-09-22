@@ -1,0 +1,6 @@
+date,predicted_probability,succeeded
+2026-01-02,0.8,true
+2026-01-03,0.8,true
+2026-01-04,0.8,true
+2026-01-05,0.8,true
+2026-01-06,0.8,false
