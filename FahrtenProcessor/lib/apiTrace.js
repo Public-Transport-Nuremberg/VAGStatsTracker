@@ -77,6 +77,7 @@ const safeStringify = (value) => {
         return item;
     });
 };
+const errorStatusCode = (error) => Number(error?.statusCode || error?.status || error?.code) || null;
 
 const isEnabled = async () => {
     if (Date.now() < enabledCacheExpiresAt) return enabledCache;
@@ -125,6 +126,7 @@ const traceCall = async (service, operation, args, callback) => {
             phase: 'response',
             service,
             operation,
+            statusCode: 200,
             durationMs: Date.now() - startedAt,
             response,
         }).catch(() => {});
@@ -136,6 +138,7 @@ const traceCall = async (service, operation, args, callback) => {
             phase: 'response',
             service,
             operation,
+            statusCode: errorStatusCode(error),
             durationMs: Date.now() - startedAt,
             error,
         }).catch(() => {});
@@ -174,6 +177,7 @@ const traceFetch = async (service, url, options) => {
             phase: 'response',
             service,
             operation: 'fetch',
+            statusCode: response.status,
             durationMs: Date.now() - startedAt,
             response: {
                 status: response.status,
@@ -184,7 +188,7 @@ const traceFetch = async (service, url, options) => {
         }).catch(() => {});
         return response;
     } catch (error) {
-        await record({ requestId, recordingId, phase: 'response', service, operation: 'fetch', durationMs: Date.now() - startedAt, error }).catch(() => {});
+        await record({ requestId, recordingId, phase: 'response', service, operation: 'fetch', statusCode: errorStatusCode(error), durationMs: Date.now() - startedAt, error }).catch(() => {});
         throw error;
     }
 };

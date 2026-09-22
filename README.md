@@ -338,24 +338,21 @@ ERROR_EXPIRE=600 # Expire errors after X seconds
 
 ### Upstream API trace
 
-The API trace is disabled by default and can be controlled while all services are running:
+Configure a permanent admin token in the WebService environment and restart the service:
 
-```text
-SET API_TRACE:ENABLED 1  # enable
-SET API_TRACE:ENABLED 0  # disable
+```env
+ADMIN_TOKEN=replace-with-a-long-random-secret
+# Optional; defaults to WebService/data/api-traces
+API_TRACE_DIRECTORY=/var/lib/vagstats/api-traces
 ```
 
-Admins can also control and inspect it at `/api-logs`. Trace entries are stored in KeyDB database 0 for at most 24 hours and are evicted oldest-first when their serialized payload reaches 1 GiB. Access to the WebUI API uses `api.apiTrace.read` and `api.apiTrace.write` permissions.
+The environment token does not expire and grants all permissions, so it must be stored like a password. Existing KeyDB Webtokens remain supported.
 
-Create an unrestricted admin Webtoken from the WebService directory:
+At `/api-logs`, an admin can start one recording for 1–24 hours or stop it early. Requests, HTTP status codes, and responses from Scanner, Processor, and WebService are collected in KeyDB and written to a JSON file when the recording ends. Files are stored in `API_TRACE_DIRECTORY`; mount this directory as a persistent volume when the WebService runs in a container. The 24-hour / 1-GiB trace retention limit still applies.
 
-```bash
-npm run create-admin-token -- --username admin --hours 96
-```
+Starting a recording returns a random ShareToken and a ready-to-copy `/api-logs?shareToken=...` link. That link can load only its associated recording without an admin token. The ShareToken is shown once and only its SHA-256 hash is stored by the server.
 
-The command requires `CACHEDRIVER=redis`, writes the token to KeyDB, and prints it once. Use it as `Authorization: Bearer <token>` or enter it in the API Trace WebUI.
-
-The admin-only departure discovery diagnostics are available at `/departure-discovery`. The map shows all stops, their current candidate/coverage state, the last departure request and result, and the estimated next request. Scanner diagnostics are stored below `SCANNER:DepartureDiscovery:*` in KeyDB.
+The departure discovery diagnostics at `/departure-discovery` no longer require an admin token. The map shows all stops, their current candidate/coverage state, the last departure request and result, and the estimated next request. Scanner diagnostics are stored below `SCANNER:DepartureDiscovery:*` in KeyDB.
 
 ### Project (Deliverd Nov 2024) - Just no longer got time to play with it :/
 Unlike my other projects this project will be built around my learning curve to cloud like software architecture.  

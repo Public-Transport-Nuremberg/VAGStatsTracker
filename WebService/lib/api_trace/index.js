@@ -99,6 +99,7 @@ const setEnabled = async (enabled) => {
     enabledCacheExpiresAt = Date.now() + 1000;
     return getStatus();
 };
+const errorStatusCode = (error) => Number(error?.statusCode || error?.status || error?.code) || null;
 
 const setActiveRecording = async (recording) => {
     const transaction = redis.multi();
@@ -193,10 +194,11 @@ const traceCall = async (service, operation, args, callback) => {
     await record({ requestId, recordingId, phase: 'request', service, operation, request: { args } }).catch(() => {});
     try {
         const response = await callback();
-        await record({ requestId, recordingId, phase: 'response', service, operation, durationMs: Date.now() - startedAt, response }).catch(() => {});
+        // oepnv-nuremberg only resolves its request promises for HTTP 200 responses.
+        await record({ requestId, recordingId, phase: 'response', service, operation, statusCode: 200, durationMs: Date.now() - startedAt, response }).catch(() => {});
         return response;
     } catch (error) {
-        await record({ requestId, recordingId, phase: 'response', service, operation, durationMs: Date.now() - startedAt, error }).catch(() => {});
+        await record({ requestId, recordingId, phase: 'response', service, operation, statusCode: errorStatusCode(error), durationMs: Date.now() - startedAt, error }).catch(() => {});
         throw error;
     }
 };
@@ -231,12 +233,13 @@ const traceFetch = async (service, url, options) => {
             phase: 'response',
             service,
             operation: 'fetch',
+            statusCode: response.status,
             durationMs: Date.now() - startedAt,
             response: { status: response.status, statusText: response.statusText, headers: Object.fromEntries(response.headers.entries()), body },
         }).catch(() => {});
         return response;
     } catch (error) {
-        await record({ requestId, recordingId, phase: 'response', service, operation: 'fetch', durationMs: Date.now() - startedAt, error }).catch(() => {});
+        await record({ requestId, recordingId, phase: 'response', service, operation: 'fetch', statusCode: errorStatusCode(error), durationMs: Date.now() - startedAt, error }).catch(() => {});
         throw error;
     }
 };

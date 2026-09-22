@@ -8,8 +8,12 @@
   <style>
     .trace-grid { display:grid; grid-template-columns:12rem minmax(12rem,1fr) minmax(14rem,1.2fr) 7rem minmax(14rem,1fr); gap:.75rem; }
     .trace-row { border-top:1px solid #e2e8f0; padding:.75rem 1rem; align-items:start; }
-    .trace-json { white-space:pre-wrap; word-break:break-word; max-height:28rem; overflow:auto; }
-    @media (max-width:900px) { .trace-grid { grid-template-columns:1fr; } .trace-head { display:none; } }
+    .trace-json { white-space:pre-wrap; word-break:break-word; max-height:70vh; overflow:auto; }
+    .trace-modal { position:fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center; padding:2rem; background:rgba(15,23,42,.72); }
+    .trace-modal.hidden { display:none; }
+    .trace-modal-card { width:min(96vw,100rem); max-height:92vh; overflow:hidden; border-radius:.75rem; background:white; box-shadow:0 25px 60px rgba(0,0,0,.35); }
+    .trace-modal-columns { display:grid; grid-template-columns:1fr 1fr; gap:1rem; max-height:calc(92vh - 4.5rem); overflow:auto; padding:1rem; }
+    @media (max-width:900px) { .trace-grid { grid-template-columns:1fr; } .trace-head { display:none; } .trace-modal { padding:.5rem; } .trace-modal-columns { grid-template-columns:1fr; } }
   </style>
 </head>
 <body class="vag-page">
@@ -48,7 +52,7 @@
 
     <section class="vag-control-bar mt-4">
       <div class="vag-field flex-1 min-w-56"><label class="vag-label" for="filter">Filter</label><input id="filter" class="vag-input" type="search" placeholder="Route, Parameter, Code oder Inhalt" /></div>
-      <button id="refresh" class="vag-button-secondary" type="button">Aktualisieren</button><span id="viewState" class="text-sm text-slate-600">Noch keine Datei geladen</span>
+      <button id="refresh" class="vag-button-secondary" type="button">Aktualisieren</button><button id="downloadCurrent" class="vag-button-secondary" type="button" disabled>Aufnahme herunterladen</button><span id="viewState" class="text-sm text-slate-600">Noch keine Datei geladen</span>
     </section>
 
     <section class="vag-card mt-4 overflow-hidden">
@@ -56,6 +60,15 @@
       <div id="logs"><p class="p-6 text-center text-slate-500">Admin-Token eingeben oder Share-Link öffnen.</p></div>
     </section>
   </main>
-  <script src="/dist/js/api-logs.js?v=3"></script>
+  <div id="traceModal" class="trace-modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="trace-modal-card">
+      <div class="flex items-center justify-between border-b p-4"><strong id="modalTitle">Request | Response</strong><button id="closeModal" class="vag-button-secondary" type="button">Schließen</button></div>
+      <div class="trace-modal-columns">
+        <section><strong class="text-xs uppercase">Request</strong><pre id="modalRequest" class="trace-json mt-2 rounded bg-slate-950 p-3 text-xs text-slate-100"></pre></section>
+        <section><strong class="text-xs uppercase">Response</strong><pre id="modalResponse" class="trace-json mt-2 rounded bg-slate-950 p-3 text-xs text-slate-100"></pre></section>
+      </div>
+    </div>
+  </div>
+  <script src="/dist/js/api-logs.js?v=4"></script>
 </body>
 </html>

@@ -25,7 +25,11 @@ const recordingSchema = Joi.object({
 });
 
 router.get('/shared/:shareToken', async (req, res) => {
-    res.json(await getSharedRecording(req.params.shareToken));
+    const payload = await getSharedRecording(req.params.shareToken);
+    if (req.query.download === '1') {
+        res.header('Content-Disposition', `attachment; filename="api-trace-${payload.recording.id}.json"`);
+    }
+    res.json(payload);
 });
 
 router.get('/status', verifyRequest('api.apiTrace.read'), async (req, res) => {
