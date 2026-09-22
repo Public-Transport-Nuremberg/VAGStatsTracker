@@ -78,7 +78,18 @@ async fn main() -> Result<()> {
         Some(arg) => anyhow::bail!("unknown argument {arg}"),
     };
     anyhow::ensure!(args.next().is_none(), "unexpected argument");
-    let config = Config::load(&config_path)?;
+    let mut config = Config::load(&config_path)?;
+    if let Ok(raw_port) = std::env::var("PORT") {
+        let port: u16 = raw_port
+            .parse()
+            .context("PORT must be a number between 1 and 65535")?;
+        anyhow::ensure!(port > 0, "PORT must be a number between 1 and 65535");
+        let (host, _) = config
+            .listen
+            .rsplit_once(':')
+            .context("router listen address must include a port")?;
+        config.listen = format!("{host}:{port}");
+    }
     let document: toml::Value = toml::from_str(&std::fs::read_to_string(&config_path)?)?;
     let reliability_config: reliability::ReliabilityConfig = document
         .get("reliability")

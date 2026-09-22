@@ -16,7 +16,7 @@ The routing API never queries ClickHouse directly.
 cp .env.example .env
 ```
 
-Set the Redis and ClickHouse credentials in `.env`. If this file is missing, the router uses compatible values from `../WebService/.env`.
+Set `PORT` and the Redis and ClickHouse credentials in `.env`. `PORT` overrides the port in `config/default.toml` for `router-api`; the bind address still comes from `listen` there. If the file is missing, the router uses compatible Redis values from `../WebService/.env`.
 
 Main settings are stored in:
 
