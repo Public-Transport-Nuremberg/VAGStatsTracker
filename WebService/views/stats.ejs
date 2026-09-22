@@ -11,7 +11,7 @@
     <header class="vag-header">
       <div>
         <h1 class="vag-title">Stats</h1>
-        <p class="vag-subtitle">Ein Blick unter die Haube und auf den heutigen Nahverkehr.</p>
+        <p class="vag-subtitle">Speicher- und Strukturkennzahlen der ClickHouse-Datenbank.</p>
       </div>
       <div class="flex gap-2">
         <button id="refresh" class="vag-button" type="button">Aktualisieren</button>
@@ -22,8 +22,8 @@
     <p id="status" class="mb-4 text-sm text-slate-500" role="status">Statistiken werden geladen …</p>
 
     <section>
-      <h2 class="mb-3 text-lg font-semibold text-slate-950">Heute unterwegs</h2>
-      <div id="dailyStats" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"></div>
+      <h2 class="mb-3 text-lg font-semibold text-slate-950">Datenbankübersicht</h2>
+      <div id="databaseStats" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"></div>
     </section>
 
     <section class="mt-7">
@@ -41,6 +41,7 @@
               <th class="px-4 py-3">Tabelle</th>
               <th class="px-4 py-3">Engine</th>
               <th class="px-4 py-3 text-right">Zeilen</th>
+              <th class="px-4 py-3 text-right">Aktive Parts</th>
               <th class="px-4 py-3 text-right">Komprimiert / Disk</th>
               <th class="px-4 py-3 text-right">Unkomprimiert</th>
               <th class="px-4 py-3 text-right">Faktor</th>
@@ -49,9 +50,9 @@
           <tbody id="tableStats" class="divide-y divide-slate-200"></tbody>
         </table>
       </div>
-      <p class="mt-2 text-xs text-slate-500">Zeilen und Größen stammen aus ClickHouse-Systemmetadaten und werden zwei Minuten zwischengespeichert. Bei Compact-Parts kann die unkomprimierte Größe fehlen.</p>
+      <p class="mt-2 text-xs text-slate-500">Alle Angaben stammen aus ClickHouse-Systemmetadaten und werden zwei Minuten zwischengespeichert. Bei Compact-Parts kann die unkomprimierte Größe fehlen.</p>
     </section>
   </main>
-  <script src="/dist/js/stats.js?v=1"></script>
+  <script src="/dist/js/stats.js?v=2"></script>
 </body>
 </html>
