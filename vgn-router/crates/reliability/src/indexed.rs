@@ -299,28 +299,27 @@ impl RuntimeStats {
         let minimum = c.minimum_samples.max(self.minimum_samples).max(20);
         let mut insufficient_samples = 0;
         let mut delay = |map: &HashMap<NumericStatKey, DelayStats>| {
-            for k in keys.iter().filter(|k| usable(k)) {
-                if let Some(s) = map.get(k) {
-                    if s.samples >= minimum {
-                        return Some(s.clone());
-                    }
-                    insufficient_samples = insufficient_samples.max(s.samples)
-                }
-            }
-            None
+            crate::select_cohort(
+                keys.iter()
+                    .filter(|k| usable(k))
+                    .filter_map(|k| map.get(k))
+                    .map(|s| (s, s.samples)),
+                minimum,
+                c.preferred_samples,
+                &mut insufficient_samples,
+            )
         };
         let arrival = delay(&self.arrivals);
         let departure = delay(&self.departures);
-        let mut cancellation = None;
-        for k in keys.iter().filter(|k| usable(k)) {
-            if let Some(s) = self.cancellations.get(&(*k).into()) {
-                if s.samples >= minimum {
-                    cancellation = Some(s.clone());
-                    break;
-                }
-                insufficient_samples = insufficient_samples.max(s.samples)
-            }
-        }
+        let cancellation = crate::select_cohort(
+            keys.iter()
+                .filter(|k| usable(k))
+                .filter_map(|k| self.cancellations.get(&(*k).into()))
+                .map(|s| (s, s.samples)),
+            minimum,
+            c.preferred_samples,
+            &mut insufficient_samples,
+        );
         let data_quality = arrival
             .as_ref()
             .map(|s| s.data_quality)

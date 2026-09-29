@@ -34,6 +34,7 @@ pub struct ReliabilityConfig {
     pub transfer_critical_probability: f32,
     pub cancellation_warning_probability: f32,
     pub minimum_samples: u32,
+    pub preferred_samples: u32,
 }
 impl Default for ReliabilityConfig {
     fn default() -> Self {
@@ -44,12 +45,14 @@ impl Default for ReliabilityConfig {
             transfer_critical_probability: 0.65,
             cancellation_warning_probability: 0.03,
             minimum_samples: 20,
+            preferred_samples: 50,
         }
     }
 }
 impl ReliabilityConfig {
     pub fn validate(&self) -> Result<(), String> {
         if self.minimum_samples < 20
+            || self.preferred_samples < self.minimum_samples
             || self.delay_warning_seconds < 0
             || self.delay_warning_seconds > 3600
             || self.delay_warning_seconds % 30 != 0
@@ -78,6 +81,29 @@ fn empty(rejected: bool) -> Assessment {
         insufficient_samples: 0,
         history_rejected: rejected,
     }
+}
+/// Prefer the most specific cohort reaching the preferred size, retaining the
+/// first minimally sufficient cohort only when all broader cohorts are smaller.
+fn select_cohort<'a, T: Clone + 'a>(
+    candidates: impl Iterator<Item = (&'a T, u32)>,
+    minimum: u32,
+    preferred: u32,
+    insufficient: &mut u32,
+) -> Option<T> {
+    let mut fallback = None;
+    for (stat, samples) in candidates {
+        if samples >= preferred.max(minimum) {
+            return Some(stat.clone());
+        }
+        if samples >= minimum {
+            if fallback.is_none() {
+                fallback = Some(stat);
+            }
+        } else {
+            *insufficient = (*insufficient).max(samples);
+        }
+    }
+    fallback.cloned()
 }
 /// Candidate texts must match one unique normalized historical direction for this
 /// product/line. Numeric GTFS direction_id is intentionally absent from this API.
@@ -164,28 +190,25 @@ pub fn assess_leg_with_config(
     let keys = hierarchy(&base, day_type(local.date_naive(), &s.holidays));
     let mut insufficient = 0;
     let mut lookup = |map: &std::collections::HashMap<StatKey, DelayStats>| {
-        for k in &keys {
-            if let Some(x) = map.get(k) {
-                if x.samples >= minimum {
-                    return Some(x.clone());
-                }
-                insufficient = insufficient.max(x.samples);
-            }
-        }
-        None
+        select_cohort(
+            keys.iter()
+                .filter_map(|k| map.get(k))
+                .map(|s| (s, s.samples)),
+            minimum,
+            c.preferred_samples,
+            &mut insufficient,
+        )
     };
     let arrival = lookup(&s.arrivals);
     let departure = lookup(&s.departures);
-    let mut cancellation = None;
-    for k in &keys {
-        if let Some(x) = s.cancellations.get(&cancellation_key(k)) {
-            if x.samples >= minimum {
-                cancellation = Some(x.clone());
-                break;
-            }
-            insufficient = insufficient.max(x.samples);
-        }
-    }
+    let cancellation = select_cohort(
+        keys.iter()
+            .filter_map(|k| s.cancellations.get(&cancellation_key(k)))
+            .map(|s| (s, s.samples)),
+        minimum,
+        c.preferred_samples,
+        &mut insufficient,
+    );
     let data_quality = arrival
         .as_ref()
         .map(|x| x.data_quality)
@@ -359,6 +382,8 @@ pub fn empirical_transfer<'a>(
 pub struct JourneyReliability {
     pub minimum_transfer_probability: Option<f32>,
     pub estimated_journey_success_probability: Option<f32>,
+    pub probability_lower_bound: Option<f32>,
+    pub probability_upper_bound: Option<f32>,
     pub model: &'static str,
 }
 pub fn journey_reliability(
@@ -382,9 +407,35 @@ pub fn journey_reliability(
                 .map(|c| 1.0 - c.as_ref().unwrap().probability)
                 .product::<f32>()
     });
+    let cancellation_probability = if !cancellations.is_empty() {
+        cancellations
+            .iter()
+            .map(|s| s.as_ref().map(|s| 1.0 - s.probability))
+            .collect::<Option<Vec<_>>>()
+            .map(|ps| ps.into_iter().product::<f32>())
+    } else {
+        None
+    };
+    let bound = |lower: bool| {
+        cancellation_probability.and_then(|survival| {
+            transfers
+                .iter()
+                .map(|t| {
+                    if lower {
+                        t.probability_lower_bound.or(t.success_probability)
+                    } else {
+                        t.probability_upper_bound.or(t.success_probability)
+                    }
+                })
+                .collect::<Option<Vec<_>>>()
+                .map(|ps| survival * ps.into_iter().product::<f32>())
+        })
+    };
     JourneyReliability {
         minimum_transfer_probability: minimum,
         estimated_journey_success_probability: probability,
+        probability_lower_bound: bound(true),
+        probability_upper_bound: bound(false),
         model: "independent_events",
     }
 }
@@ -406,7 +457,7 @@ fn flag(kind: &str, severity: &str, key: &str, data: serde_json::Value) -> Flag 
 }
 pub fn leg_flags(a: &Assessment, c: &ReliabilityConfig) -> Vec<Flag> {
     let mut out = Vec::new();
-    if !a.statistics_available {
+    if a.arrival.is_none() && a.departure.is_none() && a.cancellation.is_none() {
         out.push(flag(
             "NO_STATISTICS",
             "info",
@@ -414,8 +465,26 @@ pub fn leg_flags(a: &Assessment, c: &ReliabilityConfig) -> Vec<Flag> {
             serde_json::json!({"history_rejected":a.history_rejected}),
         ));
     }
-    if a.insufficient_samples > 0 || a.data_quality == Some(DataQuality::Low) {
-        out.push(flag("LOW_STATISTICAL_SAMPLE","info","statistics.low_sample",serde_json::json!({"samples":a.insufficient_samples.max(a.arrival.as_ref().map_or(0,|s|s.samples))})));
+    let selected = [
+        a.arrival
+            .as_ref()
+            .map(|s| ("arrival", s.samples, s.data_quality)),
+        a.departure
+            .as_ref()
+            .map(|s| ("departure", s.samples, s.data_quality)),
+        a.cancellation
+            .as_ref()
+            .map(|s| ("cancellation", s.samples, s.data_quality)),
+    ];
+    for (dimension, samples, quality) in selected.into_iter().flatten() {
+        if quality == DataQuality::Low {
+            out.push(flag(
+                "LOW_STATISTICAL_SAMPLE",
+                "info",
+                "statistics.low_sample",
+                serde_json::json!({"samples":samples,"dimension":dimension}),
+            ));
+        }
     }
     if let Some(s) = a.arrival.as_ref().or(a.departure.as_ref()) {
         let p = s.histogram.probability_at_least(c.delay_warning_seconds);
@@ -457,12 +526,17 @@ pub fn transfer_flags(t: &TransferReliability, c: &ReliabilityConfig) -> Vec<Fla
         if p < c.transfer_warning_probability {
             out.push(flag("UNRELIABLE_TRANSFER",if p<c.transfer_critical_probability{"critical"}else{"warning"},"transfer.low_probability",serde_json::json!({"probability":p,"samples":t.samples,"scheduled_transfer_seconds":t.scheduled_transfer_seconds})));
         }
+    } else if let (Some(lower), Some(upper)) =
+        (t.probability_lower_bound, t.probability_upper_bound)
+    {
+        out.push(flag("TRANSFER_PROBABILITY_RANGE","info","transfer.probability_range",
+            serde_json::json!({"probability_lower_bound":lower,"probability_upper_bound":upper,"samples":t.samples})));
     } else {
         out.push(flag(
             "NO_STATISTICS",
             "info",
             "transfer.probability_unavailable",
-            serde_json::json!({"samples":t.samples}),
+            serde_json::json!({"samples":t.samples,"dimension":"transfer"}),
         ));
     }
     if t.samples > 0 && t.samples < 50 {
@@ -470,7 +544,7 @@ pub fn transfer_flags(t: &TransferReliability, c: &ReliabilityConfig) -> Vec<Fla
             "LOW_STATISTICAL_SAMPLE",
             "info",
             "statistics.low_sample",
-            serde_json::json!({"samples":t.samples}),
+            serde_json::json!({"samples":t.samples,"dimension":"transfer"}),
         ));
     }
     out
@@ -586,7 +660,7 @@ mod tests {
         let a = assess_leg(&s, &request());
         assert!(!a.statistics_available);
         assert_eq!(a.insufficient_samples, 19);
-        assert!(leg_flags(&a, &Default::default())
+        assert!(!leg_flags(&a, &Default::default())
             .iter()
             .any(|f| f.kind == "LOW_STATISTICAL_SAMPLE"));
         let broad = stat(&[0; 20]);
@@ -685,3 +759,6 @@ mod tests {
 
 mod indexed;
 pub use indexed::RuntimeStats;
+
+#[cfg(test)]
+mod regression_tests;

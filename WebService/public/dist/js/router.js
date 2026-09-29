@@ -238,6 +238,28 @@ const formatProbability = (value) => {
     return Number.isFinite(number) ? `${Math.round(number * 100)} %` : 'Keine Daten';
 };
 
+const probabilityValue = (value) => {
+    if (value === null || value === undefined || value === '') return null;
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 && number <= 1 ? number : null;
+};
+
+const formatProbabilityEstimate = (value, lower, upper) => {
+    const exact = probabilityValue(value);
+    if (exact !== null) return formatProbability(exact);
+    const low = probabilityValue(lower);
+    const high = probabilityValue(upper);
+    if (low === null || high === null || low > high) return 'Nicht berechenbar';
+    return `${Math.round(low * 100)}–${Math.round(high * 100)} %`;
+};
+
+const hasProbabilityEstimate = (value, lower, upper) => probabilityValue(value) !== null
+    || (probabilityValue(lower) !== null && probabilityValue(upper) !== null && Number(lower) <= Number(upper));
+
+const sampleCount = (stats) => Number.isFinite(Number(stats?.samples)) && stats?.samples !== null && stats?.samples !== undefined
+    ? Number(stats.samples).toLocaleString('de-DE')
+    : '–';
+
 const stopLabel = (stop) => stop?.name || stop?.stop_id || 'Unbekannter Halt';
 
 const platformLabel = (stop) => {
@@ -262,8 +284,9 @@ const reliabilityHTML = (leg) => {
           <div><dt class="text-slate-500">P90 Ankunft</dt><dd class="mt-1 font-semibold text-slate-900">${formatDelay(arrival?.p90_seconds)}</dd></div>
           <div><dt class="text-slate-500">≥ 5 Min.</dt><dd class="mt-1 font-semibold text-slate-900">${formatProbability(arrival?.probability_over_300s)}</dd></div>
           <div><dt class="text-slate-500">Ausfall</dt><dd class="mt-1 font-semibold text-slate-900">${formatProbability(reliability.cancellation_probability)}</dd></div>
-          <div><dt class="text-slate-500">Stichprobe</dt><dd class="mt-1 font-semibold text-slate-900">${escapeHTML(arrival?.samples ?? departure?.samples ?? '–')}</dd></div>
-        </dl>`;
+          <div><dt class="text-slate-500">Gewichtete Fälle</dt><dd class="mt-1 font-semibold text-slate-900">Ankunft ${sampleCount(arrival)} · Abfahrt ${sampleCount(departure)} · Ausfall ${sampleCount({ samples: reliability.cancellation_samples })}</dd></div>
+        </dl>
+        <p class="mt-1 text-xs text-slate-500">Stichproben gelten für passende Richtung und Zeitgruppe, nicht für alle Fahrten der Linie.</p>`;
 };
 
 const intermediateStopsHTML = (leg) => {
@@ -294,7 +317,17 @@ const flagChipsHTML = (flags) => {
         .filter((flag) => flag.type !== 'NO_STATISTICS')
         .map((flag) => {
             const warning = flag.severity === 'warning' || flag.severity === 'critical';
-            return `<span class="rounded-md border px-2 py-1 text-xs font-semibold ${warning ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-200 bg-slate-50 text-slate-600'}">${escapeHTML(flag.type)}</span>`;
+            const dimension = { arrival: 'Ankunft', departure: 'Abfahrt', cancellation: 'Ausfall', transfer: 'Umstieg' }[flag.data?.dimension] || 'Statistik';
+            const labels = {
+                LOW_STATISTICAL_SAMPLE: `Kleine Stichprobe ${dimension}: ${sampleCount(flag.data)}`,
+                TRANSFER_PROBABILITY_RANGE: `Umstieg: ${formatProbabilityEstimate(null, flag.data?.probability_lower_bound, flag.data?.probability_upper_bound)} Schätzbereich`,
+                TIGHT_TRANSFER: 'Knapp bemessener Umstieg',
+                UNRELIABLE_TRANSFER: 'Unsicherer Umstieg',
+                FREQUENT_DELAY: 'Häufige Verspätung',
+                HIGH_DELAY_RISK: 'Hohes Verspätungsrisiko',
+                HIGH_CANCELLATION_RATE: 'Erhöhtes Ausfallrisiko',
+            };
+            return `<span class="rounded-md border px-2 py-1 text-xs font-semibold ${warning ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-200 bg-slate-50 text-slate-600'}">${escapeHTML(labels[flag.type] || flag.type)}</span>`;
         })
         .join('');
 };
@@ -419,9 +452,16 @@ const journeyLineHTML = (journey) => {
 };
 
 const journeyHTML = (journey, index) => {
-    const success = journey.reliability?.estimated_journey_success_probability;
+    const reliability = journey.reliability || {};
+    const success = reliability.estimated_journey_success_probability;
     const transfer = journey.reliability?.minimum_transfer_probability;
-    const hasReliability = success !== null && success !== undefined;
+    const lower = reliability.probability_lower_bound;
+    const upper = reliability.probability_upper_bound;
+    const hasReliability = hasProbabilityEstimate(success, lower, upper);
+    const isRange = probabilityValue(success) === null && hasReliability;
+    const transitLegs = (journey.legs || []).filter((leg) => leg.type !== 'walk');
+    const missingCancellation = transitLegs.some((leg) => probabilityValue(leg.reliability?.cancellation_probability) === null);
+    const estimateNote = isRange ? 'Schätzbereich' : hasReliability ? '' : missingCancellation ? 'Ausfalldaten fehlen' : 'Umstiegsdaten fehlen';
     return `
       <article class="vag-card overflow-hidden">
         <details class="route-journey">
@@ -437,7 +477,8 @@ const journeyHTML = (journey, index) => {
             <div class="ml-auto flex items-center gap-3">
               <div class="rounded-lg ${hasReliability ? 'bg-green-50 text-green-800' : 'bg-slate-100 text-slate-600'} px-4 py-2 text-right">
                 <p class="text-xs font-semibold uppercase">Erfolgschance</p>
-                <p class="text-lg font-bold">${formatProbability(success)}</p>
+                <p class="text-lg font-bold">${formatProbabilityEstimate(success, lower, upper)}</p>
+                ${estimateNote ? `<p class="text-xs">${estimateNote}</p>` : ''}
                 ${transfer !== null && transfer !== undefined ? `<p class="text-xs">Schwächster Umstieg: ${formatProbability(transfer)}</p>` : ''}
               </div>
               <span class="route-journey-toggle" aria-hidden="true"></span>

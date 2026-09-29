@@ -37,3 +37,5 @@ transfer_warning_probability = 0.85
 transfer_critical_probability = 0.65
 cancellation_warning_probability = 0.03
 minimum_samples = 20
+# Prefer a broader time/direction cohort when the most specific one has fewer weighted samples.
+preferred_samples = 50
