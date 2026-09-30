@@ -238,10 +238,24 @@ const formatProbability = (value) => {
     return Number.isFinite(number) ? `${Math.round(number * 100)} %` : 'Keine Daten';
 };
 
+const formatCancellationProbability = (value) => {
+    const probability = probabilityValue(value);
+    if (probability === null) return 'Keine Daten';
+    if (probability === 0) return '0 %';
+    if (probability < 0.00005) return '<0,01 %';
+    return `${(probability * 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`;
+};
+
 const probabilityValue = (value) => {
     if (value === null || value === undefined || value === '') return null;
     const number = Number(value);
     return Number.isFinite(number) && number >= 0 && number <= 1 ? number : null;
+};
+
+const narrowProbabilityRange = (lower, upper) => {
+    const low = probabilityValue(lower);
+    const high = probabilityValue(upper);
+    return low !== null && high !== null && high >= low && high - low <= 0.01;
 };
 
 const formatProbabilityEstimate = (value, lower, upper) => {
@@ -250,7 +264,11 @@ const formatProbabilityEstimate = (value, lower, upper) => {
     const low = probabilityValue(lower);
     const high = probabilityValue(upper);
     if (low === null || high === null || low > high) return 'Nicht berechenbar';
-    return `${Math.round(low * 100)}–${Math.round(high * 100)} %`;
+    if (narrowProbabilityRange(low, high)) {
+        return `≈${(((low + high) / 2) * 100).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`;
+    }
+    const percent = (number) => (number * 100).toLocaleString('de-DE', { maximumFractionDigits: 1 });
+    return `${percent(low)}–${percent(high)} %`;
 };
 
 const hasProbabilityEstimate = (value, lower, upper) => probabilityValue(value) !== null
@@ -277,16 +295,17 @@ const reliabilityHTML = (leg) => {
 
     const departure = reliability.departure;
     const arrival = reliability.arrival;
+    const longArrivalDelay = probabilityValue(arrival?.probability_over_600s);
     return `
         <dl class="mt-3 grid grid-cols-2 gap-2 rounded-md bg-slate-50 p-3 text-xs sm:grid-cols-3 lg:grid-cols-6">
           <div><dt class="text-slate-500">Ø Abfahrt</dt><dd class="mt-1 font-semibold text-slate-900">${formatDelay(departure?.mean_seconds)}</dd></div>
           <div><dt class="text-slate-500">Ø Ankunft</dt><dd class="mt-1 font-semibold text-slate-900">${formatDelay(arrival?.mean_seconds)}</dd></div>
           <div><dt class="text-slate-500">P90 Ankunft</dt><dd class="mt-1 font-semibold text-slate-900">${formatDelay(arrival?.p90_seconds)}</dd></div>
           <div><dt class="text-slate-500">≥ 5 Min.</dt><dd class="mt-1 font-semibold text-slate-900">${formatProbability(arrival?.probability_over_300s)}</dd></div>
-          <div><dt class="text-slate-500">Ausfall</dt><dd class="mt-1 font-semibold text-slate-900">${formatProbability(reliability.cancellation_probability)}</dd></div>
-          <div><dt class="text-slate-500">Gewichtete Fälle</dt><dd class="mt-1 font-semibold text-slate-900">Ankunft ${sampleCount(arrival)} · Abfahrt ${sampleCount(departure)} · Ausfall ${sampleCount({ samples: reliability.cancellation_samples })}</dd></div>
+          <div><dt class="text-slate-500">Ausfallquote</dt><dd class="mt-1 font-semibold text-slate-900">${formatCancellationProbability(reliability.cancellation_probability)}</dd></div>
+          <div><dt class="text-slate-500">Datenbasis (gewichtet)</dt><dd class="mt-1 font-semibold text-slate-900">Ankunft ${sampleCount(arrival)} · Abfahrt ${sampleCount(departure)} · Fahrten für Ausfallquote ${sampleCount({ samples: reliability.cancellation_samples })}</dd></div>
         </dl>
-        <p class="mt-1 text-xs text-slate-500">Stichproben gelten für passende Richtung und Zeitgruppe, nicht für alle Fahrten der Linie.</p>`;
+        <p class="mt-1 text-xs text-slate-500">Die Ausfall-Datenbasis zählt berücksichtigte Fahrten, nicht Ausfälle. Die gewichteten Fälle gelten für passende Richtung und Zeitgruppe.${longArrivalDelay !== null ? ` P90 ist kein Höchstwert: Ankunft über 10 Min. verspätet in ${formatCancellationProbability(longArrivalDelay)} der gewichteten Fälle.` : ''}</p>`;
 };
 
 const intermediateStopsHTML = (leg) => {
@@ -320,7 +339,7 @@ const flagChipsHTML = (flags) => {
             const dimension = { arrival: 'Ankunft', departure: 'Abfahrt', cancellation: 'Ausfall', transfer: 'Umstieg' }[flag.data?.dimension] || 'Statistik';
             const labels = {
                 LOW_STATISTICAL_SAMPLE: `Kleine Stichprobe ${dimension}: ${sampleCount(flag.data)}`,
-                TRANSFER_PROBABILITY_RANGE: `Umstieg: ${formatProbabilityEstimate(null, flag.data?.probability_lower_bound, flag.data?.probability_upper_bound)} Schätzbereich`,
+                TRANSFER_PROBABILITY_RANGE: `Umstieg: ${formatProbabilityEstimate(null, flag.data?.probability_lower_bound, flag.data?.probability_upper_bound)}${narrowProbabilityRange(flag.data?.probability_lower_bound, flag.data?.probability_upper_bound) ? '' : ' (Bereich)'}`,
                 TIGHT_TRANSFER: 'Knapp bemessener Umstieg',
                 UNRELIABLE_TRANSFER: 'Unsicherer Umstieg',
                 FREQUENT_DELAY: 'Häufige Verspätung',
@@ -336,6 +355,8 @@ const transferFlagsHTML = (transfer) => {
     const chips = flagChipsHTML(transfer?.flags);
     if (!chips) return '';
     const next = transfer?.next_service;
+    const fallbackRelevant = Array.isArray(transfer?.flags) && transfer.flags.some((flag) =>
+        flag.type === 'UNRELIABLE_TRANSFER' || flag.type === 'TIGHT_TRANSFER');
     const cadence = Number(next?.cadence_seconds);
     const headway = Number(next?.headway_seconds);
     const destination = next?.fallback_destination || next?.to;
@@ -343,7 +364,7 @@ const transferFlagsHTML = (transfer) => {
     const fallbackIsComplete = Boolean(next?.fallback_destination_arrival);
     const presentation = next ? transportPresentation(next) : null;
     const symbolWidth = presentation?.symbol.length > 1 ? ' route-symbol-wide' : '';
-    const serviceText = next
+    const serviceText = next && fallbackRelevant
         ? `<div class="route-fallback">
              <p class="font-semibold text-green-900">Alternative, falls der Anschluss verpasst wird</p>
              <div class="mt-1 flex flex-wrap items-center gap-2">
@@ -358,7 +379,11 @@ const transferFlagsHTML = (transfer) => {
              <p class="mt-1 text-slate-600">${Number.isFinite(cadence) ? `${escapeHTML(next.line)} fährt etwa alle ${formatDuration(cadence)}` : `Nächste Fahrt in ${formatDuration(headway)}`}${next.success_probability !== null && next.success_probability !== undefined ? ` · <strong class="text-green-700">${formatProbability(next.success_probability)} erreichbar</strong>` : ''}${fallbackIsComplete ? '' : ' · Alternative gilt bis zum nächsten Umstieg'}</p>
            </div>`
         : '';
-    return `<div class="route-transfer-flags"><span class="font-semibold text-amber-900">Dieser Umstieg:</span>${chips}${serviceText}</div>`;
+    const buffer = Number(transfer?.usable_buffer_seconds);
+    const bufferText = Number.isFinite(buffer) && buffer >= 0
+        ? `<span class="text-xs text-slate-600">Umstiegsreserve nach Fußweg: ${formatDuration(buffer)}</span>`
+        : '';
+    return `<div class="route-transfer-flags"><span class="font-semibold text-amber-900">Dieser Umstieg:</span>${chips}${bufferText}${serviceText}</div>`;
 };
 
 const legHTML = (leg, transfer) => {
@@ -461,21 +486,28 @@ const journeyHTML = (journey, index) => {
     const isRange = probabilityValue(success) === null && hasReliability;
     const transitLegs = (journey.legs || []).filter((leg) => leg.type !== 'walk');
     const missingCancellation = transitLegs.some((leg) => probabilityValue(leg.reliability?.cancellation_probability) === null);
-    const estimateNote = isRange ? 'Schätzbereich' : hasReliability ? '' : missingCancellation ? 'Ausfalldaten fehlen' : 'Umstiegsdaten fehlen';
-    const earlierAlternative = journey.alternative?.type === 'earlier_departure_same_connection';
-    const additionalBuffer = Number(journey.alternative?.additional_transfer_buffer_seconds);
+    const estimateNote = isRange ? (narrowProbabilityRange(lower, upper) ? '' : 'Schätzbereich') : hasReliability ? '' : missingCancellation ? 'Ausfalldaten fehlen' : 'Umstiegsdaten fehlen';
+    const transfers = Array.isArray(journey.transfer_reliability) ? journey.transfer_reliability : [];
+    const singleTransfer = transfers.length === 1 ? transfers[0] : null;
+    const transferEstimate = singleTransfer && hasProbabilityEstimate(singleTransfer.success_probability, singleTransfer.probability_lower_bound, singleTransfer.probability_upper_bound)
+        ? formatProbabilityEstimate(singleTransfer.success_probability, singleTransfer.probability_lower_bound, singleTransfer.probability_upper_bound)
+        : null;
+    const earlier = journey.earlier_departure_alternative;
+    const hasEarlier = earlier?.scheduled_departure && earlier?.scheduled_arrival;
+    const earlierChance = earlier ? formatProbabilityEstimate(earlier.estimated_journey_success_probability, earlier.probability_lower_bound, earlier.probability_upper_bound) : null;
+    const additionalBuffer = Number(earlier?.additional_transfer_buffer_seconds);
     return `
       <article class="vag-card overflow-hidden">
         <details class="route-journey">
           <summary class="route-journey-summary">
             <div class="min-w-0">
-              <p class="text-xs font-semibold uppercase text-slate-500">${earlierAlternative ? 'Frühere Alternative zum gleichen Anschluss' : `Verbindung ${index + 1}`}</p>
+              <p class="text-xs font-semibold uppercase text-slate-500">Verbindung ${index + 1}</p>
               <div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-2">
                 <h2 class="text-xl font-semibold text-slate-950">${formatTime(journey.scheduled_departure)} – ${formatTime(journey.scheduled_arrival)}</h2>
                 <div class="route-chain">${journeyLineHTML(journey)}</div>
               </div>
               <p class="mt-1 text-sm text-slate-600">${formatDuration(journey.duration_seconds)} · ${escapeHTML(journey.transfers)} Umstieg${journey.transfers === 1 ? '' : 'e'}</p>
-              ${earlierAlternative && Number.isFinite(additionalBuffer) && additionalBuffer > 0 ? `<p class="mt-1 text-xs font-medium text-green-800">${formatDuration(additionalBuffer)} mehr Umstiegsreserve</p>` : ''}
+              ${hasEarlier ? `<p class="mt-2 rounded-md bg-green-50 px-3 py-2 text-xs text-green-900"><strong>Früher los:</strong> ${formatTime(earlier.journey_scheduled_departure || earlier.scheduled_departure)} · ${escapeHTML(earlier.line || 'Fahrt')} ${formatTime(earlier.scheduled_departure)}–${formatTime(earlier.scheduled_arrival)} · gleicher Anschluss${Number.isFinite(additionalBuffer) && additionalBuffer > 0 ? ` · ${formatDuration(additionalBuffer)} mehr Umstiegsreserve` : ''}${earlierChance !== 'Nicht berechenbar' ? ` · <strong>${earlierChance} Erfolgschance</strong>` : ''}</p>` : ''}
             </div>
             <div class="ml-auto flex items-center gap-3">
               <div class="rounded-lg ${hasReliability ? 'bg-green-50 text-green-800' : 'bg-slate-100 text-slate-600'} px-4 py-2 text-right">
@@ -483,6 +515,7 @@ const journeyHTML = (journey, index) => {
                 <p class="text-lg font-bold">${formatProbabilityEstimate(success, lower, upper)}</p>
                 ${estimateNote ? `<p class="text-xs">${estimateNote}</p>` : ''}
                 ${transfer !== null && transfer !== undefined ? `<p class="text-xs">Schwächster Umstieg: ${formatProbability(transfer)}</p>` : ''}
+                ${!hasReliability && (transfer === null || transfer === undefined) && transferEstimate ? `<p class="text-xs">Umstieg: ${transferEstimate}</p>` : ''}
               </div>
               <span class="route-journey-toggle" aria-hidden="true"></span>
               <span class="sr-only route-open-label">Details anzeigen</span>

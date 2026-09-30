@@ -604,44 +604,61 @@ fn first_transit_departure(journey: &csa::Journey) -> i64 {
         .map_or(journey.departure, |leg| leg.departure)
 }
 
-/// Two departures of the same first line that board the very same onward trip.
-/// The earlier arrival buys additional transfer time without changing arrival at
-/// the destination. Match trip instances, not just route names or line numbers.
-fn earlier_same_connection(earlier: &csa::Journey, preferred: &csa::Journey) -> Option<i64> {
-    if earlier.arrival != preferred.arrival {
-        return None;
-    }
-    let earlier_legs: Vec<_> = earlier
-        .legs
-        .iter()
-        .filter(|leg| leg.trip.is_some())
-        .collect();
-    let preferred_legs: Vec<_> = preferred
-        .legs
-        .iter()
-        .filter(|leg| leg.trip.is_some())
-        .collect();
-    let ([early_first, early_last], [preferred_first, preferred_last]) =
-        (earlier_legs.as_slice(), preferred_legs.as_slice())
-    else {
-        return None;
+/// Move an initial walk closer to the first vehicle while retaining a minute
+/// to board. The CSA search can retain an earlier walk from a previous candidate.
+fn align_initial_walk(journey: &mut csa::Journey) {
+    let Some(first_transit_index) = journey.legs.iter().position(|leg| leg.trip.is_some()) else {
+        return;
     };
-    if early_first.route != preferred_first.route
-        || early_first.from != preferred_first.from
-        || early_first.to != preferred_first.to
-        || early_first.service_date != preferred_first.service_date
-        || early_first.departure >= preferred_first.departure
-        || early_first.arrival >= preferred_first.arrival
-        || early_last.trip != preferred_last.trip
-        || early_last.service_date != preferred_last.service_date
-        || early_last.from != preferred_last.from
-        || early_last.to != preferred_last.to
-        || early_last.departure != preferred_last.departure
-        || early_last.arrival != preferred_last.arrival
-    {
+    if first_transit_index == 0 {
+        return;
+    }
+    let walk_arrival = journey.legs[first_transit_index - 1].arrival;
+    let wait = journey.legs[first_transit_index]
+        .departure
+        .saturating_sub(walk_arrival)
+        .saturating_sub(60);
+    if wait <= 0 {
+        return;
+    }
+    for leg in &mut journey.legs[..first_transit_index] {
+        leg.departure = leg.departure.saturating_add(wait);
+        leg.arrival = leg.arrival.saturating_add(wait);
+    }
+    journey.departure = journey.departure.saturating_add(wait);
+}
+
+/// Match the same onward vehicle, not merely the same line or destination.
+fn same_connection_family(a: &csa::Journey, b: &csa::Journey) -> bool {
+    if a.arrival != b.arrival {
+        return false;
+    }
+    let a_legs: Vec<_> = a.legs.iter().filter(|leg| leg.trip.is_some()).collect();
+    let b_legs: Vec<_> = b.legs.iter().filter(|leg| leg.trip.is_some()).collect();
+    let ([a_first, a_last], [b_first, b_last]) = (a_legs.as_slice(), b_legs.as_slice()) else {
+        return false;
+    };
+    a_first.route == b_first.route
+        && a_first.from == b_first.from
+        && a_first.to == b_first.to
+        && a_first.service_date == b_first.service_date
+        && a_last.trip == b_last.trip
+        && a_last.service_date == b_last.service_date
+        && a_last.from == b_last.from
+        && a_last.to == b_last.to
+        && a_last.departure == b_last.departure
+        && a_last.arrival == b_last.arrival
+}
+
+fn earlier_same_connection(earlier: &csa::Journey, preferred: &csa::Journey) -> Option<i64> {
+    if !same_connection_family(earlier, preferred) {
         return None;
     }
-    Some(preferred_first.arrival - early_first.arrival)
+    let early_first = earlier.legs.iter().find(|leg| leg.trip.is_some())?;
+    let preferred_first = preferred.legs.iter().find(|leg| leg.trip.is_some())?;
+    (early_first.departure < preferred_first.departure
+        && early_first.arrival < preferred_first.arrival)
+        .then_some(preferred_first.arrival - early_first.arrival)
 }
 
 fn initial_journey_score(candidate: &RankedJourney, requested_departure: i64) -> (i64, i64, i64) {
@@ -652,6 +669,52 @@ fn initial_journey_score(candidate: &RankedJourney, requested_departure: i64) ->
         candidate.journey.arrival,
         -first_transit_departure(&candidate.journey),
     )
+}
+
+fn group_same_connections(
+    mut candidates: Vec<RankedJourney>,
+    requested_departure: i64,
+) -> Vec<RankedJourney> {
+    candidates.sort_by_key(|candidate| initial_journey_score(candidate, requested_departure));
+    let mut groups: Vec<(RankedJourney, Option<RankedJourney>)> = Vec::new();
+    for candidate in candidates {
+        if let Some((primary, earlier)) = groups
+            .iter_mut()
+            .find(|(primary, _)| same_connection_family(&candidate.journey, &primary.journey))
+        {
+            if earlier_same_connection(&candidate.journey, &primary.journey).is_some()
+                && earlier.as_ref().is_none_or(|current| {
+                    first_transit_departure(&candidate.journey)
+                        > first_transit_departure(&current.journey)
+                })
+            {
+                *earlier = Some(candidate);
+            }
+        } else {
+            groups.push((candidate, None));
+        }
+    }
+    groups
+        .into_iter()
+        .map(|(mut primary, earlier)| {
+            if let Some(earlier) = earlier {
+                let first_leg = earlier.output["legs"]
+                    .as_array()
+                    .and_then(|legs| legs.iter().find(|leg| leg["type"] == "transit"));
+                primary.output["earlier_departure_alternative"] = serde_json::json!({
+                    "line": first_leg.map(|leg| &leg["line"]),
+                    "journey_scheduled_departure": earlier.output["scheduled_departure"],
+                    "scheduled_departure": first_leg.map(|leg| &leg["scheduled_departure"]),
+                    "scheduled_arrival": first_leg.map(|leg| &leg["scheduled_arrival"]),
+                    "additional_transfer_buffer_seconds": earlier_same_connection(&earlier.journey, &primary.journey),
+                    "estimated_journey_success_probability": earlier.output["reliability"]["estimated_journey_success_probability"],
+                    "probability_lower_bound": earlier.output["reliability"]["probability_lower_bound"],
+                    "probability_upper_bound": earlier.output["reliability"]["probability_upper_bound"],
+                });
+            }
+            primary
+        })
+        .collect()
 }
 
 fn preference_penalty_seconds(output: &Value, allow_tight_transfers: bool) -> i64 {
@@ -686,13 +749,15 @@ fn preference_penalty_seconds(output: &Value, allow_tight_transfers: bool) -> i6
 
 fn diversify_journeys(
     loaded: &Loaded,
-    mut candidates: Vec<RankedJourney>,
+    candidates: Vec<RankedJourney>,
     limit: usize,
     requested_departure: i64,
 ) -> Vec<RankedJourney> {
     if candidates.is_empty() || limit == 0 {
         return Vec::new();
     }
+
+    let mut candidates = group_same_connections(candidates, requested_departure);
 
     let mut used_services: HashMap<ServiceKey, u32> = HashMap::new();
     let first_index = candidates
@@ -707,33 +772,6 @@ fn diversify_journeys(
         *used_services.entry(key).or_default() += 1;
     }
     selected.push(first);
-
-    // Keep one earlier departure to the same onward vehicle immediately below
-    // the preferred connection as a clearly labelled safety alternative.
-    if selected.len() < limit {
-        let alternative = candidates
-            .iter()
-            .enumerate()
-            .filter_map(|(index, candidate)| {
-                earlier_same_connection(&candidate.journey, &selected[0].journey)
-                    .map(|extra| (index, extra, first_transit_departure(&candidate.journey)))
-            })
-            .max_by_key(|(_, _, departure)| *departure);
-        if let Some((index, extra, _)) = alternative {
-            let mut earlier = candidates.remove(index);
-            earlier.output["alternative"] = serde_json::json!({
-                "type": "earlier_departure_same_connection",
-                "additional_transfer_buffer_seconds": extra,
-            });
-            for (key, _) in journey_services(loaded, &earlier.journey) {
-                *used_services.entry(key).or_default() += 1;
-            }
-            selected.push(earlier);
-            candidates.retain(|candidate| {
-                earlier_same_connection(&candidate.journey, &selected[0].journey).is_none()
-            });
-        }
-    }
 
     while selected.len() < limit && !candidates.is_empty() {
         let score = |candidate: &RankedJourney| {
@@ -929,7 +967,8 @@ async fn journeys(
     let scoring_started = Instant::now();
     let candidates: Vec<_> = journeys
         .into_iter()
-        .map(|journey| {
+        .map(|mut journey| {
+            align_initial_walk(&mut journey);
             let output = scoring::score(
                 &state,
                 &active,
@@ -1101,6 +1140,32 @@ pub async fn run_reload(state: Arc<AppState>, store: Store) {
 mod alternative_tests {
     use super::*;
 
+    #[test]
+    fn initial_walk_starts_just_before_the_selected_train() {
+        let mut journey = csa::Journey {
+            departure: 100,
+            arrival: 300,
+            legs: vec![
+                csa::Leg {
+                    from: 1,
+                    to: 2,
+                    departure: 100,
+                    arrival: 130,
+                    trip: None,
+                    route: None,
+                    service_date: None,
+                    transfer_seconds: 0,
+                },
+                leg(2, 3, 200, 300, 10, 1),
+            ],
+        };
+        align_initial_walk(&mut journey);
+        assert_eq!(journey.departure, 110);
+        assert_eq!(journey.legs[0].departure, 110);
+        assert_eq!(journey.legs[0].arrival, 140);
+        assert_eq!(journey.legs[1].departure, 200);
+    }
+
     fn leg(from: u32, to: u32, departure: i64, arrival: i64, trip: u32, route: u32) -> csa::Leg {
         csa::Leg {
             from,
@@ -1140,6 +1205,36 @@ mod alternative_tests {
         let mut different_bus = earlier.clone();
         different_bus.legs[1].trip = Some(31);
         assert_eq!(earlier_same_connection(&different_bus, &later), None);
+
+        let mut earlier_candidate = candidate(earlier.clone());
+        earlier_candidate.output = json!({
+            "legs":[{"type":"transit","line":"U1","scheduled_departure":"10:50","scheduled_arrival":"11:15"}],
+            "reliability":{"estimated_journey_success_probability":null,
+                "probability_lower_bound":0.9839,"probability_upper_bound":0.9844}
+        });
+        let grouped = group_same_connections(
+            vec![
+                earlier_candidate,
+                candidate(later.clone()),
+                candidate(different_bus),
+            ],
+            90,
+        );
+        assert_eq!(grouped.len(), 2);
+        assert_eq!(first_transit_departure(&grouped[0].journey), 140);
+        assert_eq!(
+            grouped[0].output["earlier_departure_alternative"]["line"],
+            "U1"
+        );
+        assert_eq!(
+            grouped[0].output["earlier_departure_alternative"]
+                ["additional_transfer_buffer_seconds"],
+            40
+        );
+        assert_eq!(
+            grouped[0].output["earlier_departure_alternative"]["probability_lower_bound"],
+            0.9839
+        );
 
         let mut risky_later = candidate(later);
         risky_later.preference_penalty_seconds = 240;
