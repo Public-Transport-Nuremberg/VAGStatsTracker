@@ -462,17 +462,20 @@ const journeyHTML = (journey, index) => {
     const transitLegs = (journey.legs || []).filter((leg) => leg.type !== 'walk');
     const missingCancellation = transitLegs.some((leg) => probabilityValue(leg.reliability?.cancellation_probability) === null);
     const estimateNote = isRange ? 'Schätzbereich' : hasReliability ? '' : missingCancellation ? 'Ausfalldaten fehlen' : 'Umstiegsdaten fehlen';
+    const earlierAlternative = journey.alternative?.type === 'earlier_departure_same_connection';
+    const additionalBuffer = Number(journey.alternative?.additional_transfer_buffer_seconds);
     return `
       <article class="vag-card overflow-hidden">
         <details class="route-journey">
           <summary class="route-journey-summary">
             <div class="min-w-0">
-              <p class="text-xs font-semibold uppercase text-slate-500">Verbindung ${index + 1}</p>
+              <p class="text-xs font-semibold uppercase text-slate-500">${earlierAlternative ? 'Frühere Alternative zum gleichen Anschluss' : `Verbindung ${index + 1}`}</p>
               <div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-2">
                 <h2 class="text-xl font-semibold text-slate-950">${formatTime(journey.scheduled_departure)} – ${formatTime(journey.scheduled_arrival)}</h2>
                 <div class="route-chain">${journeyLineHTML(journey)}</div>
               </div>
               <p class="mt-1 text-sm text-slate-600">${formatDuration(journey.duration_seconds)} · ${escapeHTML(journey.transfers)} Umstieg${journey.transfers === 1 ? '' : 'e'}</p>
+              ${earlierAlternative && Number.isFinite(additionalBuffer) && additionalBuffer > 0 ? `<p class="mt-1 text-xs font-medium text-green-800">${formatDuration(additionalBuffer)} mehr Umstiegsreserve</p>` : ''}
             </div>
             <div class="ml-auto flex items-center gap-3">
               <div class="rounded-lg ${hasReliability ? 'bg-green-50 text-green-800' : 'bg-slate-100 text-slate-600'} px-4 py-2 text-right">
