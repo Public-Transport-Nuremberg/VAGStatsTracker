@@ -130,6 +130,7 @@ out
 global.json
 
 # Container Mount Points
+Clickhouse/backups/
 RabbitMQ/rabbitmq
 Redis/data
 *.html

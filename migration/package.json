@@ -4,6 +4,8 @@
   "description": "ClickHouse schema migrations",
   "main": "migrate.js",
   "scripts": {
+    "backup": "node backup.js",
+    "test:backup": "node --test backup.test.js",
     "migrate": "node migrate.js",
     "migrate:clickhouse": "node migrate.js"
   },

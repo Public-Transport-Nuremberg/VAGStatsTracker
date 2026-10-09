@@ -9,6 +9,7 @@ services:
       - clickhouse_data:/var/lib/clickhouse
       - clickhouse_logs:/var/log/clickhouse-server
       - ./backups:/var/lib/clickhouse/backup   # BACKUP/RESTORE target, accessible from host
+      - ./config.d/backups.xml:/etc/clickhouse-server/config.d/backups.xml:ro
       - ./users.d/default-user.xml:/etc/clickhouse-server/users.d/users.xml
     environment:
       CLICKHOUSE_DB: vagstats
