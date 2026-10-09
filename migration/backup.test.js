@@ -14,25 +14,34 @@ test('validates CLI configuration and generates unique server-side archive paths
     assert.notEqual(first.output, second.output);
     assert.match(first.output, /^\/var\/lib\/clickhouse\/backup\/vagstats-.*\.zip$/);
     assert.equal(first.client.password, 'secret');
+    assert.equal(first.client.request_timeout, 86400 * 1000);
+    assert.equal(buildConfig(parseOptions(['--timeout-seconds', '3600']), env).client.request_timeout, 3600 * 1000);
     assert.equal(buildConfig(parseOptions(['--database', 'other']), env).database, 'other');
     assert.throws(() => parseOptions(['--unknown']), /Unknown option/);
     assert.throws(() => buildConfig({}, {}), /CH_HOST/);
     assert.throws(() => buildConfig({}, { CH_HOST: 'localhost' }), /CH_DATABASE/);
     assert.throws(() => buildConfig({}, { ...env, CH_PORT: 'invalid' }), /CH_PORT/);
+    for (const timeout of ['invalid', '0', '-1', '1.5', '2147484']) {
+        assert.throws(() => buildConfig({ 'timeout-seconds': timeout }, env), /--timeout-seconds/);
+    }
     for (const output of ['local.zip', '/backup/test.sql', '/backup/../test.zip', '/backup/\ntest.zip']) {
         assert.throws(() => buildConfig({ output }, env), /--output/);
     }
 });
 
-test('uses the real HTTP client and waits until the asynchronous backup completes', async t => {
+test('confirms completion using the real HTTP client without SELECT ON system.backups', async t => {
     const requests = [];
-    const states = ['CREATING_BACKUP', 'CREATING_BACKUP', 'BACKUP_CREATED'];
     const server = http.createServer(async (req, res) => {
         let query = '';
         for await (const chunk of req) query += chunk;
         requests.push({ query, url: req.url });
+        if (query.includes('SELECT') || query.includes('ASYNC')) {
+            res.writeHead(403);
+            res.end('Not enough privileges: SELECT ON system.backups');
+            return;
+        }
         res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ id: 'backup-id', status: states.shift(), error: '' }) + '\n');
+        res.end(JSON.stringify({ id: 'backup-id', status: 'BACKUP_CREATED', error: '' }) + '\n');
     });
     server.listen(0, '127.0.0.1');
     await once(server, 'listening');
@@ -42,12 +51,10 @@ test('uses the real HTTP client and waits until the asynchronous backup complete
         await new Promise(resolve => server.close(resolve));
     });
     const logs = [];
-    let waits = 0;
-    const result = await backup(client, config, { log: line => logs.push(line), wait: async () => { waits++; } });
+    const result = await backup(client, config, { log: line => logs.push(line) });
     assert.equal(result.id, 'backup-id');
-    assert.equal(waits, 2);
-    assert.match(requests[0].query, /^BACKUP DATABASE `vagstats` TO File\('\/var\/lib\/clickhouse\/backup\/test.zip'\) ASYNC\s+FORMAT JSONEachRow$/);
-    assert.equal(new URL(requests[1].url, 'http://localhost').searchParams.get('param_id'), 'backup-id');
+    assert.equal(requests.length, 1);
+    assert.match(requests[0].query, /^BACKUP DATABASE `vagstats` TO File\('\/var\/lib\/clickhouse\/backup\/test.zip'\)\s+FORMAT JSONEachRow$/);
     assert.match(logs.at(-1), /RESTORE DATABASE `vagstats` FROM File/);
 });
 
@@ -58,17 +65,23 @@ function fakeClient(rows) {
 test('reports server backup failures without logging success', async () => {
     const logs = [];
     await assert.rejects(backup(fakeClient([
-        [{ id: 'failed', status: 'CREATING_BACKUP' }],
         [{ id: 'failed', status: 'BACKUP_FAILED', error: 'Not enough disk space' }],
-    ]), config, { log: line => logs.push(line), wait: async () => {} }), /BACKUP_FAILED: Not enough disk space/);
+    ]), config, { log: line => logs.push(line) }), /BACKUP_FAILED: Not enough disk space/);
     assert.equal(logs.some(line => line.startsWith('Backup complete')), false);
 });
 
-test('does not claim success for missing IDs, vanished jobs or unexpected states', async () => {
-    const options = { log: () => {}, wait: async () => {} };
+test('does not claim success for missing IDs or incomplete states', async () => {
+    const options = { log: () => {} };
     await assert.rejects(backup(fakeClient([[]]), config, options), /backup ID/);
-    await assert.rejects(backup(fakeClient([[{ id: 'id', status: 'CREATING_BACKUP' }], []]), config, options), /disappeared/);
+    await assert.rejects(backup(fakeClient([[{ id: 'id', status: 'CREATING_BACKUP' }]]), config, options), /CREATING_BACKUP/);
     await assert.rejects(backup(fakeClient([[{ id: 'id', status: 'UNKNOWN' }]]), config, options), /UNKNOWN/);
+});
+
+test('propagates server and connection errors without logging success', async () => {
+    const logs = [];
+    const client = { query: async () => { throw new Error('Connection timed out'); } };
+    await assert.rejects(backup(client, config, { log: line => logs.push(line) }), /Connection timed out/);
+    assert.equal(logs.some(line => line.startsWith('Backup complete')), false);
 });
 
 test('quotes database identifiers and archive paths', async () => {

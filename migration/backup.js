@@ -3,7 +3,6 @@
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { parseArgs } = require('node:util');
-const { setTimeout: sleep } = require('node:timers/promises');
 const { createClient } = require('@clickhouse/client');
 
 const HELP = `Usage: node migration/backup.js [options]
@@ -14,12 +13,15 @@ Existing environment variables override values from the .env file.
 
   --env <file>       Environment file (default: migration/.env)
   --database <name>  Override CH_DATABASE
+  --timeout-seconds <seconds>
+                    HTTP client timeout (default: 86400 / 24 hours)
   --output <path>    Absolute path ON THE CLICKHOUSE SERVER, ending in .zip
                     Default: /var/lib/clickhouse/backup/<database>-<UTC>-<id>.zip
   --help            Show this help without connecting
 
 With the bundled Docker setup, archives appear in Clickhouse/backups on the host.
 The script waits for BACKUP_CREATED and exits nonzero on failure.
+It uses synchronous BACKUP and does not require SELECT ON system.backups.
 `;
 
 const quoteIdentifier = value => '`' + value.replace(/\\/g, '\\\\').replace(/`/g, '\\`') + '`';
@@ -31,6 +33,7 @@ function parseOptions(args) {
         options: {
             env: { type: 'string', default: path.join(__dirname, '.env') },
             database: { type: 'string' },
+            'timeout-seconds': { type: 'string', default: '86400' },
             output: { type: 'string' },
             help: { type: 'boolean', default: false },
         },
@@ -45,6 +48,10 @@ function buildConfig(options, env) {
     if (!database?.trim()) throw new Error('CH_DATABASE or --database is required.');
     const port = Number(env.CH_PORT || 8123);
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('CH_PORT must be between 1 and 65535.');
+    const timeoutSeconds = Number(options['timeout-seconds'] ?? 86400);
+    if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 2147483) {
+        throw new Error('--timeout-seconds must be an integer between 1 and 2147483.');
+    }
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `${database.replace(/[^a-zA-Z0-9_-]/g, '_')}-${timestamp}-${randomUUID()}.zip`;
@@ -63,34 +70,25 @@ function buildConfig(options, env) {
             username: env.CH_USER || 'default',
             password: env.CH_PASSWORD || '',
             database,
-            request_timeout: 120_000,
+            request_timeout: timeoutSeconds * 1000,
         },
     };
 }
 
-async function backup(client, config, { log = console.log, wait = sleep } = {}) {
+async function backup(client, config, { log = console.log } = {}) {
     const source = `DATABASE ${quoteIdentifier(config.database)}`;
     const destination = `File(${quoteString(config.output)})`;
     log(`Backing up database ${config.database} to server file ${config.output}`);
     const result = await client.query({
-        query: `BACKUP ${source} TO ${destination} ASYNC`,
+        // The synchronous response confirms completion without querying system.backups.
+        query: `BACKUP ${source} TO ${destination}`,
         format: 'JSONEachRow',
     });
-    let [state] = await result.json();
+    const [state] = await result.json();
     if (!state?.id) throw new Error('ClickHouse did not return a backup ID. Check system.backups before retrying.');
     const id = state.id;
     log(`Backup ID: ${id}`);
 
-    while (state.status === 'CREATING_BACKUP') {
-        await wait(2000);
-        const progress = await client.query({
-            query: 'SELECT id, status, error FROM system.backups WHERE id = {id:String}',
-            query_params: { id },
-            format: 'JSONEachRow',
-        });
-        [state] = await progress.json();
-        if (!state) throw new Error(`Backup ${id} disappeared from system.backups. Verify its status before retrying.`);
-    }
     if (state.status !== 'BACKUP_CREATED') {
         throw new Error(`Backup ${id}: ${state.status}${state.error ? `: ${state.error}` : ''}`);
     }
@@ -121,8 +119,8 @@ async function main(args = process.argv.slice(2)) {
 
 if (require.main === module) {
     main().catch(error => {
-        console.error(`Backup failed: ${error.message}`);
-        console.error('An accepted asynchronous backup may still be running; check system.backups before retrying.');
+        console.error(`Backup not confirmed: ${error.message}`);
+        console.error('If the connection was interrupted, have an administrator check system.backups before retrying.');
         process.exitCode = 1;
     });
 }
