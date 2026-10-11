@@ -103,6 +103,7 @@ app.uwsApp.ws('/api/v1/live/map/ws', {
             if (payload.type !== 'subscribe') return;
 
             state.query = await linequerySchema.validateAsync({
+                source: payload.source ?? state.query.source,
                 Linie: payload.Linie,
                 Line: payload.Line,
                 line: payload.line,
@@ -137,6 +138,7 @@ app.get('/linestats', (req, res) => sendHtml(res, 'linestats.html'));
 app.get('/departures', (req, res) => sendHtml(res, 'departures.html'));
 app.get('/router', (req, res) => sendHtml(res, 'router.html'));
 app.get('/vehicleHistory/*', (req, res) => sendHtml(res, 'vehicleHistory.html'));
+app.get('/vehicleHistoryGPS/*', (req, res) => sendHtml(res, 'vehicleHistoryGPS.html'));
 app.get('/ontimelinechart', (req, res) => sendHtml(res, 'ontimelinechart.html'));
 app.get('/api-logs', (req, res) => sendHtml(res, 'api-logs.html'));
 app.get('/departure-discovery', (req, res) => sendHtml(res, 'departure-discovery.html'));

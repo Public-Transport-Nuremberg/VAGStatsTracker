@@ -2,6 +2,21 @@ const productLabelMap = {
 	UBahn: "U-Bahn",
 	Tram: "Tram",
 	Bus: "Bus",
+	SBahn: "S-Bahn",
+	Zug: "Zug",
+};
+
+let liveMapSource = new URL(window.location.href).searchParams.get("source") === "gps" ? "gps" : "puls";
+let connectionVersion = 0;
+let liveSocket = null;
+let fallbackInterval = null;
+let activeFetchController = null;
+
+const liveQueryString = () => {
+	const query = new URLSearchParams(window.location.search);
+	if (liveMapSource === "gps") query.set("source", "gps");
+	else query.delete("source");
+	return query.size ? `?${query}` : "";
 };
 
 const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -186,6 +201,7 @@ const formatProgress = (progress) => {
 };
 
 const renderVehicleCard = (p, compact = false) => {
+	if (p.PositionSource === "gps") return renderGpsVehicleCard(p);
 	const timing = calculateTiming(p);
 	const color = propertiesToColor(p);
 	const vehicleInfoHtml = getVehicleInfo(p.Fahrzeugnummer, p.FahrzeugInfo);
@@ -215,6 +231,29 @@ const renderVehicleCard = (p, compact = false) => {
 	`;
 };
 
+const renderGpsVehicleCard = (p) => {
+	const time = p.Timestamp ? new Date(p.Timestamp) : null;
+	const timestamp = time && Number.isFinite(time.getTime()) ? time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "Unbekannt";
+	const history = typeof p.HistoryUrl === "string" && p.HistoryUrl.startsWith("/vehicleHistoryGPS/")
+		? `<a class="lm-link" href="${escapeHTML(p.HistoryUrl)}" target="_blank" rel="noopener noreferrer">GPS-Fahrzeughistorie</a>` : "";
+	return `
+		<article class="lm-content">
+			<header class="lm-vehicle-head">
+				<span class="lm-route" style="background:${propertiesToColor(p)}">${escapeHTML(p.Linienname || "?")}</span>
+				<div>
+					<h2>${escapeHTML(productLabelMap[p.Produkt] || p.Produkt)} ${escapeHTML(p.Linienname || "?")} nach ${escapeHTML(p.Richtungstext || "-")}</h2>
+					<p>Fahrzeug ${escapeHTML(p.VehicleIdentifier || "Unbekannt")} · ${escapeHTML(p.Operator || "Betreiber unbekannt")}</p>
+				</div>
+			</header>
+			<p><span>GPS-Position</span>: ${escapeHTML(timestamp)}</p>
+			<p><span>Verspätung</span>: ${formatSecondsToHTML(p.DelaySeconds)}</p>
+			<p><span>Aktueller Halt</span>: ${escapeHTML(p.Haltestellenname || "-")}</p>
+			<p><span>Nächster Halt</span>: ${escapeHTML(p.nextHaltestellenname || "-")}</p>
+			${history}
+		</article>
+	`;
+};
+
 const setStatus = (label, state = "idle", tooltip = "") => {
 	const status = document.getElementById("liveStatus");
 	if (!status) return;
@@ -237,6 +276,14 @@ const normalizeProduct = (product) => {
 const formatLiveStatusTooltip = (data) => {
 	const trips = data?.trips || data || {};
 	const meta = data?.__meta || data?.meta || {};
+	if (meta.source === "gps") {
+		const counts = {};
+		getLiveTrips(data).forEach((trip) => {
+			const label = productLabelMap[trip.Produkt] || trip.Produkt || "Unbekannt";
+			counts[label] = (counts[label] || 0) + 1;
+		});
+		return ["GPS-Positionen", ...Object.entries(counts).map(([label, count]) => `${label}: ${count}`)].join("\n");
+	}
 	const summary = {
 		Bus: 0,
 		Tram: 0,
@@ -263,9 +310,13 @@ const formatLiveStatusTooltip = (data) => {
 const getLiveTrips = (data) => {
 	const trips = data?.trips || data || {};
 	return Object.entries(trips)
-		.filter(([key, trip]) => key !== "__meta" && trip && Number.isFinite(Number(trip.Longitude)) && Number.isFinite(Number(trip.Latitude)))
+		.filter(([key, trip]) => key !== "__meta" && hasMapPosition(trip))
 		.map(([, trip]) => trip);
 };
+
+const hasMapPosition = (trip) => trip && trip.Latitude !== null && trip.Longitude !== null
+	&& trip.Latitude !== "" && trip.Longitude !== ""
+	&& Number.isFinite(Number(trip.Latitude)) && Number.isFinite(Number(trip.Longitude));
 
 const classifyFuelType = (trip) => {
 	const product = normalizeProduct(trip?.Produkt ?? trip?.Fahrt?.Produkt);
@@ -379,7 +430,7 @@ const renderLiveMap = (data) => {
 	Object.keys(trips).forEach((key) => {
 		if (key === "__meta") return;
 		const item = trips[key];
-		if (!Number.isFinite(Number(item.Longitude)) || !Number.isFinite(Number(item.Latitude))) return;
+		if (!hasMapPosition(item)) return;
 		const color = propertiesToColor(item);
 
 		const marker = new ol.Feature({
@@ -391,16 +442,24 @@ const renderLiveMap = (data) => {
 		vectorSource.addFeature(marker);
 	});
 
-	setStatus(`${vectorSource.getFeatures().length} Fahrzeuge live`, "live", formatLiveStatusTooltip(data));
+	const count = vectorSource.getFeatures().length;
+	setStatus(liveMapSource === "gps" ? `${count} Fahrzeuge mit GPS-Position` : `${count} Fahrzeuge live`, "live", formatLiveStatusTooltip(data));
 };
 
-const refreshLiveMap = () => {
-	const queryString = window.location.search;
-
-	fetch(`/api/v1/live/map${queryString}`)
-		.then((response) => response.json())
-		.then(renderLiveMap)
-		.catch(() => setStatus("HTTP Fallback gestoert", "error"));
+const refreshLiveMap = async (version = connectionVersion) => {
+	if (version !== connectionVersion || activeFetchController) return;
+	const controller = new AbortController();
+	activeFetchController = controller;
+	try {
+		const response = await fetch(`/api/v1/live/map${liveQueryString()}`, { signal: controller.signal });
+		if (!response.ok) throw new Error(`HTTP ${response.status}`);
+		const data = await response.json();
+		if (version === connectionVersion) renderLiveMap(data);
+	} catch (error) {
+		if (version === connectionVersion && error.name !== "AbortError") setStatus("HTTP Fallback gestört", "error");
+	} finally {
+		if (activeFetchController === controller) activeFetchController = null;
+	}
 };
 
 const clusterSource = new ol.source.Cluster({
@@ -541,6 +600,19 @@ const statsModalSubtitle = document.getElementById("statsModalSubtitle");
 
 const openStatsModal = () => {
 	if (!statsModal || !statsModalContent) return;
+	if (liveMapSource === "gps") {
+		const trips = getLiveTrips(latestLiveMapData);
+		const counts = {};
+		trips.forEach((trip) => {
+			const label = productLabelMap[trip.Produkt] || trip.Produkt || "Unbekannt";
+			counts[label] = (counts[label] || 0) + 1;
+		});
+		statsModalContent.innerHTML = `<section class="lm-stat-section"><h3>GPS-Positionen</h3><dl class="lm-specs">${Object.entries(counts)
+			.map(([label, count]) => `<div><dt>${escapeHTML(label)}</dt><dd>${count}</dd></div>`).join("")}</dl></section>`;
+		if (statsModalSubtitle) statsModalSubtitle.textContent = `${trips.length} Fahrzeuge mit GPS-Position`;
+		statsModal.hidden = false;
+		return;
+	}
 	const stats = buildLiveStats(latestLiveMapData);
 	statsModalContent.innerHTML = renderStatsModalContent(stats);
 	if (statsModalSubtitle) statsModalSubtitle.textContent = `${stats.total} Fahrzeuge live`;
@@ -558,32 +630,62 @@ document.addEventListener("keydown", (event) => {
 	if (event.key === "Escape" && statsModal && !statsModal.hidden) closeStatsModal();
 });
 
-const startHttpFallback = () => {
+const startHttpFallback = (version) => {
+	if (version !== connectionVersion || fallbackInterval) return;
 	setStatus("HTTP Fallback", "fallback");
-	refreshLiveMap();
-	return setInterval(refreshLiveMap, 1000);
+	void refreshLiveMap(version);
+	fallbackInterval = setInterval(() => { void refreshLiveMap(version); }, 1000);
 };
 
 const connectLiveMap = () => {
-	if (!("WebSocket" in window)) return startHttpFallback();
+	const version = ++connectionVersion;
+	if (fallbackInterval) clearInterval(fallbackInterval);
+	fallbackInterval = null;
+	activeFetchController?.abort();
+	activeFetchController = null;
+	liveSocket?.close();
+	liveSocket = null;
+	setStatus(liveMapSource === "gps" ? "GPS-Positionen laden..." : "Verbinde...", "idle");
+	if (!("WebSocket" in window)) return startHttpFallback(version);
 
 	const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-	const socket = new WebSocket(`${protocol}//${window.location.host}/api/v1/live/map/ws${window.location.search}`);
-	let fallbackInterval = null;
+	const socket = new WebSocket(`${protocol}//${window.location.host}/api/v1/live/map/ws${liveQueryString()}`);
+	liveSocket = socket;
 
-	socket.addEventListener("open", () => setStatus("WebSocket verbunden", "live"));
+	socket.addEventListener("open", () => { if (version === connectionVersion) setStatus("WebSocket verbunden", "live"); });
 	socket.addEventListener("message", (event) => {
-		const payload = JSON.parse(event.data);
-		if (payload.type === "snapshot") renderLiveMap(payload.data);
-		if (payload.type === "error") setStatus(payload.message, "error");
+		if (version !== connectionVersion) return;
+		try {
+			const payload = JSON.parse(event.data);
+			if (payload.type === "snapshot") renderLiveMap(payload.data);
+			if (payload.type === "error") setStatus(payload.message, "error");
+		} catch { setStatus("Ungültige Live-Daten", "error"); }
 	});
 	socket.addEventListener("close", () => {
+		if (version !== connectionVersion) return;
 		setStatus("WebSocket getrennt", "fallback");
-		if (!fallbackInterval) fallbackInterval = startHttpFallback();
+		startHttpFallback(version);
 	});
-	socket.addEventListener("error", () => setStatus("WebSocket Fehler", "error"));
+	socket.addEventListener("error", () => { if (version === connectionVersion) setStatus("WebSocket Fehler", "error"); });
 
 	return socket;
 };
+
+const gpsModeSwitch = document.getElementById("gpsModeSwitch");
+if (gpsModeSwitch) {
+	gpsModeSwitch.checked = liveMapSource === "gps";
+	gpsModeSwitch.addEventListener("change", () => {
+		liveMapSource = gpsModeSwitch.checked ? "gps" : "puls";
+		const url = new URL(window.location.href);
+		if (liveMapSource === "gps") url.searchParams.set("source", "gps");
+		else url.searchParams.delete("source");
+		window.history.replaceState(null, "", url);
+		hidePopup();
+		closeStatsModal();
+		latestLiveMapData = {};
+		vectorSource.clear();
+		connectLiveMap();
+	});
+}
 
 connectLiveMap();

@@ -4,6 +4,7 @@ const {
     getIndexedTripValues,
     getTripValuesInBoundingBox,
     updateTripLocations,
+    getGpsVehicleValues,
 } = require('@lib/redis');
 const { live } = require('@lib/clickhouse');
 const { calculateTripProgress, estimateGpsPosition } = require('./estimated_gps');
@@ -123,6 +124,9 @@ const startLiveMapPositionWorker = () => {
 
 const getLiveMapPayload = async (query = {}, options = {}) => {
     const values = options.validated ? query : await linequerySchema.validateAsync(query);
+    if (values.source === 'gps') {
+        return { ...await getGpsVehicleValues(values), __meta: { source: 'gps' } };
+    }
     const lineFilter = values.Linie ? new Set(values.Linie.split(',')) : null;
     const allTripValues = values.boundingBox
         ? await getTripValuesInBoundingBox(values.boundingBox)

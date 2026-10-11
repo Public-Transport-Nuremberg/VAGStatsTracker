@@ -12,7 +12,7 @@ Please read the Disclaimer & Assumptions Section [HERE](#Disclaimer)
 
 ## LiveGPS
 
-Der eigenständige Dienst `livegps` sammelt VMI-Fahrzeugobjekte unabhängig von PULS und archiviert Änderungen in ClickHouse. Er unterstützt ungefiltertes `all` (Standard) und einen sequenziellen `tiles`-Scan im Bayern-Bereich (8.9/47.2 bis 13.9/50.6). Redis hält aktuelle Objekt-/Fahrzeugdaten, GEO-Index, persistenten State/Watermark und einen durablen Archiv-Stream; Details zu Einrichtung, Migration, TTLs, Retry-Deduplizierung und Integrationstests stehen in der [LiveGPS-Dokumentation](livegps/README.md).
+Der eigenständige Dienst `livegps` sammelt VMI-Fahrzeugobjekte unabhängig von PULS und archiviert Änderungen in ClickHouse. Er unterstützt ungefiltertes `all` (Standard) und einen sequenziellen `tiles`-Scan im Bayern-Bereich (8.9/47.2 bis 13.9/50.6). Redis hält aktuelle Objekt-/Fahrzeugdaten, GEO-Index, persistenten State/Watermark und einen durablen Archiv-Stream. Die Livemap bietet jetzt einen **Aktuell / GPS**-Schalter; GPS-Fahrzeuge verlinken auf eine eigene GPS-Historie mit Zeitregler. Details zu Anbindung, API und Tests stehen in der [GPS-Dokumentation](WebService/GPS.md).
 
 
 [Try it out now](https://vagstats.ebg.pw/)  
@@ -173,6 +173,7 @@ Parameters:
 `/map` Parameters:
 
 - Linie: String (optional)
+- source: `puls` (default) or `gps` (VMI positions from the livegps worker)
 - pos1: WGS84 `longitude,latitude` (optional; requires pos2)
 - pos2: WGS84 `longitude,latitude` (optional; requires pos1)
 

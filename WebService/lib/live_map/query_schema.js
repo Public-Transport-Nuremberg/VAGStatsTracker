@@ -28,6 +28,7 @@ const lineValueSchema = Joi.string().trim().custom((value, helpers) => {
 });
 
 const linequerySchema = Joi.object({
+    source: Joi.string().valid('puls', 'gps').default('puls'),
     Linie: lineValueSchema,
     Line: lineValueSchema,
     line: lineValueSchema,
@@ -46,7 +47,7 @@ const linequerySchema = Joi.object({
         return helpers.error('any.invalid');
     }
 
-    const normalized = providedLines.length ? { Linie: providedLines[0] } : {};
+    const normalized = { source: value.source, ...(providedLines.length ? { Linie: providedLines[0] } : {}) };
     if (value.pos1 && value.pos2) {
         const [longitude1, latitude1] = value.pos1;
         const [longitude2, latitude2] = value.pos2;

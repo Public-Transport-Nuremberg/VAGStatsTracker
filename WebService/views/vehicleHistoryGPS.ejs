@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GPS-Fahrzeughistorie</title>
+  <link rel="stylesheet" href="/dist/css/tailwind.css" />
+  <link rel="stylesheet" href="/dist/css/ol.css" />
+  <style>
+    html,body,#map{margin:0;width:100%;height:100%;overflow:hidden}
+    .gps-panel{position:absolute;z-index:5;left:1rem;bottom:1rem;width:min(30rem,calc(100vw - 2rem));max-height:calc(100vh - 5rem);overflow:auto;overflow-wrap:anywhere;background:rgba(255,255,255,.96);border:1px solid #cbd5e1;border-radius:.65rem;padding:1rem;box-shadow:0 4px 18px #0002}
+    .gps-panel h1{font-size:1.1rem;font-weight:700;margin:0 0 .35rem}.gps-status{font-size:.85rem;color:#475569;min-height:1.25rem}.gps-meta{font-size:.82rem;line-height:1.45;margin:.45rem 0}.gps-panel input{width:100%}.gps-range{display:flex;justify-content:space-between;color:#475569;font-size:.72rem}.gps-back{position:absolute;z-index:6;left:1rem;top:1rem}.gps-panel[aria-busy=true]{opacity:.9}
+    @media(max-width:500px){.gps-panel{left:.5rem;bottom:.5rem;width:calc(100vw - 1rem);padding:.75rem}.gps-back{left:.5rem;top:.5rem}}
+    .ol-zoom{top:4rem}
+  </style>
+</head>
+<body>
+  <div id="map" aria-label="Karte der beobachteten GPS-Positionen"></div>
+  <a class="gps-back vag-button-secondary h-9 px-3 text-xs no-underline" href="/livemap?source=gps">Zur Livemap</a>
+  <section class="gps-panel" id="gpsPanel" aria-busy="true" aria-live="polite">
+    <h1 id="gpsTitle">GPS-Fahrzeughistorie</h1><div class="gps-status" id="gpsStatus">Laden…</div>
+    <div class="gps-meta" id="gpsMeta"></div>
+    <input id="timeSlider" type="range" min="0" max="0" value="0" step="1" disabled aria-label="Zeitpunkt der GPS-Historie" />
+    <div class="gps-range"><span id="gpsStart"></span><span id="gpsEnd"></span></div>
+  </section>
+  <script src="/dist/js/ol.js"></script>
+  <script src="/dist/js/vehicle_history_gps.js?v=<%= commitId %>"></script>
+</body>
+</html>

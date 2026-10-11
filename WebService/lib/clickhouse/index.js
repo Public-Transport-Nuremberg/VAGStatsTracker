@@ -637,6 +637,7 @@ const statistics = {
 }
 
 const vehicle = {
+  getGpsHistory: (params) => require('../live_gps').queryGpsHistory(client, params),
   getHistory: getVehicleHistory,
   allGPS: getAllVehicleHistorysGPS,
   servedLinesByVehicleIDandDay: servedLinesByVehicleIDandDay,

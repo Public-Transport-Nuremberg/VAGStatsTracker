@@ -28,6 +28,8 @@ const redisData = {
 // Initialize Redis connection
 const redis = new Redis(redisData);
 
+const getGpsVehicleValues = (query, now) => require('../live_gps').readGpsVehicleValues(redis, query, now);
+
 // Function to parse Redis info output and extract relevant values
 const monitorRedis = async () => {
     const info = await redis.info();
@@ -378,6 +380,7 @@ const countStatusCodesByKey = async (keys) => {
 
 
 module.exports = {
+    getGpsVehicleValues,
     monitorRedis,
     findAllMetricKeys,
     findAllMetricListKeys,
