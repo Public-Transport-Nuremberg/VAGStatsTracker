@@ -1,0 +1,17 @@
+name: livegps-integration
+services:
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "127.0.0.1:16379:6379"
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "always"]
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.2.1-alpine
+    ports:
+      - "127.0.0.1:18123:8123"
+    environment:
+      CLICKHOUSE_SKIP_USER_SETUP: "1"
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144

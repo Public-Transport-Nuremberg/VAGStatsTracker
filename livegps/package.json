@@ -1,0 +1,23 @@
+{
+  "name": "livegps",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Collect VMI vehicle observations independently of PULS",
+  "license": "AGPL-3.0",
+  "type": "commonjs",
+  "main": "index.js",
+  "engines": { "node": ">=20.18.1" },
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test test/*.test.js",
+    "test:integration": "node --test test/integration.test.js",
+    "probe": "node tools/probe.js"
+  },
+  "dependencies": {
+    "@clickhouse/client": "^1.18.5",
+    "dotenv": "^17.4.2",
+    "ioredis": "^5.11.0",
+    "joi": "^18.2.1",
+    "oepnv-nuremberg": "^0.6.0"
+  }
+}

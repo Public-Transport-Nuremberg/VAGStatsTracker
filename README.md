@@ -10,6 +10,10 @@ Download latest database export: [Download](https://drive.google.com/file/d/1Wsd
 # INFO
 Please read the Disclaimer & Assumptions Section [HERE](#Disclaimer)
 
+## LiveGPS
+
+Der eigenständige Dienst `livegps` sammelt VMI-Fahrzeugobjekte unabhängig von PULS und archiviert Änderungen in ClickHouse. Er unterstützt ungefiltertes `all` (Standard) und einen sequenziellen `tiles`-Scan im Bayern-Bereich (8.9/47.2 bis 13.9/50.6). Redis hält aktuelle Objekt-/Fahrzeugdaten, GEO-Index, persistenten State/Watermark und einen durablen Archiv-Stream; Details zu Einrichtung, Migration, TTLs, Retry-Deduplizierung und Integrationstests stehen in der [LiveGPS-Dokumentation](livegps/README.md).
+
 
 [Try it out now](https://vagstats.ebg.pw/)  
 [Install](#Install)  
