@@ -93,7 +93,8 @@ app.uwsApp.ws('/api/v1/live/map/ws', {
         };
 
         state.sendSnapshot = sendSnapshot;
-        state.interval = setInterval(sendSnapshot, Number(process.env.LIVE_MAP_WS_INTERVAL_MS) || 1000);
+        const interval = Number(process.env.LIVE_MAP_WS_INTERVAL_MS) || 1000;
+        state.interval = setInterval(sendSnapshot, state.query.source === 'gps' ? Math.max(5000, interval) : interval);
         void sendSnapshot();
     },
     message: async (ws, rawMessage) => {

@@ -4,9 +4,11 @@ const { setTimeout: sleep } = require('node:timers/promises');
 const { createRedis, ObservationStore, KEYS, GROUP } = require('../lib/redis');
 const { createClickHouse, archiveBatch } = require('../lib/clickhouse');
 const { normalizeObservation } = require('../lib/observations');
+const { toStorageRows } = require('../lib/storage');
 const { loadConfig } = require('../envSchema');
 const { NOW, vehicle } = require('./fixtures');
 const migration = require('../../migration/migrations/004_create_livegps_observations');
+const splitMigration = require('../../migration/migrations/005_split_gps_storage');
 
 // These endpoints are deliberately not read from .env or production configuration.
 // Use dedicated, disposable local services. Only our prefix and generated DB are deleted.
@@ -158,7 +160,7 @@ test('real Redis Lua, latest snapshots, GEO expiry and stream recovery', { skip:
             assert.equal(await restarted.backlog(), 2);
             let written;
             await archiveBatch(restarted, { insert: async ({ values }) => { written = values; } });
-            assert.deepEqual(written, pending.map(({ row }) => row));
+            assert.deepEqual(written, pending.map(({ row }) => toStorageRows(row).observation));
             assert.equal(await restarted.backlog(), 1);
             assert.equal((await redis.xpending(KEYS.stream, GROUP))[0], 0);
             const unread = await restarted.readBatch();
@@ -169,7 +171,7 @@ test('real Redis Lua, latest snapshots, GEO expiry and stream recovery', { skip:
     });
 });
 
-test('real ClickHouse migration and Redis-to-ClickHouse retry deduplication', {
+test('real ClickHouse split backfill hash parity, joins and Redis retry deduplication', {
     skip: process.env.LIVEGPS_INTEGRATION !== '1', timeout: 60000,
 }, async () => {
     const database = `livegps_test_${process.pid}_${Date.now()}`;
@@ -182,23 +184,50 @@ test('real ClickHouse migration and Redis-to-ClickHouse retry deduplication', {
         ch = createClickHouse({ ...config, CH_DATABASE: database });
         await migration.up(ch);
         await migration.up(ch); // idempotent migration
+        const legacyRows = [
+            normalizeObservation(vehicle(), NOW).row,
+            normalizeObservation(vehicle({ Timestamp: '2026-10-11T12:00:00Z', CurrentStop: 'NEXT:1' }), NOW + 20000).row,
+            normalizeObservation({}, NOW).row,
+            normalizeObservation(vehicle({ ID: 'unicode', DirectionText: 'Nürnberg 🚋;:日本', LineText: 'S;1:🚋' }), NOW).row,
+            normalizeObservation(vehicle({ ID: 'null-direction', DirectionText: null }), NOW).row,
+        ];
+        legacyRows.push({ ...legacyRows[4], observation_id: 'empty-direction', direction: '' });
+        await ch.insert({ table: 'livegps_observations', values: [...legacyRows, legacyRows[0]], format: 'JSONEachRow' });
+        await splitMigration.up(ch);
+        await splitMigration.up(ch); // retries after any completed backfill stay logically deduplicated
+        const queryRows = async (query) => (await ch.query({ query, format: 'JSONEachRow' })).json();
+        const backfilled = await queryRows(`SELECT o.*, f.object_id, f.vehicle_id, f.journey_id, f.line, f.direction, f.anonymous
+            FROM gps_observations AS o FINAL INNER JOIN gps_fahrten AS f FINAL ON o.gps_fahrt_id = f.gps_fahrt_id`);
+        assert.equal(backfilled.length, legacyRows.length);
+        assert.equal((await queryRows('SELECT * FROM gps_fahrten FINAL')).length, legacyRows.length - 1);
+        for (const row of legacyRows) {
+            const stored = backfilled.find((entry) => entry.observation_id === row.observation_id);
+            assert.equal(stored.gps_fahrt_id, toStorageRows(row).fahrt.gps_fahrt_id, 'ClickHouse and JS hash exactly the same static metadata');
+            assert.equal(stored.raw_json, row.raw_json);
+            assert.equal(stored.direction, row.direction);
+            assert.equal(stored.current_stop, row.current_stop);
+        }
+        assert.equal((await queryRows('SELECT * FROM livegps_observations FINAL')).length, legacyRows.length, 'legacy table is retained');
         await withLocalRedis(async (redis) => {
             const store = new ObservationStore(redis);
             await store.initialize();
             const rows = [normalizeObservation(vehicle(), NOW), normalizeObservation({}, NOW)];
             await store.publish(rows);
             const pending = await store.readBatch();
-            await ch.insert({ table: 'livegps_observations', values: pending.map(({ row }) => row), format: 'JSONEachRow' });
-            // Simulate a crash after the ClickHouse insert, before Redis acknowledgement.
+            const splitRows = pending.map(({ row }) => toStorageRows(row));
+            await ch.insert({ table: 'gps_fahrten', values: splitRows.map(({ fahrt }) => fahrt), format: 'JSONEachRow' });
+            await ch.insert({ table: 'gps_observations', values: splitRows.map(({ observation }) => observation), format: 'JSONEachRow' });
+            // Simulate a crash after both inserts, before Redis acknowledgement.
             const restarted = new ObservationStore(redis);
             await restarted.initialize();
             assert.equal(await archiveBatch(restarted, ch), 2);
             assert.equal(await restarted.backlog(), 0);
-            const result = await ch.query({ query: 'SELECT * FROM livegps_observations FINAL', format: 'JSONEachRow' });
-            const stored = await result.json();
-            assert.equal(stored.length, 2);
-            const original = stored.find((row) => row.object_id === 'vmi-object-a');
-            const anonymous = stored.find((row) => row.anonymous === 1);
+            const stored = await queryRows(`SELECT o.*, f.object_id, f.vehicle_id, f.anonymous
+                FROM gps_observations AS o FINAL INNER JOIN gps_fahrten AS f FINAL ON o.gps_fahrt_id = f.gps_fahrt_id`);
+            assert.equal(stored.length, legacyRows.length + 2);
+            assert.equal((await queryRows('SELECT * FROM gps_fahrten FINAL')).length, legacyRows.length - 1);
+            const original = stored.find((row) => row.observation_id === rows[0].row.observation_id);
+            const anonymous = stored.find((row) => row.observation_id === rows[1].row.observation_id);
             assert.equal(original.vehicle_id, '00625');
             assert.equal(original.delay_seconds, -82);
             assert.equal(original.timestamp, '2026-10-11 11:59:40.000');
@@ -206,8 +235,10 @@ test('real ClickHouse migration and Redis-to-ClickHouse retry deduplication', {
             assert.equal(JSON.parse(original.raw_json).X, vehicle().X);
             assert.equal(anonymous.latitude, null);
             assert.equal(anonymous.timestamp, null);
-            const ddl = await ch.query({ query: 'SHOW CREATE TABLE livegps_observations', format: 'JSONEachRow' });
-            assert.ok(!(await ddl.json())[0].statement.includes(' TTL '));
+            for (const table of ['gps_fahrten', 'gps_observations']) {
+                assert.ok(!(await queryRows(`SHOW CREATE TABLE ${table}`))[0].statement.includes(' TTL '));
+            }
+            assert.equal((await queryRows('SELECT * FROM livegps_observations FINAL')).length, legacyRows.length, 'worker only writes to split tables');
         });
     } finally {
         await ch?.close();

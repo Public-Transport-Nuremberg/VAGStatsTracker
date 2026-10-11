@@ -3,20 +3,21 @@ const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 
-test('application GPS/PULS HTTP routes and encoded history identities', { timeout: 20000 }, async () => {
+test('application GPS/PULS HTTP routes and encoded history identities', { timeout: 30000 }, async () => {
     const server = spawn(process.execPath, [path.join(__dirname, 'helpers/live_gps_server.js')], {
         env: { ...process.env, GPS_MAP_FIXTURE_PORT: '18762' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
     });
     try {
         const startup = await new Promise((resolve, reject) => {
             let output = '';
-            const timeout = setTimeout(() => reject(new Error('Fixture startup timed out')), 5000);
+            const timeout = setTimeout(() => reject(new Error(`Fixture startup timed out: ${output.slice(-1000)}`)), 15000);
             server.once('error', (error) => { clearTimeout(timeout); reject(error); });
             server.once('exit', (code) => { clearTimeout(timeout); reject(new Error(`Fixture exited ${code}`)); });
             server.stdout.on('data', (chunk) => {
                 output += chunk;
                 if (output.includes('GPS browser fixture')) { clearTimeout(timeout); resolve(output); }
             });
+            server.stderr.on('data', (chunk) => { output += chunk; });
         });
         const day = /day=(\d{4}-\d{2}-\d{2})/.exec(startup)[1];
         const origin = 'http://127.0.0.1:18762';

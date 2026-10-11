@@ -6,6 +6,8 @@ const { normalizeObservation } = require('../../livegps/lib/observations');
 const { loadConfig } = require('../../livegps/envSchema');
 const { vehicle } = require('../../livegps/test/fixtures');
 const migration = require('../../migration/migrations/004_create_livegps_observations');
+const splitMigration = require('../../migration/migrations/005_split_gps_storage');
+const { toStorageRows } = require('../../livegps/lib/storage');
 const { readGpsVehicleValues, queryGpsHistory, historyUrl } = require('../lib/live_gps');
 
 // Fixed disposable localhost services; never use application .env or production data.
@@ -38,6 +40,12 @@ test('GPS map and history read real worker snapshots and archived observations',
         created = true;
         ch = createClickHouse({ ...config, CH_DATABASE: database });
         await migration.up(ch);
+        await splitMigration.up(ch);
+        const insertObservations = async (rows) => {
+            const split = rows.map(toStorageRows);
+            await ch.insert({ table: 'gps_fahrten', values: split.map(({ fahrt }) => fahrt), format: 'JSONEachRow' });
+            await ch.insert({ table: 'gps_observations', values: split.map(({ observation }) => observation), format: 'JSONEachRow' });
+        };
         const store = new ObservationStore(redis);
         await store.initialize();
         const now = Date.now();
@@ -82,20 +90,46 @@ test('GPS map and history read real worker snapshots and archived observations',
         assert.equal((await queryGpsHistory(ch, { at: day, id: 'BUS-A/01', operator: 'A&B', identity: 'vehicle' })).points.length, 1);
         assert.equal((await queryGpsHistory(ch, { at: day, id: observations[4].entityKey, operator: '', identity: 'object' })).points.length, 1);
 
+        const corrected = ['OLD', 'NEW'].map((LineText, index) => normalizeObservation(vehicle({
+            ID: 'metadata-correction', VehicleIdentifier: 'CORRECTED', LineText,
+            Timestamp: `2026-10-11T12:0${index}:00Z`,
+        }), now));
+        await insertObservations(corrected.map((item) => item.row));
+        const correctedHistory = await queryGpsHistory(ch, { at: day, id: 'CORRECTED', operator: 'VAN', identity: 'vehicle' });
+        assert.deepEqual(correctedHistory.points.map((point) => point.line), ['OLD', 'NEW'],
+            'metadata corrections preserve the original line of earlier observations');
+
         // Missing/invalid operating dates fall back to the source time's Berlin calendar day.
         const fallback = ['', null, 'garbage', '32.13.2026', '2026-02-30'].map((DayOfOperation, index) =>
             normalizeObservation(vehicle({ ID: `fallback-${index}`, VehicleIdentifier: 'FALLBACK', DayOfOperation,
                 Timestamp: '2026-10-10T22:30:00Z' }), now));
         const received = normalizeObservation(vehicle({ ID: 'reception', VehicleIdentifier: 'RECEPTION',
             DayOfOperation: null, Timestamp: null }), Date.parse('2026-10-10T22:31:00Z'));
-        await ch.insert({ table: 'livegps_observations', values: [...fallback, received].map((item) => item.row), format: 'JSONEachRow' });
+        await insertObservations([...fallback, received].map((item) => item.row));
         assert.equal(historyUrl(fallback[3].payload), `/vehicleHistoryGPS/${day}/FALLBACK?operator=VAN`);
         assert.equal((await queryGpsHistory(ch, { at: day, id: 'FALLBACK', operator: 'VAN', identity: 'vehicle' })).points.length, 5);
         const reception = await queryGpsHistory(ch, { at: day, id: 'RECEPTION', operator: 'VAN', identity: 'vehicle' });
         assert.equal(reception.points[0].timestamp, null);
         assert.equal(reception.points[0].fetchedAt, '2026-10-10T22:31:00.000Z');
-        await ch.insert({ table: 'livegps_observations', values: fallback.map((item) => item.row), format: 'JSONEachRow' });
+        await insertObservations(fallback.map((item) => item.row));
         assert.equal((await queryGpsHistory(ch, { at: day, id: 'FALLBACK', operator: 'VAN', identity: 'vehicle' })).points.length, 5, 'FINAL deduplicates retries');
+
+        const load = Array.from({ length: 1100 }, (_, index) => normalizeObservation(vehicle({
+            ID: `load-${index}`, VehicleIdentifier: `LOAD-${index}`, LineText: 'LOAD',
+            Timestamp: new Date(Date.now() - 1000).toISOString(),
+            Latitude: index < 10 ? 49.45 : 50.1, Longitude: index < 10 ? 11.08 : 8.6,
+        })));
+        await store.publish(load);
+        let fetchedSnapshots = 0;
+        const originalMget = redis.mget;
+        redis.mget = function (keys) { fetchedSnapshots = keys.length; return originalMget.call(this, keys); };
+        try {
+            const scoped = await readGpsVehicleValues(redis, { Linie: 'LOAD', boundingBox: {
+                minLongitude: 11, maxLongitude: 11.2, minLatitude: 49.4, maxLatitude: 49.5,
+            } });
+            assert.equal(Object.keys(scoped).length, 10);
+            assert.ok(fetchedSnapshots <= 20, `only nearby snapshots fetched, got ${fetchedSnapshots}`);
+        } finally { redis.mget = originalMget; }
     } finally {
         if (owned && redis.status === 'ready') {
             const ownedKeys = await keys(redis);

@@ -21,9 +21,32 @@ const payload = { source: 'vmi', entityKey, vehicleKey, operator, vehicleId,
     journeyId: 'journey-3', dayOfOperation: day, motCode: 5, product: 'BUS', line: 'E5',
     direction: 'Kornburg', currentStop: 'AM-RAN:1', nextStop: 'FINK:1',
     latitude: 49.452, longitude: 11.077, delaySeconds: 82 };
+const vehicleCount = Math.max(1, Math.min(10000, Number(process.env.GPS_MAP_FIXTURE_VEHICLES) || 1));
+const positions = new Map([[vehicleKey, payload]]);
+for (let index = 1; index < vehicleCount; index++) {
+    const key = index.toString(16).padStart(64, '0');
+    positions.set(key, { ...payload, vehicleKey: key, entityKey: key, vehicleId: `TEST-${index}`,
+        latitude: index < 10 ? 49.452 + index * 0.001 : 50 + (index % 100) * 0.001,
+        longitude: index < 10 ? 11.077 + index * 0.001 : 8.5 + (index % 100) * 0.001 });
+}
 const fakeRedis = {
-    zrangebyscore: async () => [vehicleKey, String(Date.now() + 179000)],
-    mget: async () => [JSON.stringify({ ...payload, timestamp: new Date(Date.now() - 1000).toISOString() })],
+    geosearch: async (...args) => {
+        const [, , longitude, latitude, , width, height] = args;
+        const halfLatitude = height / 111227 / 2;
+        const halfLongitude = width / (111227 * Math.cos(latitude * Math.PI / 180)) / 2;
+        return [...positions].filter(([, value]) => Math.abs(value.latitude - latitude) <= halfLatitude
+            && Math.abs(value.longitude - longitude) <= halfLongitude).map(([key]) => key);
+    },
+    pipeline: () => {
+        const members = [];
+        return { zscore(key, member) { members.push(member); return this; },
+            exec: async () => members.map((member) => [null, positions.has(member) ? String(Date.now() + 160000) : null]) };
+    },
+    zrangebyscore: async () => [...positions.keys()].flatMap((key) => [key, String(Date.now() + 160000)]),
+    mget: async (keys) => keys.map((key) => {
+        const value = positions.get(key.replace('LIVEGPS:VMI:VEHICLE:', ''));
+        return value ? JSON.stringify({ ...value, timestamp: new Date(Math.floor(Date.now() / 10000) * 10000 - 10000).toISOString() }) : null;
+    }),
 };
 const trip = { Fahrzeugnummer: 625, Produkt: 'Bus', Linienname: 'E5', Richtungstext: 'Kornburg',
     VGNKennung: 1, nextVGNKennung: 2, Betriebstag: day,
@@ -68,7 +91,7 @@ const ejs = require('ejs');
 const renderedViews = new Map();
 for (const name of ['livemap', 'vehicleHistoryGPS']) {
     const html = ejs.render(fs.readFileSync(path.join(root, 'views', `${name}.ejs`), 'utf8'), {
-        appName: 'GPS fixture', commitId: 'test',
+        appName: 'GPS fixture', commitId: `test-${fs.statSync(path.join(root, 'public/dist/js/livemap_main.js')).mtimeMs}`,
     });
     renderedViews.set(path.join(root, 'public', `${name}.html`), html);
 }

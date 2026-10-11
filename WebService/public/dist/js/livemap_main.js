@@ -11,12 +11,19 @@ let connectionVersion = 0;
 let liveSocket = null;
 let fallbackInterval = null;
 let activeFetchController = null;
+let mapMoving = false;
+let viewportTimer = null;
 
 const liveQueryString = () => {
-	const query = new URLSearchParams(window.location.search);
-	if (liveMapSource === "gps") query.set("source", "gps");
-	else query.delete("source");
-	return query.size ? `?${query}` : "";
+	const extent = ol.proj.transformExtent(map.getView().calculateExtent(map.getSize()), "EPSG:3857", "EPSG:4326");
+	return LiveMapHelpers.viewportQuery(window.location.search, liveMapSource, extent);
+};
+
+const updatePositionAges = () => {
+	document.querySelectorAll("[data-position-timestamp]").forEach((element) => {
+		const age = LiveMapHelpers.ageSeconds(Number(element.dataset.positionTimestamp));
+		element.textContent = age === null ? "" : `(${age} s alt)`;
+	});
 };
 
 const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -245,7 +252,8 @@ const renderGpsVehicleCard = (p) => {
 					<p>Fahrzeug ${escapeHTML(p.VehicleIdentifier || "Unbekannt")} · ${escapeHTML(p.Operator || "Betreiber unbekannt")}</p>
 				</div>
 			</header>
-			<p><span>GPS-Position</span>: ${escapeHTML(timestamp)}</p>
+			<p><span>GPS-Position</span>: ${escapeHTML(timestamp)} ${time && Number.isFinite(time.getTime())
+				? `<small data-position-timestamp="${time.getTime()}">(${LiveMapHelpers.ageSeconds(time.getTime())} s alt)</small>` : ""}</p>
 			<p><span>Verspätung</span>: ${formatSecondsToHTML(p.DelaySeconds)}</p>
 			<p><span>Aktueller Halt</span>: ${escapeHTML(p.Haltestellenname || "-")}</p>
 			<p><span>Nächster Halt</span>: ${escapeHTML(p.nextHaltestellenname || "-")}</p>
@@ -421,40 +429,66 @@ const map = new ol.Map({
 const vectorSource = new ol.source.Vector({
 	features: [],
 });
+const vehicleFeatures = new Map();
 
 const renderLiveMap = (data) => {
 	latestLiveMapData = data || {};
 	const trips = data?.trips || data || {};
-	vectorSource.clear();
-
+	const visibleKeys = new Set();
+	const added = [];
+	let clusterDetached = false;
+	let styleChanged = false;
+	const beginSpatialChange = () => {
+		if (!clusterDetached) { clusterSource.setSource(null); clusterDetached = true; }
+	};
 	Object.keys(trips).forEach((key) => {
 		if (key === "__meta") return;
 		const item = trips[key];
 		if (!hasMapPosition(item)) return;
 		const color = propertiesToColor(item);
 
-		const marker = new ol.Feature({
-			geometry: new ol.geom.Point(ol.proj.fromLonLat([Number(item.Longitude), Number(item.Latitude)])),
-			...item,
-			color,
-		});
-
-		vectorSource.addFeature(marker);
+		visibleKeys.add(key);
+		const fingerprint = JSON.stringify(item);
+		const existing = vehicleFeatures.get(key);
+		if (existing?.fingerprint === fingerprint) return;
+		const coordinates = ol.proj.fromLonLat([Number(item.Longitude), Number(item.Latitude)]);
+		if (existing) {
+			styleChanged ||= existing.feature.get("color") !== color || existing.feature.get("Linienname") !== item.Linienname;
+			existing.feature.setProperties({ ...item, color }, true);
+			const previous = existing.feature.getGeometry().getCoordinates();
+			if (previous[0] !== coordinates[0] || previous[1] !== coordinates[1]) {
+				beginSpatialChange();
+				existing.feature.getGeometry().setCoordinates(coordinates);
+			}
+			existing.fingerprint = fingerprint;
+		} else {
+			const feature = new ol.Feature({ geometry: new ol.geom.Point(coordinates), ...item, color });
+			feature.setId(key);
+			vehicleFeatures.set(key, { feature, fingerprint });
+			added.push(feature);
+		}
 	});
+	for (const [key, { feature }] of vehicleFeatures) {
+		if (!visibleKeys.has(key)) { beginSpatialChange(); vectorSource.removeFeature(feature); vehicleFeatures.delete(key); }
+	}
+	if (added.length) { beginSpatialChange(); vectorSource.addFeatures(added); }
+	if (clusterDetached) clusterSource.setSource(vectorSource);
+	else if (styleChanged) clusterLayer.changed();
+	refreshActivePopup();
 
 	const count = vectorSource.getFeatures().length;
-	setStatus(liveMapSource === "gps" ? `${count} Fahrzeuge mit GPS-Position` : `${count} Fahrzeuge live`, "live", formatLiveStatusTooltip(data));
+	setStatus(`${count} Fahrzeuge im Ausschnitt${liveMapSource === "gps" ? " (GPS)" : ""}`, "live", formatLiveStatusTooltip(data));
 };
 
 const refreshLiveMap = async (version = connectionVersion) => {
-	if (version !== connectionVersion || activeFetchController) return;
+	if (version !== connectionVersion || mapMoving || activeFetchController) return;
 	const controller = new AbortController();
 	activeFetchController = controller;
 	try {
 		const response = await fetch(`/api/v1/live/map${liveQueryString()}`, { signal: controller.signal });
 		if (!response.ok) throw new Error(`HTTP ${response.status}`);
 		const data = await response.json();
-		if (version === connectionVersion) renderLiveMap(data);
+		if (version === connectionVersion && !mapMoving) renderLiveMap(data);
 	} catch (error) {
 		if (version === connectionVersion && error.name !== "AbortError") setStatus("HTTP Fallback gestört", "error");
 	} finally {
@@ -467,20 +501,22 @@ const clusterSource = new ol.source.Cluster({
 	source: vectorSource,
 });
 
+const clusterStyles = new Map();
 const clusterLayer = new ol.layer.Vector({
 	source: clusterSource,
 	style: function (feature) {
 		const features = feature.get("features");
+		if (!features.length) return null;
 		let color = features[0].get("color");
 		const allSameColor = features.every((f) => f.get("color") === color);
 		const size = features.length;
 
-		if (size === 0) return new ol.style.Style({});
 		if (!allSameColor) color = "#111827";
 
 		const label = size === 1 ? `${features[0].get("Linienname") || ""}` : size.toString();
-
-		return new ol.style.Style({
+		const cacheKey = `${color}:${size}:${label}`;
+		if (clusterStyles.has(cacheKey)) return clusterStyles.get(cacheKey);
+		const style = new ol.style.Style({
 			image: new ol.style.Circle({
 				fill: new ol.style.Fill({ color }),
 				stroke: new ol.style.Stroke({ color: "#fff", width: 2 }),
@@ -493,6 +529,9 @@ const clusterLayer = new ol.layer.Vector({
 				font: "bold 11px system-ui, sans-serif",
 			}),
 		});
+		if (clusterStyles.size >= 2000) clusterStyles.clear();
+		clusterStyles.set(cacheKey, style);
+		return style;
 	},
 });
 
@@ -501,6 +540,9 @@ const popupContent = document.getElementById("popup-content");
 const closePopupButton = document.getElementById("popup-close");
 let popupOverlayContainer = null;
 let activePopupCoordinate = null;
+let activePopupKeys = [];
+let popupFingerprint = null;
+let activePopupPage = 0;
 
 const overlay = new ol.Overlay({
 	element: popup,
@@ -543,7 +585,26 @@ const showPopup = (coordinate) => {
 
 const hidePopup = () => {
 	activePopupCoordinate = null;
+	activePopupKeys = [];
+	popupFingerprint = null;
+	activePopupPage = 0;
 	popup.style.display = "none";
+};
+const refreshActivePopup = () => {
+	if (!activePopupKeys.length || popup.style.display !== "block") return;
+	const selected = activePopupKeys.map((key) => vehicleFeatures.get(key)).filter(Boolean);
+	if (!selected.length) return hidePopup();
+	const fingerprint = selected.map((entry) => entry.fingerprint).join("|");
+	if (fingerprint === popupFingerprint) return;
+	popupFingerprint = fingerprint;
+	activePopupPage = Math.min(activePopupPage, Math.floor((selected.length - 1) / 20));
+	const page = selected.slice(activePopupPage * 20, (activePopupPage + 1) * 20);
+	const pagination = selected.length > 20 ? `<p class="lm-muted">${activePopupPage * 20 + 1}–${Math.min((activePopupPage + 1) * 20, selected.length)} von ${selected.length} Fahrzeugen</p>
+		<button type="button" class="lm-link" data-popup-page="${activePopupPage - 1}" ${activePopupPage === 0 ? "disabled" : ""}>Zurück</button>
+		<button type="button" class="lm-link" data-popup-page="${activePopupPage + 1}" ${(activePopupPage + 1) * 20 >= selected.length ? "disabled" : ""}>Weiter</button>` : "";
+	popupContent.innerHTML = `${selected.length > 1 ? `<h2>${selected.length} Fahrzeuge</h2>` : ""}${pagination}`
+		+ page.map(({ feature }) => renderVehicleCard(feature.getProperties(), selected.length > 1)).join("<div class='lm-split'></div>");
+	showPopup(selected[0].feature.getGeometry().getCoordinates());
 };
 
 map.on("singleclick", function (event) {
@@ -552,30 +613,35 @@ map.on("singleclick", function (event) {
 	map.forEachFeatureAtPixel(event.pixel, function (feature) {
 		foundFeature = true;
 		const clusterPoints = feature.get("features");
-
-		if (clusterPoints.length > 1) {
-			const properties = clusterPoints.map((clusterFeature) => clusterFeature.getProperties());
-
-			popupContent.innerHTML = `
-				<div class="lm-cluster">
-					<h2>${properties.length} Fahrzeuge</h2>
-					${properties.map((p) => renderVehicleCard(p, true)).join("<div class='lm-split'></div>")}
-				</div>
-			`;
-
-			showPopup(clusterPoints[0].getGeometry().getCoordinates());
-		} else {
-			const p = clusterPoints[0].getProperties();
-			popupContent.innerHTML = renderVehicleCard(p);
-			showPopup(clusterPoints[0].getGeometry().getCoordinates());
-		}
+		activePopupKeys = clusterPoints.map((point) => point.getId());
+		popupFingerprint = null;
+		activePopupPage = 0;
+		showPopup(clusterPoints[0].getGeometry().getCoordinates());
+		refreshActivePopup();
 	});
 
 	if (!foundFeature) hidePopup();
 });
+popupContent.addEventListener("click", (event) => {
+	const button = event.target.closest("[data-popup-page]");
+	if (!button || button.disabled) return;
+	activePopupPage = Math.max(0, Number(button.dataset.popupPage));
+	popupFingerprint = null;
+	refreshActivePopup();
+});
 
 map.on("movestart", function () {
+	mapMoving = true;
+	clearTimeout(viewportTimer);
+	++connectionVersion;
+	activeFetchController?.abort();
+	activeFetchController = null;
 	if (!isMobilePopup()) hidePopup();
+});
+map.on("moveend", () => {
+	mapMoving = false;
+	clearTimeout(viewportTimer);
+	viewportTimer = setTimeout(connectLiveMap, 200);
 });
 
 closePopupButton?.addEventListener("click", () => {
@@ -634,7 +700,7 @@ const startHttpFallback = (version) => {
 	if (version !== connectionVersion || fallbackInterval) return;
 	setStatus("HTTP Fallback", "fallback");
 	void refreshLiveMap(version);
-	fallbackInterval = setInterval(() => { void refreshLiveMap(version); }, 1000);
+	fallbackInterval = setInterval(() => { void refreshLiveMap(version); }, liveMapSource === "gps" ? 5000 : 1000);
 };
 
 const connectLiveMap = () => {
@@ -654,7 +720,7 @@ const connectLiveMap = () => {
 
 	socket.addEventListener("open", () => { if (version === connectionVersion) setStatus("WebSocket verbunden", "live"); });
 	socket.addEventListener("message", (event) => {
-		if (version !== connectionVersion) return;
+		if (version !== connectionVersion || mapMoving) return;
 		try {
 			const payload = JSON.parse(event.data);
 			if (payload.type === "snapshot") renderLiveMap(payload.data);
@@ -684,8 +750,19 @@ if (gpsModeSwitch) {
 		closeStatsModal();
 		latestLiveMapData = {};
 		vectorSource.clear();
+		vehicleFeatures.clear();
 		connectLiveMap();
 	});
 }
 
+const initialParameters = new URLSearchParams(window.location.search);
+const initialBounds = [initialParameters.get("pos1"), initialParameters.get("pos2")].map((value) => value?.split(",").map(Number));
+if (initialBounds.every((point) => point?.length === 2 && point.every(Number.isFinite)
+	&& Math.abs(point[0]) <= 180 && Math.abs(point[1]) <= 85.05112878)
+	&& initialBounds[0][0] !== initialBounds[1][0] && initialBounds[0][1] !== initialBounds[1][1]) {
+	const [first, second] = initialBounds;
+	map.getView().fit(ol.proj.transformExtent([Math.min(first[0], second[0]), Math.min(first[1], second[1]),
+		Math.max(first[0], second[0]), Math.max(first[1], second[1])], "EPSG:4326", "EPSG:3857"), { duration: 0 });
+}
 connectLiveMap();
+setInterval(updatePositionAges, 1000);

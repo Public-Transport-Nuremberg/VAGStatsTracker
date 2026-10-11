@@ -31,7 +31,12 @@ test('gpsHistorySchema rejects malformed dates and unknown object identities', a
 });
 
 function redisFor(entries, values) {
-  return { zrangebyscore: async (...args) => { redisFor.args = args; return entries; }, mget: async (keys) => { redisFor.keys = keys; return values; } };
+  return {
+    geosearch: async () => entries.filter((entry, index) => index % 2 === 0),
+    pipeline: () => ({ zscore() { return this; }, exec: async () => entries.filter((entry, index) => index % 2 === 1).map((score) => [null, score]) }),
+    zrangebyscore: async (...args) => { redisFor.args = args; return entries; },
+    mget: async (keys) => { redisFor.keys = keys; return keys.map((key) => values[entries.indexOf(key.split(':').pop()) / 2]); },
+  };
 }
 const gps = (key, extra = {}) => JSON.stringify({ source: 'vmi', vehicleKey: key, vehicleId: '12', operator: 'VAG', latitude: 49.4, longitude: 11.1, timestamp: '2026-10-11T22:29:00Z', line: '4', motCode: 4, ...extra });
 
@@ -41,7 +46,6 @@ test('readGpsVehicleValues filters stale, malformed, null/future and bounding-bo
   ]);
   const result = await readGpsVehicleValues(redis, { Linie: '4', boundingBox: { minLongitude: 11, maxLongitude: 12, minLatitude: 49, maxLatitude: 50 } }, NOW);
   assert.deepEqual(Object.keys(result), [`gps:${memberA}`]);
-  assert.deepEqual(redisFor.args, ['LIVEGPS:VMI:GEO_EXPIRY', `(${NOW}`, '+inf', 'WITHSCORES']);
   assert.deepEqual(redisFor.keys, [`LIVEGPS:VMI:VEHICLE:${memberA}`, `LIVEGPS:VMI:VEHICLE:${memberB}`, 'LIVEGPS:VMI:VEHICLE:missing']);
   const expired = redisFor([memberA, String(NOW - 1)], [gps(memberA, { timestamp: '2026-10-11T22:00:00Z' })]);
   assert.deepEqual(await readGpsVehicleValues(expired, {}, NOW), {});
@@ -83,7 +87,8 @@ test('queryGpsHistory uses FINAL, bounded parameters, identity selector and UTC 
     { timestamp: null, fetched_at: '2026-10-11T21:00:00Z', latitude: 49.1, longitude: 11.1 },
   ] }; } };
   const result = await queryGpsHistory(client, { at: '2026-10-11', id: '001/A', operator: 'O&V', identity: 'vehicle' });
-  assert.match(request.query, /FROM livegps_observations FINAL/);
+  assert.match(request.query, /FROM gps_fahrten FINAL/);
+  assert.match(request.query, /FROM gps_observations FINAL/);
   assert.match(request.query, /vehicle_id = \{id:String\} AND ifNull\(operator, ''\) = \{operator:String\}/);
   assert.match(request.query, /LIMIT 100001/);
   assert.deepEqual(request.query_params, { id: '001/A', operator: 'O&V', day: '2026-10-11' });

@@ -1,4 +1,5 @@
 const { createClient } = require('@clickhouse/client');
+const { toStorageRows } = require('./storage');
 
 function createClickHouse(config) {
     return createClient({
@@ -13,9 +14,12 @@ async function archiveBatch(store, clickhouse) {
     if (!batch.length) return 0;
     // Never regenerate fetched_at or observation_id on retries: ReplacingMergeTree
     // must see the identical partition and sorting key after an ambiguous failure.
-    await clickhouse.insert({
-        table: 'livegps_observations', values: batch.map(({ row }) => row), format: 'JSONEachRow',
-    });
+    const rows = batch.map(({ row }) => toStorageRows(row));
+    const fahrten = new Map(rows.map(({ fahrt }) => [fahrt.gps_fahrt_id, fahrt]));
+    // Metadata must exist before its observations. Any failed insert (including
+    // a missing migration) leaves the Redis batch pending for an identical retry.
+    await clickhouse.insert({ table: 'gps_fahrten', values: [...fahrten.values()], format: 'JSONEachRow' });
+    await clickhouse.insert({ table: 'gps_observations', values: rows.map(({ observation }) => observation), format: 'JSONEachRow' });
     await store.acknowledge(batch.map(({ id }) => id));
     return batch.length;
 }

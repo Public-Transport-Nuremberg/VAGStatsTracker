@@ -71,9 +71,43 @@ function toMapVehicle(position) {
 }
 
 async function readGpsVehicleValues(redis, query = {}, now = Date.now()) {
-    // Expiry scores are authoritative, even if the worker's GEO cleanup is delayed.
-    // Read the bounded active index rather than scanning all Redis keys or the archive.
-    const entries = await redis.zrangebyscore(`${PREFIX}GEO_EXPIRY`, `(${now}`, '+inf', 'WITHSCORES');
+    let entries;
+    const box = query.boundingBox;
+    if (box) {
+        const south = Math.max(box.minLatitude, -85.05112878);
+        const north = Math.min(box.maxLatitude, 85.05112878);
+        if (south >= north) return {};
+        const radians = Math.PI / 180;
+        const radius = 6372797.560856; // Redis GEO Earth radius.
+        const closestLatitude = south <= 0 && north >= 0 ? 0 : Math.min(Math.abs(south), Math.abs(north));
+        const width = Math.max(1, (box.maxLongitude - box.minLongitude) * radians * radius * Math.cos(closestLatitude * radians) * 1.01);
+        const height = Math.max(1, (north - south) * radians * radius * 1.01);
+        const longitude = (box.minLongitude + box.maxLongitude) / 2;
+        const latitude = (south + north) / 2;
+        let candidates;
+        try {
+            candidates = await redis.geosearch(`${PREFIX}GEO`, 'FROMLONLAT', longitude, latitude,
+                'BYBOX', width, height, 'm');
+        } catch (error) {
+            if (!/unknown command.*geosearch/i.test(error.message)) throw error;
+            // Redis <6.2: use a containing circle, then the same exact box filter below.
+            candidates = await redis.georadius(`${PREFIX}GEO`, longitude, latitude,
+                Math.hypot(width, height) / 2, 'm');
+        }
+        if (!candidates.length) return {};
+        const pipeline = redis.pipeline();
+        candidates.forEach((member) => pipeline.zscore(`${PREFIX}GEO_EXPIRY`, member));
+        const scores = await pipeline.exec();
+        entries = [];
+        scores.forEach(([error, score], index) => {
+            if (error) throw error;
+            if (score !== null && Number(score) > now) entries.push(candidates[index], score);
+        });
+    } else {
+        entries = await redis.zrangebyscore(`${PREFIX}GEO_EXPIRY`, `(${now}`, '+inf', 'WITHSCORES');
+    }
+    // Expiry scores are authoritative even when GEO cleanup is delayed.
+    // Only the selected viewport's active snapshots are fetched/deserialized.
     if (!entries.length) return {};
     const members = entries.filter((entry, index) => index % 2 === 0);
     const values = await redis.mget(members.map((member) => `${PREFIX}VEHICLE:${member}`));
@@ -94,7 +128,6 @@ async function readGpsVehicleValues(redis, query = {}, now = Date.now()) {
         const expiresAt = Number(entries[index * 2 + 1]);
         if (!Number.isFinite(expiresAt) || expiresAt <= now || timestamp >= expiresAt) return;
         if (lineFilter && !lineFilter.has(position.line)) return;
-        const box = query.boundingBox;
         if (box && (longitude < box.minLongitude || longitude > box.maxLongitude
             || latitude < box.minLatitude || latitude > box.maxLatitude)) return;
         result[`gps:${members[index]}`] = toMapVehicle(position);
@@ -114,22 +147,28 @@ async function queryGpsHistory(client, params) {
         : "vehicle_id = {id:String} AND ifNull(operator, '') = {operator:String}";
     const result = await client.query({
         query: `
-            WITH multiIf(
+            WITH matching_fahrten AS (
+                SELECT * FROM gps_fahrten FINAL WHERE source = 'vmi' AND ${selector}
+            ), multiIf(
                 match(ifNull(day_of_operation, ''), '^[0-9]{2}[.][0-9]{2}[.][0-9]{4}$'),
                 concat(substring(day_of_operation, 7, 4), '-', substring(day_of_operation, 4, 2), '-', substring(day_of_operation, 1, 2)),
                 match(ifNull(day_of_operation, ''), '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'), day_of_operation,
                 '') AS normalized_day,
                 toDateOrNull(normalized_day) AS parsed_day
-            SELECT timestamp, fetched_at, latitude, longitude, delay_seconds,
-                   line, direction, journey_id, current_stop, next_stop, mot_code, product
-            FROM livegps_observations FINAL
-            WHERE source = 'vmi' AND ${selector}
+            SELECT o.timestamp, o.fetched_at, o.latitude, o.longitude, o.delay_seconds,
+                   f.line, f.direction, f.journey_id, o.current_stop, o.next_stop, f.mot_code, f.product
+            FROM (
+                SELECT * FROM gps_observations FINAL
+                WHERE source = 'vmi' AND gps_fahrt_id IN (SELECT gps_fahrt_id FROM matching_fahrten)
+            ) AS o
+            INNER JOIN matching_fahrten AS f ON o.gps_fahrt_id = f.gps_fahrt_id
+            WHERE 1
               AND if(ifNull(toString(parsed_day) = normalized_day, 0), parsed_day,
                      toDate(coalesce(timestamp, fetched_at), 'Europe/Berlin')) = {day:Date}
               AND isNotNull(latitude) AND isNotNull(longitude)
               AND latitude BETWEEN -85.05112878 AND 85.05112878
               AND longitude BETWEEN -180 AND 180
-            ORDER BY coalesce(timestamp, fetched_at) DESC, fetched_at DESC, entity_key, observation_id
+            ORDER BY coalesce(o.timestamp, o.fetched_at) DESC, o.fetched_at DESC, o.entity_key, o.observation_id
             LIMIT ${MAX_HISTORY_POINTS + 1}
         `,
         query_params: { id: params.id, operator: params.operator || '', day: params.at },
