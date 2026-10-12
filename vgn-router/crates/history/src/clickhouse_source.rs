@@ -405,7 +405,14 @@ async fn aggregate_delay_into(
             }
             Ok(())
         })
-        .await?;
+        .await
+        .with_context(|| {
+            if arrival {
+                "aggregate arrival delays"
+            } else {
+                "aggregate departure delays"
+            }
+        })?;
     Ok(unmapped)
 }
 
@@ -433,7 +440,46 @@ pub async fn build_until_resumable(
     chunk_days: u32,
 ) -> Result<StatsSnapshot> {
     ensure!(chunk_days > 0, "statistics chunk size must be positive");
-    build_internal(config, until, Some(checkpoint_path), chunk_days).await
+    const MAX_ATTEMPTS: u32 = 4;
+    for attempt in 1..=MAX_ATTEMPTS {
+        let attempt_chunk_days = (chunk_days >> (attempt - 1)).max(1);
+        match build_internal(
+            config.clone(),
+            until,
+            Some(checkpoint_path),
+            attempt_chunk_days,
+        )
+        .await
+        {
+            Ok(snapshot) => return Ok(snapshot),
+            Err(error) if attempt < MAX_ATTEMPTS && is_retryable_clickhouse_error(&error) => {
+                let delay = StdDuration::from_secs(1 << (attempt - 1));
+                tracing::warn!(attempt, max_attempts = MAX_ATTEMPTS, next_chunk_days = (chunk_days >> attempt).max(1), %error, ?delay,
+                    "ClickHouse connection interrupted; retrying from the saved checkpoint");
+                tokio::time::sleep(delay).await;
+            }
+            Err(error) if is_retryable_clickhouse_error(&error) => {
+                return Err(error).context(format!(
+                    "ClickHouse connection failed after {MAX_ATTEMPTS} attempts"
+                ));
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    unreachable!("the last attempt always returns")
+}
+
+fn is_retryable_clickhouse_error(error: &anyhow::Error) -> bool {
+    error.chain().any(|cause| {
+        cause
+            .downcast_ref::<reqwest::Error>()
+            .is_some_and(|request| {
+                request.is_body()
+                    || request.is_decode()
+                    || request.is_timeout()
+                    || request.is_connect()
+            })
+    })
 }
 
 async fn build_internal(
@@ -541,7 +587,8 @@ async fn build_internal(
             &mut state.departures_primary,
             &mut state.departures_total,
         );
-        let (arrival_unmapped, departure_unmapped) = futures_util::try_join!(arrivals, departures)?;
+        let (arrival_unmapped, departure_unmapped) = futures_util::try_join!(arrivals, departures)
+            .with_context(|| format!("aggregate statistics from {chunk_from} to {chunk_until}"))?;
         state.unmapped.extend(arrival_unmapped);
         state.unmapped.extend(departure_unmapped);
         source
@@ -582,7 +629,10 @@ async fn build_internal(
                 }
                 Ok(())
             })
-            .await?;
+            .await
+            .with_context(|| {
+                format!("aggregate cancellations from {chunk_from} to {chunk_until}")
+            })?;
         state.next_from = chunk_until;
         if let Some(path) = checkpoint_path {
             save_checkpoint(path, &state)?;
@@ -809,5 +859,106 @@ mod tests {
             .values()
             .all(|s| s.samples == 20 && s.cancellations == 2));
         snapshot.validate().unwrap();
+    }
+
+    #[tokio::test]
+    async fn interrupted_stream_restarts_from_checkpoint_without_double_counting() {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let deadline = std::time::Instant::now() + StdDuration::from_secs(15);
+            let mut interrupted = false;
+            let mut completed = false;
+            while !completed && std::time::Instant::now() < deadline {
+                let (mut stream, _) = match listener.accept() {
+                    Ok(connection) => connection,
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(StdDuration::from_millis(10));
+                        continue;
+                    }
+                    Err(error) => panic!("accept failed: {error}"),
+                };
+                stream
+                    .set_read_timeout(Some(StdDuration::from_secs(5)))
+                    .unwrap();
+                let mut bytes = Vec::new();
+                loop {
+                    let mut block = [0; 4096];
+                    let n = stream.read(&mut block).unwrap();
+                    assert!(n > 0);
+                    bytes.extend_from_slice(&block[..n]);
+                    if let Some(end) = bytes.windows(4).position(|window| window == b"\r\n\r\n") {
+                        let head = String::from_utf8_lossy(&bytes[..end]);
+                        let length = head
+                            .lines()
+                            .find_map(|line| {
+                                line.to_lowercase()
+                                    .strip_prefix("content-length: ")
+                                    .and_then(|value| value.parse::<usize>().ok())
+                            })
+                            .unwrap();
+                        if bytes.len() >= end + 4 + length {
+                            break;
+                        }
+                    }
+                }
+                let request = String::from_utf8(bytes).unwrap();
+                let freshness = request.contains("minOrNull(Betriebstag)");
+                let cancellation = request.contains("countIf(cancelled=1)");
+                let body = if freshness {
+                    "{\"latest\":\"2026-01-01\"}\n"
+                } else if cancellation {
+                    "{\"product\":1,\"line\":\"X\",\"direction\":\"North\",\"weekday\":4,\"day_type\":0,\"bucket\":48,\"recent\":1,\"n\":20,\"cancellations\":2}\n"
+                } else {
+                    "{\"product\":1,\"line\":\"X\",\"stop\":1,\"direction\":\"North\",\"weekday\":4,\"day_type\":0,\"bucket\":48,\"recent\":1,\"bins\":[[0,20,0,0,0]]}\n"
+                };
+                let interrupt_this_response = !freshness && !cancellation && !interrupted;
+                if interrupt_this_response {
+                    interrupted = true;
+                }
+                let declared_length = body.len() + usize::from(interrupt_this_response) * 20;
+                write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Length: {declared_length}\r\nConnection: close\r\n\r\n{body}"
+                )
+                .unwrap();
+                completed = cancellation;
+            }
+            assert!(interrupted && completed, "retry did not finish the build");
+        });
+        let checkpoint = std::env::temp_dir().join(format!(
+            "history-interrupted-stream-{}-{}.checkpoint.zst",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let config = HistoryConfig {
+            url: format!("http://{address}"),
+            product_map: HashMap::from([(1, 1)]),
+            ..Default::default()
+        };
+        let snapshot = build_until_resumable(
+            config,
+            NaiveDate::from_ymd_opt(2026, 1, 2).unwrap(),
+            &checkpoint,
+            u32::MAX,
+        )
+        .await
+        .unwrap();
+        server.join().unwrap();
+        assert!(snapshot.arrivals.values().all(|stats| stats.samples == 20));
+        assert!(snapshot
+            .departures
+            .values()
+            .all(|stats| stats.samples == 20));
+        assert!(snapshot
+            .cancellations
+            .values()
+            .all(|stats| stats.samples == 20 && stats.cancellations == 2));
+        remove_checkpoint(&checkpoint).unwrap();
     }
 }

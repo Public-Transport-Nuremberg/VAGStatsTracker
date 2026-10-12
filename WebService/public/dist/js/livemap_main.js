@@ -641,7 +641,7 @@ map.on("movestart", function () {
 map.on("moveend", () => {
 	mapMoving = false;
 	clearTimeout(viewportTimer);
-	viewportTimer = setTimeout(connectLiveMap, 200);
+	viewportTimer = setTimeout(updateLiveMapSubscription, 200);
 });
 
 closePopupButton?.addEventListener("click", () => {
@@ -703,6 +703,28 @@ const startHttpFallback = (version) => {
 	fallbackInterval = setInterval(() => { void refreshLiveMap(version); }, liveMapSource === "gps" ? 5000 : 1000);
 };
 
+const sendLiveMapSubscription = () => {
+	if (liveSocket?.readyState !== WebSocket.OPEN) return;
+	liveSocket.send(JSON.stringify({
+		type: "subscribe",
+		...Object.fromEntries(new URLSearchParams(liveQueryString())),
+		source: liveMapSource,
+		requestId: connectionVersion,
+	}));
+};
+
+const updateLiveMapSubscription = () => {
+	const version = ++connectionVersion;
+	if (fallbackInterval) clearInterval(fallbackInterval);
+	fallbackInterval = null;
+	activeFetchController?.abort();
+	activeFetchController = null;
+	if (liveSocket && liveSocket.readyState <= WebSocket.OPEN) {
+		// While connecting, the open handler sends the latest viewport.
+		sendLiveMapSubscription();
+	} else startHttpFallback(version);
+};
+
 const connectLiveMap = () => {
 	const version = ++connectionVersion;
 	if (fallbackInterval) clearInterval(fallbackInterval);
@@ -718,21 +740,27 @@ const connectLiveMap = () => {
 	const socket = new WebSocket(`${protocol}//${window.location.host}/api/v1/live/map/ws${liveQueryString()}`);
 	liveSocket = socket;
 
-	socket.addEventListener("open", () => { if (version === connectionVersion) setStatus("WebSocket verbunden", "live"); });
+	socket.addEventListener("open", () => {
+		if (socket !== liveSocket) return;
+		setStatus("WebSocket verbunden", "live");
+		sendLiveMapSubscription();
+	});
 	socket.addEventListener("message", (event) => {
-		if (version !== connectionVersion || mapMoving) return;
+		if (socket !== liveSocket || mapMoving) return;
 		try {
 			const payload = JSON.parse(event.data);
+			if (payload.requestId !== connectionVersion) return;
 			if (payload.type === "snapshot") renderLiveMap(payload.data);
 			if (payload.type === "error") setStatus(payload.message, "error");
 		} catch { setStatus("Ungültige Live-Daten", "error"); }
 	});
 	socket.addEventListener("close", () => {
-		if (version !== connectionVersion) return;
+		if (socket !== liveSocket) return;
+		liveSocket = null;
 		setStatus("WebSocket getrennt", "fallback");
-		startHttpFallback(version);
+		startHttpFallback(connectionVersion);
 	});
-	socket.addEventListener("error", () => { if (version === connectionVersion) setStatus("WebSocket Fehler", "error"); });
+	socket.addEventListener("error", () => { if (socket === liveSocket) setStatus("WebSocket Fehler", "error"); });
 
 	return socket;
 };
@@ -751,7 +779,7 @@ if (gpsModeSwitch) {
 		latestLiveMapData = {};
 		vectorSource.clear();
 		vehicleFeatures.clear();
-		connectLiveMap();
+		updateLiveMapSubscription();
 	});
 }
 

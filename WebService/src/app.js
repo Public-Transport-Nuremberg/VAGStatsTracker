@@ -52,6 +52,10 @@ const parseWebSocketQuery = (rawQuery) => {
     return query;
 };
 
+// uWebSockets can send V8 one-byte strings as Latin-1. Text frames must contain
+// UTF-8, including German stop names and vehicle metadata keys.
+const sendWebSocketJson = (ws, payload) => ws.send(Buffer.from(JSON.stringify(payload), 'utf8'));
+
 // Ultimate Express exposes the native uWebSockets application for WebSockets.
 app.uwsApp.ws('/api/v1/live/map/ws', {
     idleTimeout: 60,
@@ -64,7 +68,7 @@ app.uwsApp.ws('/api/v1/live/map/ws', {
         }
 
         response.upgrade(
-            { query: validation.value, interval: null, closed: false, sending: false },
+            { query: validation.value, interval: null, closed: false, sending: false, revision: 0, requestId: 0 },
             request.getHeader('sec-websocket-key'),
             request.getHeader('sec-websocket-protocol'),
             request.getHeader('sec-websocket-extensions'),
@@ -77,33 +81,46 @@ app.uwsApp.ws('/api/v1/live/map/ws', {
         const sendSnapshot = async () => {
             if (state.closed || state.sending) return;
             state.sending = true;
+            const { query, revision, requestId } = state;
             try {
-                const data = await getLiveMapPayload(state.query, { validated: true });
-                if (!state.closed) {
-                    ws.send(JSON.stringify({ type: 'snapshot', data, timestamp: new Date().toISOString() }));
+                const data = await getLiveMapPayload(query, { validated: true });
+                if (!state.closed && revision === state.revision) {
+                    sendWebSocketJson(ws, { type: 'snapshot', requestId, data, timestamp: new Date().toISOString() });
                 }
             } catch (error) {
                 process.log.error(error);
-                if (!state.closed) {
-                    ws.send(JSON.stringify({ type: 'error', message: error.message || 'Failed to load live map data' }));
+                if (!state.closed && revision === state.revision) {
+                    sendWebSocketJson(ws, { type: 'error', requestId, message: error.message || 'Failed to load live map data' });
                 }
             } finally {
                 state.sending = false;
+                // A subscription changed during this read. Serve the latest range
+                // immediately; intermediate ranges and their results are discarded.
+                if (!state.closed && revision !== state.revision) void sendSnapshot();
             }
         };
 
         state.sendSnapshot = sendSnapshot;
-        const interval = Number(process.env.LIVE_MAP_WS_INTERVAL_MS) || 1000;
-        state.interval = setInterval(sendSnapshot, state.query.source === 'gps' ? Math.max(5000, interval) : interval);
+        state.restartInterval = () => {
+            clearInterval(state.interval);
+            const interval = Number(process.env.LIVE_MAP_WS_INTERVAL_MS) || 1000;
+            state.interval = setInterval(sendSnapshot, state.query.source === 'gps' ? Math.max(5000, interval) : interval);
+        };
+        state.restartInterval();
         void sendSnapshot();
     },
-    message: async (ws, rawMessage) => {
+    message: (ws, rawMessage) => {
         const state = ws.getUserData();
+        let requestId = null;
         try {
             const payload = JSON.parse(Buffer.from(rawMessage).toString('utf8'));
             if (payload.type !== 'subscribe') return;
+            if (payload.requestId !== undefined) {
+                if (!Number.isSafeInteger(payload.requestId) || payload.requestId < 0) throw new Error('Invalid requestId');
+                requestId = payload.requestId;
+            }
 
-            state.query = await linequerySchema.validateAsync({
+            const validation = linequerySchema.validate({
                 source: payload.source ?? state.query.source,
                 Linie: payload.Linie,
                 Line: payload.Line,
@@ -111,10 +128,16 @@ app.uwsApp.ws('/api/v1/live/map/ws', {
                 pos1: payload.pos1,
                 pos2: payload.pos2,
             });
-            await state.sendSnapshot();
+            if (validation.error) throw validation.error;
+            const sourceChanged = validation.value.source !== state.query.source;
+            state.query = validation.value;
+            state.requestId = requestId;
+            state.revision++;
+            if (sourceChanged) state.restartInterval();
+            void state.sendSnapshot();
         } catch (error) {
             if (!state.closed) {
-                ws.send(JSON.stringify({ type: 'error', message: error.message || 'Invalid websocket message' }));
+                sendWebSocketJson(ws, { type: 'error', requestId, message: error.message || 'Invalid websocket message' });
             }
         }
     },

@@ -5,7 +5,7 @@
     "main": "index.js",
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
-        "test:livegps": "node --test tests/live_gps.test.js tests/live_gps.routes.test.js tests/live_gps.integration.test.js tests/live_gps_viewport.test.js tests/live_map_helpers.test.js",
+        "test:livegps": "node --test tests/live_gps.test.js tests/live_gps.routes.test.js tests/live_gps.integration.test.js tests/live_gps_viewport.test.js tests/live_map_helpers.test.js tests/live_gps.websocket.test.js",
         "test:livegps:browser": "node tests/helpers/live_gps_server.js",
         "build:css": "tailwindcss -i ./src/tailwind.css -o ./public/dist/css/tailwind.css --minify",
         "create-admin-token": "node ./tools/createAdminToken.js",

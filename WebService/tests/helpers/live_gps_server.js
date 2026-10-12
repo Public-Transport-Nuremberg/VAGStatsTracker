@@ -31,6 +31,8 @@ for (let index = 1; index < vehicleCount; index++) {
 }
 const fakeRedis = {
     geosearch: async (...args) => {
+        const delay = Number(process.env.GPS_MAP_FIXTURE_QUERY_DELAY_MS) || 0;
+        if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
         const [, , longitude, latitude, , width, height] = args;
         const halfLatitude = height / 111227 / 2;
         const halfLongitude = width / (111227 * Math.cos(latitude * Math.PI / 180)) / 2;
