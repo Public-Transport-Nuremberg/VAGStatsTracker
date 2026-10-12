@@ -1,7 +1,8 @@
 const express = require('ultimate-express');
 const { limiter } = require('@middleware/limiter');
 const { monitorRedis, findAllMetricKeys, getValuesFromKeys, calculateRateAndAverageResponseTimeAndReset, findAllMetricListKeys, countStatusCodesByKey, findAllErrorListKeys, findAllTripKeys } = require('@lib/redis');
-const { Keys, Metric, MetricList, ErrorList, RedisInfo } = require('@config/metrics');
+const { Keys, Metric, MetricList, ErrorList, RedisInfo, LiveMap } = require('@config/metrics');
+const { getLiveMapMetrics } = require('@lib/live_map/metrics');
 const router = new express.Router();
 
 /* Plugin info*/
@@ -9,7 +10,7 @@ const PluginName = 'Metrics'; //This plugins name
 const PluginRequirements = []; //Put your Requirements and version here <Name, not file name>|Version
 const PluginVersion = '0.0.1'; //This plugins version
 
-const metricsScanTime = 2; // Scan for metrics every 5 seconds
+const metricsScanTime = 2; // Scan for metrics every 2 seconds
 let metricsFirstScan = false;
 const metricsTempObject = {};
 
@@ -102,6 +103,24 @@ router.get('/', limiter(), async (req, res) => {
         }
     }
 
+    const liveMapMetrics = getLiveMapMetrics();
+    for (const [key, value] of Object.entries(liveMapMetrics.totals)) {
+        const metric = LiveMap[key];
+        metrics.push(`# HELP ${metric.Metric} ${metric.Help}`);
+        metrics.push(`# TYPE ${metric.Metric} ${metric.Type}`);
+        metrics.push(`${metric.Metric} ${value}`);
+    }
+
+    for (const [key, metric] of Object.entries(LiveMap)) {
+        if (!metric.ProductMetric) continue;
+        metrics.push(`# HELP ${metric.ProductMetric} ${metric.Help} by product`);
+        metrics.push(`# TYPE ${metric.ProductMetric} ${metric.Type}`);
+        for (const [product, counts] of Object.entries(liveMapMetrics.byProduct)) {
+            metrics.push(`${metric.ProductMetric}{product="${product}"} ${counts[key]}`);
+        }
+    }
+
+    res.set('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
     res.send(metrics.join('\n'));
 
 });

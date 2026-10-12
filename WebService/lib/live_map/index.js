@@ -10,6 +10,7 @@ const { live } = require('@lib/clickhouse');
 const { calculateTripProgress, estimateGpsPosition } = require('./estimated_gps');
 const { linequerySchema } = require('./query_schema');
 const { traceVgnClient } = require('@lib/api_trace');
+const { recordLiveMapPositions } = require('./metrics');
 
 const vgn = traceVgnClient(new openvgn());
 let positionWorkerTimer = null;
@@ -84,6 +85,7 @@ const isInsideBoundingBox = (trip, boundingBox) => {
 const refreshLiveTripLocations = async () => {
     if (positionWorkerRunning) return 0;
     positionWorkerRunning = true;
+    const startedAt = Date.now();
 
     try {
         const trips = await getIndexedTripValues();
@@ -93,11 +95,16 @@ const refreshLiveTripLocations = async () => {
             const position = EstimatedGPS || currentStop;
             return {
                 tripId,
+                product: trip.Produkt,
+                estimatedGps: Boolean(EstimatedGPS),
                 latitude: position?.Latitude,
                 longitude: position?.Longitude,
             };
         }));
-        return updateTripLocations(locations);
+        const positionsUpdated = await updateTripLocations(locations);
+        const refreshedAt = Date.now();
+        recordLiveMapPositions(locations, positionsUpdated, refreshedAt, refreshedAt - startedAt);
+        return positionsUpdated;
     } finally {
         positionWorkerRunning = false;
     }

@@ -1,4 +1,45 @@
 module.exports = {
+    "LiveMap": {
+        "Trips": {
+            "Metric": "LiveMap_Trips",
+            "ProductMetric": "LiveMap_TripsByProduct",
+            "Type": "gauge",
+            "Help": "The number of trips processed by the last successful live map position refresh",
+        },
+        "EstimatedGPSTrips": {
+            "Metric": "LiveMap_EstimatedGPSTrips",
+            "ProductMetric": "LiveMap_EstimatedGPSTripsByProduct",
+            "Type": "gauge",
+            "Help": "The number of live map trips with an estimated GPS position",
+        },
+        "StopFallbackTrips": {
+            "Metric": "LiveMap_StopFallbackTrips",
+            "ProductMetric": "LiveMap_StopFallbackTripsByProduct",
+            "Type": "gauge",
+            "Help": "The number of live map trips using their current stop as a position fallback",
+        },
+        "MissingPositionTrips": {
+            "Metric": "LiveMap_MissingPositionTrips",
+            "ProductMetric": "LiveMap_MissingPositionTripsByProduct",
+            "Type": "gauge",
+            "Help": "The number of live map trips without a valid Redis GEO position",
+        },
+        "PositionsUpdated": {
+            "Metric": "LiveMap_PositionsUpdated",
+            "Type": "gauge",
+            "Help": "The number of Redis GEO positions updated by the last successful live map refresh",
+        },
+        "LastRefreshTimestamp": {
+            "Metric": "LiveMap_LastRefreshTimestamp",
+            "Type": "gauge",
+            "Help": "The Unix timestamp in seconds of the last successful live map position refresh",
+        },
+        "RefreshDurationMilliseconds": {
+            "Metric": "LiveMap_RefreshDurationMilliseconds",
+            "Type": "gauge",
+            "Help": "The duration in milliseconds of the last successful live map position refresh",
+        },
+    },
     "Keys": {
         "allMetricKeys":{
             "Metric": "AmountAllMetricKeysx",

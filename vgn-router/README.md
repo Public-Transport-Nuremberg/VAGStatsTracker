@@ -102,6 +102,32 @@ Example request:
 
 Departure times must include a UTC offset. A date outside the loaded GTFS range returns HTTP 422 with `DATE_OUTSIDE_GTFS_RANGE`. No matching connection returns HTTP 200 with an empty `journeys` array.
 
+### Routing flags
+
+In the `POST /v1/journeys` JSON response, flags appear at these paths:
+
+| JSON path | Contents |
+| --- | --- |
+| `journeys[i].flags` | All flags for journey `i`, collected from its transit legs and transfers. |
+| `journeys[i].legs[j].flags` | Flags for transit leg `j`; walking legs have no `flags` field. |
+| `journeys[i].transfer_reliability[k].flags` | Flags for transfer `k`. Its `incoming_leg` and `outgoing_leg` fields identify the corresponding indices in `legs`. |
+
+Each flag contains `type`, `severity`, `message_key`, and a `data` object with the values behind the warning. A journey can have multiple flags of the same type. For example, a tight transfer appears in both `journeys[i].transfer_reliability[k].flags` and the collected `journeys[i].flags`.
+
+| `type` | Severity | `message_key` | When it appears | `data` fields |
+| --- | --- | --- | --- | --- |
+| `TIGHT_TRANSFER` | `warning` | `transfer.tight` | The scheduled transfer has no usable buffer beyond the required transfer or walking time. | `usable_buffer_seconds` |
+| `UNRELIABLE_TRANSFER` | `warning` or `critical` | `transfer.low_probability` | The estimated transfer success probability is below `transfer_warning_probability` (default 0.85); it is `critical` below `transfer_critical_probability` (default 0.65). | `probability`, `samples`, `scheduled_transfer_seconds` |
+| `FREQUENT_DELAY` | `warning` | `delay.frequent` | The probability of an arrival or departure delay of at least `delay_warning_seconds` (default 300) meets `delay_warning_probability` (default 0.50). | `probability`, `seconds`, `samples` |
+| `HIGH_DELAY_RISK` | `warning` | `delay.high_risk` | The 90th-percentile arrival or departure delay reaches `delay_warning_seconds` (default 300). | `p90_seconds`, `samples` |
+| `HIGH_CANCELLATION_RATE` | `warning` | `cancellation.high_rate` | The cancellation probability meets `cancellation_warning_probability` (default 0.03). | `probability`, `samples` |
+| `NO_STATISTICS` | `info` | `statistics.unavailable` (leg), `transfer.probability_unavailable` (transfer) | A transit leg has no usable statistics, or a transfer success probability cannot be calculated. | Leg: `history_rejected`; transfer: `samples` |
+| `LOW_STATISTICAL_SAMPLE` | `info` | `statistics.low_sample` | A leg has insufficient or low-quality statistics, or a transfer has 1–49 samples. | `samples` |
+
+Thresholds are configured in `config/default.toml` under `[reliability]`.
+
+Request option `allow_tight_transfers` defaults to `false`. When false, the router adds a ranking penalty for transfers and additional penalties for `TIGHT_TRANSFER` and `UNRELIABLE_TRANSFER` flags; when true, it removes those ranking penalties. It does not suppress flags or change the transfer feasibility rules.
+
 ## Operations
 
 Example systemd services and timers are available in `deploy/`. Adjust their paths and user before installation.

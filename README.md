@@ -186,6 +186,24 @@ the line geometry using the current time between the last departure and next arr
 The WebService live-map worker recalculates the position and refreshes the Redis GEO
 index every second; unsupported lines return `null`.
 
+### Metrics
+`/api/v1/metrics` exposes the latest successful live-map worker snapshot as Prometheus gauges:
+
+- `LiveMap_Trips`: total trips processed by the position worker.
+- `LiveMap_EstimatedGPSTrips`: trips with an estimated GPS position.
+- `LiveMap_StopFallbackTrips`: trips using their current stop as a position fallback.
+- `LiveMap_MissingPositionTrips`: trips without coordinates valid for Redis GEO.
+- Each trip metric also has a `ByProduct` variant with a `product` label, e.g.
+  `LiveMap_EstimatedGPSTripsByProduct{product="Bus"}`. Products are `Bus`, `UBahn`,
+  `Tram`, `SBahn`, `RBahn`, and `Unknown`; absent products report zero.
+- `LiveMap_PositionsUpdated`: positions actually updated in Redis during the last refresh.
+- `LiveMap_LastRefreshTimestamp`: last successful refresh as Unix seconds; zero before the first refresh.
+- `LiveMap_RefreshDurationMilliseconds`: duration of the last successful refresh.
+
+These values cover trips in the live GEO index, excluding trips that have only been
+scheduled. They refresh independently of map requests and filters. A failed refresh
+keeps the previous snapshot and timestamp; an empty successful refresh resets counts to zero.
+
 ### Heatmap
 `/`:  
 Parameters:   
