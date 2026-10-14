@@ -59,6 +59,14 @@ mock(path.join(root, 'lib/redis'), {
     getIndexedTripValues: async () => ({ 'fixture-puls': trip }),
     getTripValuesInBoundingBox: async () => ({ 'fixture-puls': trip }),
     updateTripLocations: async () => 1,
+    findAllMetricKeys: async () => [],
+    findAllMetricListKeys: async () => [],
+    findAllErrorListKeys: async () => [],
+    findAllTripKeys: async () => [],
+    getValuesFromKeys: async () => ({}),
+    calculateRateAndAverageResponseTimeAndReset: async () => ({}),
+    countStatusCodesByKey: async () => ({}),
+    monitorRedis: async () => ({}),
 });
 mock(path.join(root, 'lib/haltestellen_cache'), { StopObjectStore: { get: () => ({
     Latitude: 49.452, Longitude: 11.077, Haltestellenname: 'Fixture-Halt', Produkte: 'Bus',
@@ -88,6 +96,7 @@ const express = require('ultimate-express');
 const api = new express.Router();
 api.use('/live', require('../../api/live').router);
 api.use('/vehicle', require('../../api/vehicle').router);
+api.use('/metrics', require('../../api/metrics').router);
 mock(path.join(root, 'api'), api);
 const ejs = require('ejs');
 const renderedViews = new Map();

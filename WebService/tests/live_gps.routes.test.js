@@ -26,6 +26,13 @@ test('application GPS/PULS HTTP routes and encoded history identities', { timeou
         assert.equal(gps.__meta.source, 'gps');
         assert.equal(Object.values(gps).filter((item) => item.PositionSource === 'gps').length, 1);
         assert.equal(gps['fixture-puls'], undefined);
+        const metricResponse = await get('/api/v1/metrics');
+        assert.equal(metricResponse.status, 200);
+        assert.match(metricResponse.headers.get('content-type'), /^text\/plain; version=0\.0\.4/);
+        const metrics = await metricResponse.text();
+        assert.match(metrics, /^LiveGPS_Vehicles 1$/m);
+        assert.match(metrics, /^LiveGPS_VehiclesByProduct\{product="Bus"\} 1$/m);
+        assert.match(metrics, /^LiveGPS_VehiclesByProduct\{product="Tram"\} 0$/m);
         assert.equal((await (await get('/api/v1/live/map')).json())['fixture-puls'].Fahrzeugnummer, 625);
         assert.equal(Object.keys(await (await get('/api/v1/live/map?source=gps&line=U1')).json()).length, 1);
         assert.equal((await get('/api/v1/live/map?source=invalid')).status, 400);

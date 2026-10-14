@@ -48,6 +48,17 @@ Snapshots enthalten `source`, `entityKey`, `vehicleKey`, `anonymous`, `id`, `ope
 
 Der Worker veröffentlicht Vergleichshash, aktuelle Snapshots und Archivauftrag atomar per Lua. Consumer-Gruppe `clickhouse`, Consumer `archive`, verarbeitet nach Neustart zuerst ausstehende Einträge. Erst nach beiden erfolgreichen ClickHouse-Inserts werden Einträge bestätigt und entfernt. Unbestätigte Einträge werden nicht gekürzt. Bei ClickHouse-Ausfall wird weiter gesammelt und der Rückstand protokolliert. Für dauerhafte Warteschlangen Redis-Persistenz konfigurieren; der Worker selbst konfiguriert AOF/RDB nicht.
 
+## Metrics
+
+Der WebService stellt unter `/api/v1/metrics` die aktuellen GPS-Kartenfahrzeuge aus
+diesem Worker bereit. `LiveGPS_Vehicles` ist die Gesamtzahl;
+`LiveGPS_VehiclesByProduct{product="Bus"}` liefert die Anzahl pro Verkehrsmittel.
+`LiveGPS_IdentifiedVehicles` und `LiveGPS_UnidentifiedVehicles` unterscheiden
+Fahrzeugkennungen von Objekt-Fallbacks; beide gibt es ebenfalls mit `ByProduct`.
+Die Zählung verwendet dieselbe Ablauf- und Positionsprüfung wie der GPS-Modus der
+Karte, über alle verfügbaren Fahrzeuge ohne Ausschnitts- oder Linienfilter.
+Abgelaufene Positionen zählen auch bei gestopptem Worker nicht mehr.
+
 ## Prüfung
 
 ```powershell

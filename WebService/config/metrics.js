@@ -1,4 +1,24 @@
 module.exports = {
+    "LiveGPS": {
+        "Vehicles": {
+            "Metric": "LiveGPS_Vehicles",
+            "ProductMetric": "LiveGPS_VehiclesByProduct",
+            "Type": "gauge",
+            "Help": "The current number of VMI vehicle markers available in GPS map mode",
+        },
+        "IdentifiedVehicles": {
+            "Metric": "LiveGPS_IdentifiedVehicles",
+            "ProductMetric": "LiveGPS_IdentifiedVehiclesByProduct",
+            "Type": "gauge",
+            "Help": "The current number of GPS map vehicles with a vehicle identifier",
+        },
+        "UnidentifiedVehicles": {
+            "Metric": "LiveGPS_UnidentifiedVehicles",
+            "ProductMetric": "LiveGPS_UnidentifiedVehiclesByProduct",
+            "Type": "gauge",
+            "Help": "The current number of GPS map objects without a vehicle identifier",
+        },
+    },
     "LiveMap": {
         "Trips": {
             "Metric": "LiveMap_Trips",

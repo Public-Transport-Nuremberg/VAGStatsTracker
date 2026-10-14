@@ -157,6 +157,7 @@ test('metrics endpoint emits valid gauges and product labels alongside existing 
         '@middleware/limiter': { limiter: () => () => {} },
         '@config/metrics': config,
         '@lib/live_map/metrics': liveMetrics,
+        '@lib/live_gps/metrics': require('../lib/live_gps/metrics'),
         '@lib/redis': {
             findAllMetricKeys: async () => ['METRIC:TotalTripsActive.Bus'],
             findAllMetricListKeys: async () => [],
@@ -166,6 +167,7 @@ test('metrics endpoint emits valid gauges and product labels alongside existing 
             calculateRateAndAverageResponseTimeAndReset: async () => ({}),
             countStatusCodesByKey: async () => ({}),
             monitorRedis: async () => ({}),
+            getGpsVehicleValues: async () => ({}),
         },
     }, { setInterval: () => {} });
     let body;

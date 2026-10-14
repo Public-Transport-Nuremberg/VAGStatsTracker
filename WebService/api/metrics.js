@@ -1,8 +1,9 @@
 const express = require('ultimate-express');
 const { limiter } = require('@middleware/limiter');
-const { monitorRedis, findAllMetricKeys, getValuesFromKeys, calculateRateAndAverageResponseTimeAndReset, findAllMetricListKeys, countStatusCodesByKey, findAllErrorListKeys, findAllTripKeys } = require('@lib/redis');
-const { Keys, Metric, MetricList, ErrorList, RedisInfo, LiveMap } = require('@config/metrics');
+const { monitorRedis, findAllMetricKeys, getValuesFromKeys, calculateRateAndAverageResponseTimeAndReset, findAllMetricListKeys, countStatusCodesByKey, findAllErrorListKeys, findAllTripKeys, getGpsVehicleValues } = require('@lib/redis');
+const { Keys, Metric, MetricList, ErrorList, RedisInfo, LiveMap, LiveGPS } = require('@config/metrics');
 const { getLiveMapMetrics } = require('@lib/live_map/metrics');
+const { summarizeGpsVehicles } = require('@lib/live_gps/metrics');
 const router = new express.Router();
 
 /* Plugin info*/
@@ -53,6 +54,9 @@ router.get('/', limiter(), async (req, res) => {
     if(!metricsFirstScan) {
         return res.status(503).send('Metrics are not ready yet');
     }
+    // Read fresh VMI snapshots on every scrape, so expiry is respected even
+    // when the collector stops. Use the same reader as GPS map mode, unfiltered.
+    const liveGpsMetrics = summarizeGpsVehicles(await getGpsVehicleValues({}));
     let metrics = [];
 
     for (const [key, value] of Object.entries(metricsTempObject.keys)) {
@@ -103,20 +107,21 @@ router.get('/', limiter(), async (req, res) => {
         }
     }
 
-    const liveMapMetrics = getLiveMapMetrics();
-    for (const [key, value] of Object.entries(liveMapMetrics.totals)) {
-        const metric = LiveMap[key];
-        metrics.push(`# HELP ${metric.Metric} ${metric.Help}`);
-        metrics.push(`# TYPE ${metric.Metric} ${metric.Type}`);
-        metrics.push(`${metric.Metric} ${value}`);
-    }
+    for (const [definitions, snapshot] of [[LiveMap, getLiveMapMetrics()], [LiveGPS, liveGpsMetrics]]) {
+        for (const [key, value] of Object.entries(snapshot.totals)) {
+            const metric = definitions[key];
+            metrics.push(`# HELP ${metric.Metric} ${metric.Help}`);
+            metrics.push(`# TYPE ${metric.Metric} ${metric.Type}`);
+            metrics.push(`${metric.Metric} ${value}`);
+        }
 
-    for (const [key, metric] of Object.entries(LiveMap)) {
-        if (!metric.ProductMetric) continue;
-        metrics.push(`# HELP ${metric.ProductMetric} ${metric.Help} by product`);
-        metrics.push(`# TYPE ${metric.ProductMetric} ${metric.Type}`);
-        for (const [product, counts] of Object.entries(liveMapMetrics.byProduct)) {
-            metrics.push(`${metric.ProductMetric}{product="${product}"} ${counts[key]}`);
+        for (const [key, metric] of Object.entries(definitions)) {
+            if (!metric.ProductMetric) continue;
+            metrics.push(`# HELP ${metric.ProductMetric} ${metric.Help} by product`);
+            metrics.push(`# TYPE ${metric.ProductMetric} ${metric.Type}`);
+            for (const [product, counts] of Object.entries(snapshot.byProduct)) {
+                metrics.push(`${metric.ProductMetric}{product="${product}"} ${counts[key]}`);
+            }
         }
     }
 
