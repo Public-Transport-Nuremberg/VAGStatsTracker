@@ -95,3 +95,83 @@ test('watchdog fatal errors leave the retry loop instead of starting another hun
         { signal: controller.signal, log: { warn: () => assert.fail() }, label: 'collector', fatal: (error) => error instanceof WatchdogError }), WatchdogError);
     assert.equal(calls, 1);
 });
+
+test('measures each tile request and excludes pauses, publication and metric write time', async () => {
+    let monotonic = 0;
+    const samples = [];
+    const cfg = config({ LIVEGPS_FETCH_MODE: 'tiles', LIVEGPS_WEST: 10, LIVEGPS_EAST: 11,
+        LIVEGPS_SOUTH: 49, LIVEGPS_NORTH: 49.5 });
+    await collectScan({ getVehicles: async () => {
+        monotonic += 125.5;
+        return { Vehicles: [] };
+    } }, { publish: async () => { monotonic += 5000; return 0; } }, cfg, {
+        now: () => NOW,
+        monotonicNow: () => monotonic,
+        sleep: async () => { monotonic += 500; },
+        recordRequestDuration: async (duration, completedAt) => {
+            samples.push({ duration, completedAt });
+            monotonic += 1000;
+        },
+    });
+    assert.deepEqual(samples, [
+        { duration: 125.5, completedAt: NOW },
+        { duration: 125.5, completedAt: NOW },
+    ]);
+});
+
+test('records response latency for returned API errors, malformed responses and thrown errors', async () => {
+    for (const getVehicles of [
+        async () => ({ code: 503, message: 'Unavailable' }),
+        async () => new Error('HTTP failure'),
+        async () => ({ Vehicles: {} }),
+        async () => { throw new Error('offline'); },
+    ]) {
+        let clock = 0;
+        const samples = [];
+        await assert.rejects(collectScan({ getVehicles }, {}, config(), {
+            now: () => NOW, monotonicNow: () => { clock += 30; return clock; },
+            recordRequestDuration: async (...sample) => samples.push(sample),
+        }));
+        assert.deepEqual(samples, [[30, NOW]]);
+    }
+});
+
+test('keeps observation fetch time at API completion when recording the metric takes time', async () => {
+    let clock = NOW;
+    const samples = [];
+    const observations = [];
+    await collectScan({ getVehicles: async () => {
+        clock += 125;
+        return { Vehicles: [vehicle()] };
+    } }, { publish: async (entries) => { observations.push(...entries); return entries.length; } }, config(), {
+        now: () => clock, monotonicNow: () => clock - NOW,
+        recordRequestDuration: async (...sample) => { samples.push(sample); clock += 5000; },
+    });
+    assert.deepEqual(samples, [[125, NOW + 125]]);
+    assert.equal(observations[0].fetchedAt, NOW + 125);
+});
+
+test('records watchdog timeout latency and preserves the fatal error if monitoring fails', async () => {
+    let clock = 0;
+    const samples = [];
+    const warnings = [];
+    await assert.rejects(collectScan({ getVehicles: () => new Promise(() => {}) }, {},
+        { ...config(), WATCHDOG_TIMEOUT: 0.01 }, {
+            now: () => NOW, monotonicNow: () => { clock += 10; return clock; },
+            recordRequestDuration: async (...sample) => { samples.push(sample); throw new Error('Redis offline'); },
+            log: { warn: (message) => warnings.push(message) },
+        }), WatchdogError);
+    assert.deepEqual(samples, [[10, NOW]]);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /Redis offline/);
+});
+
+test('metric write failure does not interrupt a successful scan or mask a transport error', async () => {
+    const options = { recordRequestDuration: async () => { throw new Error('Redis offline'); } };
+    const result = await collectScan({ getVehicles: async () => ({ Vehicles: [] }) },
+        { publish: async () => 0 }, config(), options);
+    assert.equal(result.requests, 1);
+    const transportError = new Error('network offline');
+    await assert.rejects(collectScan({ getVehicles: async () => { throw transportError; } }, {}, config(), options),
+        (error) => error === transportError);
+});

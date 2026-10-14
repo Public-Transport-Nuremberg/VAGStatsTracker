@@ -31,6 +31,9 @@ test('application GPS/PULS HTTP routes and encoded history identities', { timeou
         assert.match(metricResponse.headers.get('content-type'), /^text\/plain; version=0\.0\.4/);
         const metrics = await metricResponse.text();
         assert.match(metrics, /^LiveGPS_Vehicles 1$/m);
+        assert.match(metrics, /^LiveGPS_RequestDurationMilliseconds 125\.75$/m);
+        assert.match(metrics, /^# TYPE LiveGPS_RequestDurationMilliseconds gauge$/m);
+        assert.match(metrics, /^LiveGPS_LastRequestTimestamp \d+(\.\d+)?$/m);
         assert.match(metrics, /^LiveGPS_VehiclesByProduct\{product="Bus"\} 1$/m);
         assert.match(metrics, /^LiveGPS_VehiclesByProduct\{product="Tram"\} 0$/m);
         assert.equal((await (await get('/api/v1/live/map')).json())['fixture-puls'].Fahrzeugnummer, 625);

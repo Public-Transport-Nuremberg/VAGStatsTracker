@@ -83,6 +83,16 @@ module.exports = {
         }
     },
     "Metric": {
+        "LiveGPS.RequestDurationMilliseconds": {
+            "Metric": "LiveGPS_RequestDurationMilliseconds",
+            "Type": "gauge",
+            "Help": "The duration in milliseconds of the latest VMI getVehicles attempt, including errors and watchdog timeouts",
+        },
+        "LiveGPS.LastRequestTimestamp": {
+            "Metric": "LiveGPS_LastRequestTimestamp",
+            "Type": "gauge",
+            "Help": "The Unix timestamp in seconds when the latest measured VMI getVehicles attempt finished",
+        },
         "TotalTripsTracked.UBahn": {
             "Metric": "TotalTripsTracked_UBahn",
             "Type": "gauge",

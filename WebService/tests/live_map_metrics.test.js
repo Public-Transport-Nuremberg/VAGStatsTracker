@@ -159,11 +159,19 @@ test('metrics endpoint emits valid gauges and product labels alongside existing 
         '@lib/live_map/metrics': liveMetrics,
         '@lib/live_gps/metrics': require('../lib/live_gps/metrics'),
         '@lib/redis': {
-            findAllMetricKeys: async () => ['METRIC:TotalTripsActive.Bus'],
+            findAllMetricKeys: async () => [
+                'METRIC:TotalTripsActive.Bus',
+                'METRIC:LiveGPS.RequestDurationMilliseconds',
+                'METRIC:LiveGPS.LastRequestTimestamp',
+            ],
             findAllMetricListKeys: async () => [],
             findAllErrorListKeys: async () => [],
             findAllTripKeys: async () => ['TRIP:1'],
-            getValuesFromKeys: async () => ({ 'TotalTripsActive.Bus': 7 }),
+            getValuesFromKeys: async () => ({
+                'TotalTripsActive.Bus': 7,
+                'LiveGPS.RequestDurationMilliseconds': 125.75,
+                'LiveGPS.LastRequestTimestamp': 1234.567,
+            }),
             calculateRateAndAverageResponseTimeAndReset: async () => ({}),
             countStatusCodesByKey: async () => ({}),
             monitorRedis: async () => ({}),
@@ -185,6 +193,9 @@ test('metrics endpoint emits valid gauges and product labels alongside existing 
     await handler({}, response);
     assert.equal(contentType, 'text/plain; version=0.0.4; charset=utf-8');
     assert.match(body, /^TotalTripsActive_Bus 7$/m);
+    assert.match(body, /^LiveGPS_RequestDurationMilliseconds 125\.75$/m);
+    assert.match(body, /^# TYPE LiveGPS_RequestDurationMilliseconds gauge$/m);
+    assert.match(body, /^LiveGPS_LastRequestTimestamp 1234\.567$/m);
     assert.match(body, /^LiveMap_Trips 2$/m);
     assert.match(body, /^LiveMap_EstimatedGPSTripsByProduct\{product="Bus"\} 1$/m);
     assert.match(body, /^LiveMap_StopFallbackTripsByProduct\{product="Tram"\} 1$/m);

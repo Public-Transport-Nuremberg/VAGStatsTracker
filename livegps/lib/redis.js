@@ -114,6 +114,16 @@ class ObservationStore {
         return queued;
     }
 
+    async recordRequestDuration(durationMilliseconds, completedAt) {
+        const results = await this.redis.multi()
+            .set('METRIC:LiveGPS.RequestDurationMilliseconds', durationMilliseconds)
+            .set('METRIC:LiveGPS.LastRequestTimestamp', completedAt / 1000)
+            .exec();
+        for (const [error] of results) {
+            if (error) throw error;
+        }
+    }
+
     async readBatch() {
         const read = (id) => this.redis.xreadgroup('GROUP', GROUP, CONSUMER, 'COUNT', this.batchSize, 'STREAMS', KEYS.stream, id);
         let response = await read('0');

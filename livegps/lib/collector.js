@@ -1,4 +1,5 @@
 const { setTimeout: sleep } = require('node:timers/promises');
+const { performance } = require('node:perf_hooks');
 const { normalizeObservation } = require('./observations');
 
 class WatchdogError extends Error {
@@ -35,6 +36,7 @@ function* createTiles(config) {
 async function collectScan(client, store, config, options = {}) {
     const wait = options.sleep || sleep;
     const now = options.now || Date.now;
+    const monotonicNow = options.monotonicNow || (() => performance.now());
     const parameters = config.LIVEGPS_FETCH_MODE === 'tiles' ? createTiles(config) : [{}];
     const seen = new Set();
     let requests = 0;
@@ -43,11 +45,26 @@ async function collectScan(client, store, config, options = {}) {
     for (const parameter of parameters) {
         if (options.signal?.aborted) break;
         if (requests) await wait(config.LIVEGPS_TILE_DELAY_MS, undefined, { signal: options.signal });
-        const response = await withWatchdog(() => client.getVehicles(parameter), config.WATCHDOG_TIMEOUT * 1000);
+        let response;
+        let fetchedAt;
+        const requestStartedAt = monotonicNow();
+        try {
+            response = await withWatchdog(() => client.getVehicles(parameter), config.WATCHDOG_TIMEOUT * 1000);
+        } finally {
+            const durationMilliseconds = Math.max(0, monotonicNow() - requestStartedAt);
+            fetchedAt = now();
+            if (options.recordRequestDuration) {
+                try {
+                    await options.recordRequestDuration(durationMilliseconds, fetchedAt);
+                } catch (error) {
+                    // Monitoring must not interrupt collection or mask a fatal watchdog error.
+                    options.log?.warn?.(`Failed to record GPS API request duration: ${error.message}`);
+                }
+            }
+        }
         if (!response || response instanceof Error || !Array.isArray(response.Vehicles)) {
             throw new Error(`getVehicles failed${response?.code ? ` (HTTP ${response.code})` : ''}: ${response?.message || 'invalid response shape'}`);
         }
-        const fetchedAt = now();
         const observations = response.Vehicles.map((vehicle) => normalizeObservation(vehicle, fetchedAt)).filter((observation) => {
             const key = `${observation.entityKey}:${observation.payloadHash}`;
             if (seen.has(key)) return false;

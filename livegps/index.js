@@ -53,7 +53,11 @@ async function main() {
         const loops = { signal: controller.signal, log };
         await Promise.all([
             runLoop(async () => {
-                const result = await collectScan(client, store, config, { signal: controller.signal });
+                const result = await collectScan(client, store, config, {
+                    signal: controller.signal,
+                    recordRequestDuration: (duration, completedAt) => store.recordRequestDuration(duration, completedAt),
+                    log,
+                });
                 log.info(`Scan requests=${result.requests}, received=${result.received}, unique=${result.unique}, changes=${result.queued}`);
             }, config.LIVEGPS_SCAN_INTERVAL_MS, { ...loops, label: 'collector', fatal: (error) => error instanceof WatchdogError }),
             runLoop(archive, 1000, { ...loops, label: 'archive' }),
