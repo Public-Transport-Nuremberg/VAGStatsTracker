@@ -199,7 +199,10 @@ const ScheduleJob = async (
             .zrem(TRIPS_GEO_KEY, Fahrtnummer)
             .zrem(TRIPS_GEO_EXPIRY_KEY, Fahrtnummer);
     }
-    await transaction.exec();
+    const writeResults = await transaction.exec();
+    const writeError = writeResults?.find(([error]) => error)?.[0];
+    if (writeError) throw writeError;
+    if (validPosition) await redis.set('HEALTH:LIVEMAP:TRACKING', Date.now());
 
     await trips_q.add(`${Fahrtnummer}`, {
         Fahrtnummer: Fahrtnummer,

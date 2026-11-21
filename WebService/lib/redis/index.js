@@ -380,6 +380,7 @@ const countStatusCodesByKey = async (keys) => {
 
 
 module.exports = {
+    readLiveMapHealth: () => require('../live_map/health').readLiveMapHealth(redis),
     getGpsVehicleValues,
     monitorRedis,
     findAllMetricKeys,

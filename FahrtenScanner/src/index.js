@@ -126,12 +126,16 @@ const MakeTripRequests = async () => {
 
     try {
         const configuredProducts = process.env.PRODUCTS.split(',').map((product) => product.trim()).filter(Boolean);
+        await writeNewDatapointKey('HEALTH:LIVEMAP:SCANNER', JSON.stringify({
+            products: configuredProducts,
+            intervalMs: Number(process.env.SCAN_INTERVAL) * 60000,
+        }));
         const requests = configuredProducts.map((product) => vgn.getTrips(product.toLowerCase(), { timespan: 10 }));
         const results = await Promise.allSettled(requests);
         const primaryTripIds = new Set();
         const mentionedStopCodes = new Set();
 
-        for (const result of results) {
+        for (const [productIndex, result] of results.entries()) {
             if (result.status === 'rejected') {
                 process.log.error(result.reason);
                 continue;
@@ -145,6 +149,9 @@ const MakeTripRequests = async () => {
             }
 
             const { Fahrten, Produkt } = value.Fahrt;
+            await writeNewDatapointKey(`HEALTH:LIVEMAP:API:${configuredProducts[productIndex].toLowerCase()}`, JSON.stringify({
+                successAt: Date.now(), trips: Fahrten.length,
+            }));
             for (const fahrt of Fahrten) {
                 primaryTripIds.add(String(fahrt.Fahrtnummer));
                 addMentionedStopCodes(fahrt, mentionedStopCodes);

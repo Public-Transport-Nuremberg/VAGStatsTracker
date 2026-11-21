@@ -5,7 +5,9 @@ const {
     findAllTripKeys,
     getValuesFromKeys,
     getTripNumbersByLineDirectionAndNextStop,
+    readLiveMapHealth,
 } = require('@lib/redis');
+const { sendLiveMapHealth } = require('@lib/live_map/health');
 const { getLiveMapPayload, linequerySchema } = require('@lib/live_map');
 const router = new express.Router();
 
@@ -46,6 +48,8 @@ const liveTripsQuerySchema = Joi.object({
 const PluginName = 'Live'; //This plugins name
 const PluginRequirements = []; //Put your Requirements and version here <Name, not file name>|Version
 const PluginVersion = '0.0.1'; //This plugins version
+
+router.get('/health', async (req, res) => sendLiveMapHealth(res, readLiveMapHealth));
 
 router.get('/all', limiter(), async (req, res) => {
     const allTripKeys = await findAllTripKeys();

@@ -22,6 +22,10 @@ test('application GPS/PULS HTTP routes and encoded history identities', { timeou
         const day = /day=(\d{4}-\d{2}-\d{2})/.exec(startup)[1];
         const origin = 'http://127.0.0.1:18762';
         const get = (url) => fetch(origin + url);
+        const health = await get('/api/v1/live/health');
+        assert.equal(health.status, 503, 'missing worker health state must fail closed');
+        assert.equal(health.headers.get('cache-control'), 'no-store');
+        assert.equal((await health.json()).status, 'unhealthy');
         const gps = await (await get('/api/v1/live/map?source=gps&line=E5')).json();
         assert.equal(gps.__meta.source, 'gps');
         assert.equal(Object.values(gps).filter((item) => item.PositionSource === 'gps').length, 1);
