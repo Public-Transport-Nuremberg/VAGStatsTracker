@@ -7,6 +7,10 @@ services:
     volumes:
       - keydb_data:/data
     command: ["keydb-server", "/etc/keydb/keydb.conf", "--protected-mode", "no"]
+    ulimits:
+      core:
+        soft: 0
+        hard: 0
     healthcheck:
       test: ["CMD", "keydb-cli", "ping"]
       interval: 10s
