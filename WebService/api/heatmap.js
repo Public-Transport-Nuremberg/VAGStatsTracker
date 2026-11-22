@@ -1,5 +1,6 @@
 const express = require('ultimate-express');
 const { limiter } = require('@middleware/limiter');
+const { requireStatisticsEnabled } = require('@middleware/lowMemory');
 const { plublicStaticCache } = require('@middleware/cacheRequest');
 const { heatmap } = require('@lib/clickhouse');
 const Joi = require('joi');
@@ -34,7 +35,7 @@ const validateWithDefault = async (input) => {
     return await schema.validateAsync(input);
 }
 //plublicStaticCache(60 * 1000) Make cache aware of the parameters used
-router.get('/', limiter(), async (req, res) => {
+router.get('/', requireStatisticsEnabled, limiter(), async (req, res) => {
     const value = await validateWithDefault(req.query);
     if (value.error) {
         throw new Error(value.error);

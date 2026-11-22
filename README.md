@@ -298,6 +298,10 @@ GLOBALWAITTIME=0 # Delay in ms until /src is loaded
 EXTRAERRORWEBDELAY=0
 PORT=80 # Port for webserver
 
+# Reduced-memory operation (WebService; restart after changing)
+LOW_MEMORY_MODE=false # true disables memory-intensive statistics APIs
+LOW_MEMORY_TEXT="Wegen reduzierter Serverressourcen sind speicherintensive Statistiken vorübergehend deaktiviert."
+
 # Security
 # HashSalts can be modifyed any time but will not apply to existing hashes... also keep in mind 0 will disable the hash, then all hashed IPs will not work because its switches to direct IP comparison
 SALTROUNDS=12 # Salt rounds for password hashing
@@ -320,6 +324,20 @@ CACHEDRIVER=local # Can also be redis
 # HyperExpress Settings (Webserver)
 HE_FAST_BUFFERS=false # If true, will use allocUnsafe
 ```
+
+With `LOW_MEMORY_MODE=true` in `WebService/.env`, the following APIs return HTTP 503
+with `code: LOW_MEMORY_MODE` before executing database queries:
+
+- `/api/v1/statistics/delay/avrage/line` (line statistics)
+- `/api/v1/statistics/delay/percentage/week/product` and `/month/product` (punctuality)
+- `/api/v1/statistics/delay/histogram`
+- `/api/v1/heatmap`
+- `/api/v1/toplists/delay/:list` and `/api/v1/toplists/vehicle/distance/:at`
+
+The homepage shows a banner containing `LOW_MEMORY_TEXT` as plain text. Empty or
+missing text uses the default message above. Only `true` enables the mode (case
+insensitive); the default is `false`. Restart the WebService to apply changes.
+Live maps, departures, and `/api/v1/statistics/lines` remain available.
 
 ### FahrtenScanner & FahrtenProcessor
 ```env

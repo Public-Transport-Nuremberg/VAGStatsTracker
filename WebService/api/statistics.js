@@ -1,5 +1,6 @@
 const express = require('ultimate-express');
 const { limiter } = require('@middleware/limiter');
+const { requireStatisticsEnabled } = require('@middleware/lowMemory');
 const linesWithStops = require('@config/linesWithStops');
 const { statistics } = require('@lib/clickhouse');
 const Joi = require('joi');
@@ -38,7 +39,7 @@ router.get('/lines', limiter(), async (req, res) => {
     res.json(Object.keys(linesWithStops));
 });
 
-router.get('/delay/avrage/line', limiter(), async (req, res) => {
+router.get('/delay/avrage/line', requireStatisticsEnabled, limiter(), async (req, res) => {
     const value = await delayLineSchema.validateAsync(req.query);
     if (value.error) {
         throw new Error(value.error);
@@ -49,7 +50,7 @@ router.get('/delay/avrage/line', limiter(), async (req, res) => {
     res.json({ station_order: linesWithStops[value.line], result });
 });
 
-router.get('/delay/percentage/week/product', limiter(60), async (req, res) => {
+router.get('/delay/percentage/week/product', requireStatisticsEnabled, limiter(60), async (req, res) => {
     const value = await percentageSchema.validateAsync(req.query);
     if (value.error) {
         throw new Error(value.error);
@@ -63,7 +64,7 @@ router.get('/delay/percentage/week/product', limiter(60), async (req, res) => {
     });
 });
 
-router.get('/delay/percentage/month/product', limiter(60), async (req, res) => {
+router.get('/delay/percentage/month/product', requireStatisticsEnabled, limiter(60), async (req, res) => {
     const value = await percentageSchema.validateAsync(req.query);
     if (value.error) {
         throw new Error(value.error);
@@ -77,7 +78,7 @@ router.get('/delay/percentage/month/product', limiter(60), async (req, res) => {
     });
 });
 
-router.get('/delay/histogram', limiter(30), async (req, res) => {
+router.get('/delay/histogram', requireStatisticsEnabled, limiter(30), async (req, res) => {
     const value = await histogramSchema.validateAsync(req.query);
     if (value.error) throw new Error(value.error);
 

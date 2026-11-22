@@ -1,5 +1,6 @@
 const express = require('ultimate-express');
 const { limiter } = require('@middleware/limiter');
+const { requireStatisticsEnabled } = require('@middleware/lowMemory');
 const { plublicStaticCache } = require('@middleware/cacheRequest');
 const performance = require('perf_hooks').performance;
 const geolib = require('geolib');
@@ -48,7 +49,7 @@ const validateWithDefault = async (input) => {
     return await schema.validateAsync(input);
 }
 //plublicStaticCache(60 * 1000) Make cache aware of the parameters used
-router.get('/delay/:list', limiter(), async (req, res) => {
+router.get('/delay/:list', requireStatisticsEnabled, limiter(), async (req, res) => {
     const { list } = await routeSchema.validateAsync(req.params);
     const value = await validateWithDefault(req.query);
 
@@ -117,7 +118,7 @@ router.get('/delay/:list', limiter(), async (req, res) => {
     }
 });
 
-router.get('/vehicle/distance/:at', limiter(), async (req, res) => {
+router.get('/vehicle/distance/:at', requireStatisticsEnabled, limiter(), async (req, res) => {
     const value = await atSchema.validateAsync(req.params);
     if (value.error) {
         throw new Error(value.error);

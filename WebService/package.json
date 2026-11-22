@@ -4,6 +4,7 @@
     "description": "",
     "main": "index.js",
     "scripts": {
+        "test:low-memory": "node --test tests/low_memory.test.js",
         "test:livemap-health": "node --test tests/live_map_health.test.js",
         "test": "echo \"Error: no test specified\" && exit 1",
         "test:metrics": "node --test tests/live_map_metrics.test.js tests/live_gps_metrics.test.js",

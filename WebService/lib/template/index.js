@@ -4,6 +4,7 @@ const ejs = require('ejs');
 const package_json = require('../../package.json');
 const { execSync } = require('child_process');
 const app = require('@src/app');
+const { lowMemoryMode, lowMemoryText } = require('@config/lowMemory');
 
 let commitId = null;
 
@@ -57,6 +58,8 @@ const getContextObject = () => {
         commitId: commitId,
         appName: process.env.APPLICATION,
         version: package_json.version,
+        lowMemoryMode,
+        lowMemoryText,
     };
 
     return context;

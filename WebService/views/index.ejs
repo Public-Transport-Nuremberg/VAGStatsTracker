@@ -20,6 +20,13 @@
         </div>
       </header>
 
+      <% if (lowMemoryMode) { %>
+      <aside role="status" class="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+        <p class="font-semibold">Eingeschränkter Statistikbetrieb</p>
+        <p class="whitespace-pre-line break-words"><%= lowMemoryText %></p>
+      </aside>
+      <% } %>
+
       <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <a class="vag-card group overflow-hidden no-underline transition hover:-translate-y-0.5 hover:shadow-panel" href="/router">
           <div class="flex aspect-video items-center justify-center bg-gradient-to-br from-vag-blue to-blue-800 text-white">
